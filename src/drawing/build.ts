@@ -1,0 +1,235 @@
+import type { CalcOutput } from "../domain/calculate";
+import { num, t } from "../i18n";
+import type { Surface } from "../domain/types";
+import { arc, circle, type Prim, type View } from "./model";
+
+// Dimension offset from the part, in multiples of the renderer font size.
+const GAP = 1.8;
+
+const mm = (v: number) => num(v);
+
+/** Section and development views for the current result. */
+export function buildViews(out: CalcOutput, width: number | null, surface: Surface): View[] {
+  return out.shape === "cylinder" ? cylinderViews(out, width) : coneViews(out, surface);
+}
+
+function cylinderViews(
+  out: Extract<CalcOutput, { shape: "cylinder" }>,
+  width: number | null,
+): View[] {
+  const r = out.result;
+  const ro = r.dOuter / 2,
+    ri = r.dInner / 2,
+    rn = r.dNeutral / 2;
+  const section: Prim[] = [
+    { kind: "path", pts: circle(0, 0, ro), closed: true, stroke: "part" },
+    { kind: "path", pts: circle(0, 0, ri), closed: true, stroke: "part" },
+    { kind: "path", pts: circle(0, 0, rn), closed: true, stroke: "center" },
+    {
+      kind: "path",
+      pts: [
+        [-ro * 1.08, 0],
+        [ro * 1.08, 0],
+      ],
+      closed: false,
+      stroke: "center",
+    },
+    {
+      kind: "path",
+      pts: [
+        [0, -ro * 1.08],
+        [0, ro * 1.08],
+      ],
+      closed: false,
+      stroke: "center",
+    },
+    {
+      kind: "dim",
+      a: [-ro, 0],
+      b: [ro, 0],
+      offsetModel: -ro,
+      offsetScreen: -GAP,
+      label: `Ø ${mm(r.dOuter)}`,
+    },
+    {
+      kind: "dim",
+      a: [-ri, 0],
+      b: [ri, 0],
+      offsetModel: 0,
+      offsetScreen: 0,
+      label: `Ø ${mm(r.dInner)}`,
+    },
+  ];
+
+  const L = r.blankLength;
+  // Without a width the strip is drawn at a nominal height and left undimensioned.
+  const W = width ?? L * 0.12;
+  const dev: Prim[] = [
+    {
+      kind: "path",
+      pts: [
+        [0, 0],
+        [L, 0],
+        [L, W],
+        [0, W],
+      ],
+      closed: true,
+      stroke: "part",
+      fill: true,
+    },
+    { kind: "dim", a: [0, W], b: [L, W], offsetModel: 0, offsetScreen: GAP, label: mm(L) },
+  ];
+  if (width !== null)
+    dev.push({
+      kind: "dim",
+      a: [L, W],
+      b: [L, 0],
+      offsetModel: 0,
+      offsetScreen: GAP,
+      label: mm(W),
+    });
+  if (r.flatEnd > 0) {
+    const f = r.flatEnd;
+    dev.push(
+      {
+        kind: "path",
+        pts: [
+          [f, 0],
+          [f, W],
+        ],
+        closed: false,
+        stroke: "center",
+      },
+      {
+        kind: "path",
+        pts: [
+          [L - f, 0],
+          [L - f, W],
+        ],
+        closed: false,
+        stroke: "center",
+      },
+    );
+  }
+  const notes = [`${t("result.ringLength")}: ${mm(r.ringLength)} ${t("unit.mm")}`];
+  if (r.flatEnd > 0) notes.push(`${t("result.flatEnds")}: 2 × ${mm(r.flatEnd)} ${t("unit.mm")}`);
+
+  return [
+    {
+      title: t("result.diameters"),
+      prims: section,
+      notes: [`${t("result.dNeutral")}: ${mm(r.dNeutral)} ${t("unit.mm")}`],
+    },
+    { title: t("result.development"), prims: dev, notes },
+  ];
+}
+
+function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface): View[] {
+  const r = out.result;
+  const H = r.slant * Math.cos(r.alpha);
+  const L = r.large,
+    S = r.small;
+  const side: Prim[] = [
+    {
+      kind: "path",
+      pts: [
+        [-L.dOuter / 2, 0],
+        [L.dOuter / 2, 0],
+        [S.dOuter / 2, H],
+        [-S.dOuter / 2, H],
+      ],
+      closed: true,
+      stroke: "part",
+    },
+    {
+      kind: "path",
+      pts: [
+        [-L.dInner / 2, 0],
+        [-S.dInner / 2, H],
+      ],
+      closed: false,
+      stroke: "thin",
+    },
+    {
+      kind: "path",
+      pts: [
+        [L.dInner / 2, 0],
+        [S.dInner / 2, H],
+      ],
+      closed: false,
+      stroke: "thin",
+    },
+    {
+      kind: "path",
+      pts: [
+        [0, -H * 0.06],
+        [0, H * 1.06],
+      ],
+      closed: false,
+      stroke: "center",
+    },
+  ];
+  const dl = surface === "inner" ? L.dInner : L.dOuter;
+  const ds = surface === "inner" ? S.dInner : S.dOuter;
+  side.push(
+    {
+      kind: "dim",
+      a: [-dl / 2, 0],
+      b: [dl / 2, 0],
+      offsetModel: 0,
+      offsetScreen: -GAP,
+      label: `Ø ${mm(dl)}`,
+    },
+    {
+      kind: "dim",
+      a: [-ds / 2, H],
+      b: [ds / 2, H],
+      offsetModel: 0,
+      offsetScreen: GAP,
+      label: `Ø ${mm(ds)}`,
+    },
+    {
+      kind: "dim",
+      a: [L.dOuter / 2, H],
+      b: [L.dOuter / 2, 0],
+      offsetModel: 0,
+      offsetScreen: GAP,
+      label: mm(H),
+    },
+  );
+
+  // Sector opening upwards, symmetric about the y axis.
+  const a0 = Math.PI / 2 - r.angle / 2,
+    a1 = Math.PI / 2 + r.angle / 2;
+  const outer = arc(0, 0, r.rOuter, a0, a1);
+  const inner = r.rInner > 1e-9 ? arc(0, 0, r.rInner, a1, a0) : [[0, 0] as const];
+  const edge = (rad: number, a: number) => [rad * Math.cos(a), rad * Math.sin(a)] as const;
+  const dev: Prim[] = [
+    { kind: "path", pts: [...outer, ...inner], closed: true, stroke: "part", fill: true },
+    { kind: "path", pts: [[0, 0], edge(r.rInner, a0)], closed: false, stroke: "center" },
+    { kind: "path", pts: [[0, 0], edge(r.rInner, a1)], closed: false, stroke: "center" },
+    {
+      kind: "dim",
+      a: edge(r.rInner, a1),
+      b: edge(r.rOuter, a1),
+      offsetModel: 0,
+      offsetScreen: GAP,
+      label: mm(r.slant),
+    },
+  ];
+  return [
+    {
+      title: t("section.geometry"),
+      prims: side,
+      notes: [`${t("result.alpha")}: ${num((r.alpha * 180) / Math.PI)}°`],
+    },
+    {
+      title: t("result.development"),
+      prims: dev,
+      notes: [
+        `R1 ${mm(r.rOuter)} · R2 ${mm(r.rInner)} ${t("unit.mm")}`,
+        `${t("result.angle")}: ${num((r.angle * 180) / Math.PI)}°`,
+      ],
+    },
+  ];
+}
