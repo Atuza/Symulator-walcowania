@@ -64,36 +64,14 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   doc.setFontSize(8.5);
   doc.setTextColor(...MUTED);
   doc.text(data.appName, m + 4.5, m + 8.5);
-  // QR in the top-right corner; header text is right-aligned against it.
-  const qrSize = 24;
-  const textRight = data.qr ? PAGE.w - m - qrSize - 4 : PAGE.w - m;
-  if (data.qr) {
-    const n = data.qr.matrix.length;
-    const cell = qrSize / n;
-    const qx = PAGE.w - m - qrSize,
-      qy = m - 3;
-    doc.setFillColor(0, 0, 0);
-    data.qr.matrix.forEach((row, r) =>
-      row.forEach((dark, c) => {
-        // Slight overlap avoids hairline gaps between modules in some viewers.
-        if (dark) doc.rect(qx + c * cell, qy + r * cell, cell + 0.02, cell + 0.02, "F");
-      }),
-    );
-    doc.setFontSize(6);
-    doc.setTextColor(...MUTED);
-    doc.text(data.qr.caption, qx + qrSize / 2, qy + qrSize + 3, {
-      align: "center",
-      maxWidth: qrSize + 8,
-    });
-    doc.setFontSize(8.5);
-  }
+  const textRight = PAGE.w - m;
   doc.text(`${t("pdf.date")}: ${data.date}`, textRight, m + 4, { align: "right" });
   let fy = m + 8.5;
   for (const f of data.fields) {
     doc.text(`${f.label}: ${f.value}`, textRight, fy, { align: "right", maxWidth: 100 });
     fy += 4.2;
   }
-  const top = Math.max(m + 14, fy + 2, data.qr ? m + qrSize + 3 : 0);
+  const top = Math.max(m + 14, fy + 2);
   doc.setDrawColor(...LINE);
   doc.setLineWidth(0.2);
   doc.line(m, top, PAGE.w - m, top);
@@ -131,10 +109,13 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
     }
   }
 
-  // Right column: drawing
+  // Right column: drawing, with the QR code below it.
   const dx = m + colW + 10;
-  const box = { x: dx, y: top + 4, w: PAGE.w - m - dx, h: PAGE.h - m - 10 - (top + 4) };
+  const footerTop = PAGE.h - m - 4;
+  const qrBlock = data.qr ? QR_SIZE + 6 : 0;
+  const box = { x: dx, y: top + 4, w: PAGE.w - m - dx, h: footerTop - 6 - qrBlock - (top + 4) };
   drawViews(data.views, box, pdfSink(doc), { fontSize: 3, arrow: 2.2, pad: 9, gap: 4 });
+  if (data.qr) drawQr(doc, data.qr, PAGE.w - m - QR_SIZE, footerTop - 3 - QR_SIZE);
 
   doc.setFontSize(7);
   doc.setTextColor(...MUTED);
@@ -146,6 +127,29 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   doc.text(`v${data.version} · 1 / 1`, PAGE.w - m, PAGE.h - m, { align: "right" });
 
   return doc.output("blob");
+}
+
+// About 0.8 mm per module for typical links: large enough for phone cameras on paper and on screen.
+const QR_SIZE = 32;
+
+function drawQr(doc: JsPdf, qr: { matrix: boolean[][]; caption: string }, x: number, y: number) {
+  const n = qr.matrix.length;
+  const cell = QR_SIZE / n;
+  // Explicit white quiet zone (4 modules), in case the page is printed on a tinted background.
+  const quiet = cell * 4;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(x - quiet, y - quiet, QR_SIZE + 2 * quiet, QR_SIZE + 2 * quiet, "F");
+  doc.setFillColor(0, 0, 0);
+  qr.matrix.forEach((row, r) =>
+    row.forEach((dark, c) => {
+      // Slight overlap avoids hairline gaps between modules in some viewers.
+      if (dark) doc.rect(x + c * cell, y + r * cell, cell + 0.03, cell + 0.03, "F");
+    }),
+  );
+  doc.setFontSize(7.5);
+  doc.setTextColor(...MUTED);
+  const lines = doc.splitTextToSize(qr.caption, 70) as string[];
+  doc.text(lines, x - quiet - 2, y + QR_SIZE - (lines.length - 1) * 3.4, { align: "right" });
 }
 
 function section(

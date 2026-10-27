@@ -31,9 +31,12 @@ material schema plus cross-field checks (band order, Rm range, unique names). Se
 JSON with a `format`/`version` header and are validated the same way on import. Every editable
 parameter carries reference text (what it is, what it affects, valid range, formula) in `i18n/docs.ts`.
 
-Calculation links (`state/share.ts`) put the inputs that differ from the defaults into the URL fragment
-(`#c=` + base64url JSON). The fragment never reaches the server; the PDF prints it as a QR code and the
-app loads and clears it on start.
+Calculation links (`state/share.ts`, ADR 0004) put the inputs that differ from frozen link defaults into
+the URL fragment (`#c=1;key=value;…`). The fragment never reaches the server; the PDF prints it as a
+QR code, `ui/scanner.ts` reads it with the camera, and the app also loads and clears it on start.
+
+Formulas in edit mode are written in a small TeX-like notation and rendered as native MathML by
+`ui/math.ts`; a test parses every formula in the reference.
 
 Security: Content-Security-Policy meta tag in production builds, self-hosted fonts, no third-party
 requests, pinned dependencies and SHA-pinned GitHub Actions, Dependabot.

@@ -76,17 +76,51 @@ describe("calculation link", () => {
     expect(decodeInputs(encodeInputs(inputs))).toEqual(inputs);
   });
 
+  it("round-trips every field, including characters the format uses", () => {
+    const inputs = {
+      ...defaultInputs,
+      mode: "fromLength" as const,
+      dimension: "radius" as const,
+      surface: "outer" as const,
+      materialId: "custom",
+      length: "3 203,01",
+      customRe: "a;b=c%#",
+      customE: "200",
+      customDensity: "7900",
+      k: "0,45",
+      calibration: "0,9",
+      reActual: "410",
+      flatLength: "12",
+      width: "",
+    };
+    expect(decodeInputs(encodeInputs(inputs))).toEqual(inputs);
+  });
+
   it("keeps links short by writing only changed fields", () => {
-    expect(encodeInputs(defaultInputs)).toBe("#c=e30");
+    expect(encodeInputs(defaultInputs)).toBe("#c=1");
     const url = shareUrl("https://example.test/app/#old", { ...defaultInputs, value: "1200" });
-    expect(url.startsWith("https://example.test/app/#c=")).toBe(true);
-    expect(url.length).toBeLessThan(80);
+    expect(url).toBe("https://example.test/app/#c=1;v=1200");
+  });
+
+  it("still reads links printed by version 0.9", () => {
+    const legacy =
+      "#c=eyJtb2RlIjoiZnJvbUxlbmd0aCIsIm1hdGVyaWFsSWQiOiJzMjM1anIiLCJsZW5ndGgiOiIzMjAzLDAxIn0";
+    const inputs = decodeInputs(legacy);
+    expect(inputs?.mode).toBe("fromLength");
+    expect(inputs?.materialId).toBe("s235jr");
+    expect(inputs?.length).toBe("3203,01");
+  });
+
+  it("accepts a whole scanned URL", () => {
+    expect(decodeInputs("https://example.test/app/#c=1;t=8")?.thickness).toBe("8");
   });
 
   it("ignores foreign or malformed fragments", () => {
     expect(decodeInputs("")).toBeNull();
     expect(decodeInputs("#section")).toBeNull();
     expect(decodeInputs("#c=%%%")).toBeNull();
+    expect(decodeInputs("#c=1;zz=1")).toBeNull();
+    expect(decodeInputs("#c=1;s=sphere")).toBeNull();
     expect(decodeInputs("#c=" + btoa('{"shape":"sphere"}'))).toBeNull();
   });
 });

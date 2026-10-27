@@ -50,6 +50,7 @@ import type { RollingScene } from "../viz/scene3d";
 import { openDialog } from "./dialog";
 import { h, segmented } from "./dom";
 import { Editor } from "./editor";
+import { openScanner } from "./scanner";
 import { heroes, inputRows, resultGroups, type Row } from "./rows";
 
 const INPUTS_KEY = "rolling.inputs.v1";
@@ -102,6 +103,7 @@ export class App {
       save(INPUTS_KEY, this.inputs);
     }
     if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+    if (shared) queueMicrotask(() => toast(t("share.loaded")));
     this.layout = h(
       "main",
       { class: "layout" },
@@ -187,8 +189,14 @@ export class App {
   // ---- header --------------------------------------------------------------
 
   private renderHeader() {
-    const iconBtn = (label: string, onClick: () => void, text: string) =>
-      h("button", { type: "button", class: "btn btn-ghost", onClick, "aria-label": label }, text);
+    // Long label on wide screens, short one on phones.
+    const iconBtn = (label: string, onClick: () => void, text: string, short = text) =>
+      h(
+        "button",
+        { type: "button", class: "btn btn-ghost", onClick, "aria-label": label },
+        h("span", { class: "label-long" }, text),
+        h("span", { class: "label-short" }, short),
+      );
     const editing = this.editor !== null;
     this.header.replaceChildren(
       h(
@@ -213,7 +221,15 @@ export class App {
               },
               t("edit.exit"),
             )
-          : iconBtn(t("action.edit"), () => this.openEditGate(), t("action.edit")),
+          : iconBtn(t("action.scan"), () => this.scan(), t("action.scan"), t("action.scanShort")),
+        editing
+          ? null
+          : iconBtn(
+              t("action.edit"),
+              () => this.openEditGate(),
+              t("action.edit"),
+              t("action.editShort"),
+            ),
         editing
           ? null
           : iconBtn(t("action.history"), () => this.openHistory(), t("action.history")),
@@ -811,16 +827,15 @@ export class App {
     if (this.playing) return this.stopPlay();
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return this.setProgress(1);
-    let from = this.progress >= 0.999 ? 0 : this.progress;
-    const duration = 6000 * (1 - from);
+    // Constant speed: a full roll takes 6 s, resuming continues from the slider position.
+    const from = this.progress >= 0.999 ? 0 : this.progress;
     const start = performance.now();
     const step = (now: number) => {
-      const p = Math.min(1, from + ((now - start) / duration) * (1 - from));
+      const p = Math.min(1, from + (now - start) / 6000);
       this.setProgress(p);
       if (p < 1) this.playing = requestAnimationFrame(step);
       else this.stopPlay();
     };
-    from = Math.max(0, from);
     this.playing = requestAnimationFrame(step);
     this.playBtn.textContent = t("action.pause");
   }
@@ -1032,6 +1047,16 @@ export class App {
     return openDialog(this.root, title, body, ...actions);
   }
 
+  private scan() {
+    this.stopPlay();
+    openScanner(this.root, (inputs) => {
+      this.inputs = inputs;
+      save(INPUTS_KEY, this.inputs);
+      this.renderAll();
+      toast(t("scan.loaded"));
+    });
+  }
+
   // ---- edit mode -------------------------------------------------------------
 
   private openEditGate() {
@@ -1208,6 +1233,12 @@ export class App {
 }
 
 // ---- helpers ---------------------------------------------------------------
+
+function toast(text: string) {
+  const el = h("div", { class: "toast", role: "status" }, text);
+  document.body.append(el);
+  setTimeout(() => el.remove(), 2800);
+}
 
 function group(title: string, ...children: (HTMLElement | null)[]) {
   return h(

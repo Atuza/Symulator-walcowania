@@ -1,6 +1,7 @@
 import type { SetPoint } from "../domain/calculate";
 import { num, percent, t, type Key } from "../i18n";
 import type { Derived } from "../state/derive";
+import { parseNumber } from "../state/inputs";
 
 export interface Row {
   label: string;
@@ -202,8 +203,8 @@ export function inputRows(d: Derived, materialName: string): Row[] {
   ];
   const surface = t(i.surface === "inner" ? "surface.inner" : "surface.outer");
   const v = (text: string) => {
-    const n = Number(text.replace(",", "."));
-    return Number.isFinite(n) ? mm(n) : text;
+    const n = parseNumber(text);
+    return n === null ? text : mm(n);
   };
   if (i.shape === "cylinder") {
     if (i.mode === "fromDiameter") {

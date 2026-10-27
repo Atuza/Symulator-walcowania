@@ -127,6 +127,25 @@ function springbackWarnings(set: SetPoint | null, limit: number, w: Warning[]) {
     w.push({ code: "springbackLarge", severity: "info", values: { ratio: set.ratio } });
 }
 
+/**
+ * The machine has to roll tighter than the final size to compensate springback, so its limits are
+ * checked against the set diameter (or the final one when no compensation is known).
+ */
+function rollingDiameter(finalInner: number, set: SetPoint | null): number {
+  return set && set.dInner > 0 ? Math.min(finalInner, set.dInner) : finalInner;
+}
+
+function machineDiameterWarnings(mc: MachineLimits, dSet: number, w: Warning[]) {
+  if (mc.minDiameter !== null && dSet < mc.minDiameter)
+    w.push({
+      code: "machineDiameter",
+      severity: "warn",
+      values: { set: dSet, min: mc.minDiameter },
+    });
+  if (mc.topRollD !== null && dSet <= mc.topRollD)
+    w.push({ code: "machineTopRoll", severity: "warn", values: { set: dSet, roll: mc.topRollD } });
+}
+
 function calcCylinder(input: Extract<CalcInput, { shape: "cylinder" }>): CalcOutput | CalcError {
   const result = solveCylinder(input.cylinder);
   if (typeof result === "string") return { error: result };
@@ -138,10 +157,7 @@ function calcCylinder(input: Extract<CalcInput, { shape: "cylinder" }>): CalcOut
   const mc = input.machine;
   if (mc.maxWidth !== null && input.width !== null && input.width > mc.maxWidth)
     w.push({ code: "machineWidth", severity: "warn", values: { max: mc.maxWidth } });
-  if (mc.minDiameter !== null && result.dInner < mc.minDiameter)
-    w.push({ code: "machineDiameter", severity: "warn", values: { min: mc.minDiameter } });
-  if (mc.topRollD !== null && result.dInner <= mc.topRollD)
-    w.push({ code: "machineTopRoll", severity: "warn", values: { d: mc.topRollD } });
+  machineDiameterWarnings(mc, rollingDiameter(result.dInner, set), w);
 
   const massKg =
     input.width !== null && input.width > 0
@@ -168,10 +184,7 @@ function calcCone(input: Extract<CalcInput, { shape: "cone" }>): CalcOutput | Ca
   // The generator lies along the rolls, so the slant length is the working width.
   if (mc.maxWidth !== null && result.slant > mc.maxWidth)
     w.push({ code: "machineWidth", severity: "warn", values: { max: mc.maxWidth } });
-  if (mc.minDiameter !== null && result.small.dInner < mc.minDiameter)
-    w.push({ code: "machineDiameter", severity: "warn", values: { min: mc.minDiameter } });
-  if (mc.topRollD !== null && result.small.dInner <= mc.topRollD)
-    w.push({ code: "machineTopRoll", severity: "warn", values: { d: mc.topRollD } });
+  machineDiameterWarnings(mc, rollingDiameter(result.small.dInner, setSmall), w);
 
   const massKg = result.area * t * 1e-9 * input.material.density;
   return { shape: "cone", result, setLarge, setSmall, massKg, warnings: w };

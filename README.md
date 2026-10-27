@@ -16,10 +16,12 @@ offline once loaded, stores nothing outside the device.
 - Indicative warnings: R/t, outer fibre strain, springback, machine limits.
 - PDF report (A4) and DXF R12 contour: one closed polyline, layer `cut`, red, 1:1 mm.
 - Edit mode (behind an explicit warning, blueprint colours): machine data, process defaults, material
-  database, calibration from trial parts and templates, each parameter documented with its effect,
-  range and formula; JSON export/import of all settings.
+  database, calibration from trial parts and templates; every parameter documented with what it is,
+  what it affects, its range, formulas with symbol legends, examples and sources; JSON export/import
+  of all settings.
 - Templates for frequent jobs, one tap in the calculator.
-- PDF report with a QR code that reopens the same calculation.
+- PDF report with a QR code that reopens the same calculation, read by the app's own scanner
+  (“Scan QR”) or a phone camera.
 - Polish and English, light and dark theme, touch and mouse.
 
 ## Development

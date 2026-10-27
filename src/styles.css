@@ -1685,80 +1685,6 @@ textarea:focus {
 
 /* ---- edit mode: documentation, calibration, tables ------------------------------ */
 
-.param {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.param-doc {
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius);
-  font-size: 13px;
-}
-
-.param-doc summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 0 10px;
-  cursor: pointer;
-  list-style: none;
-  color: var(--accent);
-}
-
-.param-doc summary::-webkit-details-marker {
-  display: none;
-}
-
-.param-doc summary::before {
-  content: "i";
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  font-size: 11px;
-  font-style: italic;
-}
-
-.param-doc[open] {
-  background: color-mix(in srgb, var(--bg) 55%, transparent);
-}
-
-.param-doc dl {
-  margin: 0;
-  padding: 4px 12px 12px;
-}
-
-.param-doc dt {
-  margin-top: 8px;
-  font-size: 11px;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.param-doc dd {
-  margin: 2px 0 0;
-  line-height: 1.5;
-  color: var(--text);
-}
-
-.formula {
-  margin: 4px 0 0;
-  padding: 8px 10px;
-  border-left: 2px solid var(--accent);
-  background: var(--field);
-  font-family: var(--mono);
-  font-size: 13px;
-  white-space: pre-wrap;
-  color: var(--ink);
-}
-
 .editor-stack {
   display: flex;
   flex-direction: column;
@@ -1848,8 +1774,320 @@ textarea:focus {
   }
 }
 
-/* Wider columns in edit mode so opened parameter notes stay readable. */
+/* ---- edit mode: parameter rows with reference ------------------------------------- */
+
+.editor {
+  font-size: 15px;
+}
+
 .editor .field-grid {
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.editor .field-grid > .field {
+  max-width: 340px;
+  padding: 10px 0;
+}
+
+.param-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 28px;
+  padding: 22px 0;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.editor .field-grid > .param-row:first-child,
+.editor-section > .param-row:first-of-type {
+  border-top: 0;
+}
+
+.param-field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.editor .field-label {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.editor .field-msg {
+  color: var(--muted);
+}
+
+.param-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.doc-what {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.doc-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 24px;
+}
+
+.doc-fact p {
+  margin: 2px 0 0;
+  color: var(--text);
+}
+
+.doc-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* Formula callout drawn like a dimensioned box on a drawing. */
+.doc-formula {
+  position: relative;
+  margin: 4px 0 0;
+  padding: 26px 22px 18px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.doc-formula::before,
+.doc-formula::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--accent);
+  border-style: solid;
+}
+
+.doc-formula::before {
+  top: -1px;
+  left: -1px;
+  border-width: 2px 0 0 2px;
+}
+
+.doc-formula::after {
+  right: -1px;
+  bottom: -1px;
+  border-width: 0 2px 2px 0;
+}
+
+.doc-formula figcaption {
+  position: absolute;
+  top: 6px;
+  left: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.doc-formula math[display="block"] {
+  margin: 10px 0;
+  font-size: 1.35em;
+}
+
+.param-doc math {
+  color: var(--ink);
+  math-style: normal;
+}
+
+.doc-symbols {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.doc-symbols dt {
+  margin: 0;
+  text-align: right;
+  font-size: 1.1em;
+}
+
+.doc-symbols dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.doc-example,
+.doc-tip {
+  padding: 10px 14px;
+  border-left: 2px solid var(--accent);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.doc-tip {
+  border-left-color: var(--ink);
+}
+
+.doc-tip .doc-label {
+  color: var(--ink);
+}
+
+.doc-source {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.editor-docs-toggle {
+  align-self: flex-start;
+}
+
+.hide-docs .param-doc {
+  display: none;
+}
+
+.hide-docs .param-row {
+  grid-template-columns: minmax(240px, 340px);
+  padding: 10px 0;
+  border-top: 0;
+}
+
+.editor-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.editor-tabs button {
+  flex: 1 0 auto;
+}
+
+@media (max-width: 860px) {
+  .param-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+/* ---- header labels ---------------------------------------------------------------- */
+
+.label-short {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .label-long {
+    display: none;
+  }
+
+  .label-short {
+    display: inline;
+  }
+}
+
+/* ---- scanner and toast ------------------------------------------------------------- */
+
+.dialog-scan {
+  width: min(520px, calc(100vw - 24px));
+}
+
+.scan-frame {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: #000;
+}
+
+.scan-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scan-target {
+  position: absolute;
+  inset: 18%;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+}
+
+.scan-status {
+  min-height: 44px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.scan-status[data-tone="error"] {
+  color: var(--danger);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 20;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  animation: toast-in 0.2s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+
+/* Grid and flex children must be allowed to shrink below their content (tab bar, header). */
+.app {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.editor,
+.editor-inner,
+.editor-section,
+.topbar {
+  min-width: 0;
+}
+
+@media (max-width: 420px) {
+  :root {
+    --gutter: 12px;
+  }
+
+  .top-actions .btn:not(.btn-icon) {
+    padding: 0 6px;
+  }
+
+  .top-actions .btn-icon {
+    width: 36px;
+  }
+
+  .segmented-compact button {
+    min-width: 32px;
+    font-size: 12px;
+  }
 }

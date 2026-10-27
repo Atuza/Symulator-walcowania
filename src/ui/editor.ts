@@ -4,6 +4,7 @@ import { materialGroups, yieldAt, type Material } from "../domain/materials/sche
 import { saveFile } from "../export/download";
 import { getLang, num, percent, t, type Key } from "../i18n";
 import { paramDoc, type DocId } from "../i18n/docs";
+import { mathElement } from "./math";
 import {
   defaultMaterial,
   defaultProcess,
@@ -14,7 +15,9 @@ import {
   type Backup,
   type ProcessConfig,
 } from "../state/config";
+import { z } from "zod";
 import { parseNumber } from "../state/inputs";
+import { load, save } from "../state/storage";
 import { TRIALS_LIMIT, type Template, type Trial } from "../state/library";
 import { confirmDialog } from "./dialog";
 import { h, segmented } from "./dom";
@@ -41,6 +44,8 @@ export interface EditorHost {
   importAll(backup: Backup): void;
   resetAll(): void;
 }
+
+const DOCS_KEY = "rolling.editor.docs.v1";
 
 type Tab = "machine" | "process" | "materials" | "calibration" | "templates" | "backup";
 
@@ -69,7 +74,10 @@ export class Editor {
   private draftIsNew = false;
   private filter = "";
 
+  private showDocs = load(DOCS_KEY, z.boolean()) ?? true;
+
   constructor(private host: EditorHost) {
+    this.el.classList.toggle("hide-docs", !this.showDocs);
     this.render();
   }
 
@@ -100,6 +108,22 @@ export class Editor {
             this.render();
           },
           "editor-tabs",
+        ),
+        h(
+          "label",
+          { class: "switch editor-docs-toggle" },
+          h("input", {
+            type: "checkbox",
+            role: "switch",
+            checked: this.showDocs,
+            onChange: (ev: Event) => {
+              this.showDocs = (ev.target as HTMLInputElement).checked;
+              save(DOCS_KEY, this.showDocs);
+              this.el.classList.toggle("hide-docs", !this.showDocs);
+            },
+          }),
+          h("span", { class: "switch-track", "aria-hidden": "true" }),
+          h("span", {}, t("edit.showDocs")),
         ),
         this.tab === "machine"
           ? this.machineTab()
@@ -532,20 +556,29 @@ export class Editor {
         groupSelect,
         text(t("edit.mat.standard"), m.standard, (v) => (m.standard = v), "mat.standard"),
       ),
-      h("h3", { class: "group-title" }, t("edit.mat.yield")),
-      bands,
-      docPanel("mat.yield"),
+      paramRow([h("h3", { class: "group-title" }, t("edit.mat.yield")), bands], "mat.yield"),
       h(
         "div",
         { class: "field-grid" },
-        numField(t("edit.mat.rmMin"), m.rm[0], t("unit.mpa"), (n) => (m.rm = [n ?? NaN, m.rm[1]])),
-        numField(
-          t("edit.mat.rmMax"),
-          m.rm[1],
-          t("unit.mpa"),
-          (n) => (m.rm = [m.rm[0], n ?? NaN]),
-          undefined,
-          "",
+        paramRow(
+          [
+            h(
+              "div",
+              { class: "field-pair" },
+              numField(
+                t("edit.mat.rmMin"),
+                m.rm[0],
+                t("unit.mpa"),
+                (n) => (m.rm = [n ?? NaN, m.rm[1]]),
+              ),
+              numField(
+                t("edit.mat.rmMax"),
+                m.rm[1],
+                t("unit.mpa"),
+                (n) => (m.rm = [m.rm[0], n ?? NaN]),
+              ),
+            ),
+          ],
           "mat.rm",
         ),
         numField(
@@ -759,8 +792,7 @@ export class Editor {
           "cal.reActual",
         ),
       ),
-      preview,
-      docPanel("cal.factor"),
+      paramRow([preview], "cal.factor"),
       h("div", { class: "editor-actions" }, save),
     );
     refresh();
@@ -923,7 +955,7 @@ export class Editor {
       t("edit.tab.templates"),
       h("p", { class: "muted" }, t("tpl.intro")),
       ...(rows.length ? rows : [h("p", { class: "muted" }, t("tpl.none"))]),
-      docPanel("tpl.name"),
+      docBlock("tpl.name"),
     );
   }
 
@@ -1072,30 +1104,66 @@ function section(title: string, ...children: HTMLElement[]) {
   );
 }
 
-/** Collapsible reference text: what the parameter is, what it affects, valid range, formula. */
-function docPanel(id: DocId) {
+/** Reference text: what the parameter is, what it affects, valid range, formula with symbols. */
+function docBlock(id: DocId) {
   const d = paramDoc(id);
-  return h(
-    "details",
-    { class: "param-doc" },
-    h("summary", {}, t("doc.title")),
+  const fact = (label: Key, text: string, cls = "") =>
     h(
-      "dl",
-      {},
-      h("dt", {}, t("doc.what")),
-      h("dd", {}, d.what),
-      h("dt", {}, t("doc.effect")),
-      h("dd", {}, d.effect),
-      h("dt", {}, t("doc.range")),
-      h("dd", {}, d.range),
-      d.formula ? h("dt", {}, t("doc.formula")) : null,
-      d.formula ? h("dd", {}, h("pre", { class: "formula" }, d.formula)) : null,
-    ),
+      "div",
+      { class: `doc-fact ${cls}` },
+      h("span", { class: "doc-label" }, t(label)),
+      h("p", {}, text),
+    );
+  return h(
+    "div",
+    { class: "param-doc" },
+    h("p", { class: "doc-what" }, d.what),
+    h("div", { class: "doc-facts" }, fact("doc.effect", d.effect), fact("doc.range", d.range)),
+    d.formula?.length
+      ? h(
+          "figure",
+          { class: "doc-formula" },
+          h("figcaption", {}, t("doc.formula")),
+          ...d.formula.map((f) => formula(f, true)),
+          d.symbols?.length
+            ? h(
+                "dl",
+                { class: "doc-symbols" },
+                ...d.symbols.flatMap(([sym, text]) => [
+                  h("dt", {}, formula(sym)),
+                  h("dd", {}, text),
+                ]),
+              )
+            : null,
+        )
+      : null,
+    d.example ? fact("doc.example", d.example, "doc-example") : null,
+    d.tip ? fact("doc.tip", d.tip, "doc-tip") : null,
+    d.source ? h("p", { class: "doc-source" }, `${t("doc.source")}: ${d.source}`) : null,
+  );
+}
+
+function formula(src: string, block = false): Node {
+  try {
+    return mathElement(src, block);
+  } catch {
+    // A notation error must not hide the parameter; show the source instead.
+    return h("code", {}, src);
+  }
+}
+
+/** Field(s) on the left, reference on the right; stacks on narrow screens. */
+function paramRow(fields: HTMLElement[], doc: DocId): HTMLElement {
+  return h(
+    "div",
+    { class: "param-row" },
+    h("div", { class: "param-field" }, ...fields),
+    docBlock(doc),
   );
 }
 
 function withDoc(field: HTMLElement, doc?: DocId): HTMLElement {
-  return doc ? h("div", { class: "param" }, field, docPanel(doc)) : field;
+  return doc ? paramRow([field], doc) : field;
 }
 
 function describeTemplate(tpl: Template): string {

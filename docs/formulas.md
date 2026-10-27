@@ -80,9 +80,15 @@ measured diameter returns exactly its machine setting.
 
 A measured diameter not larger than the set one is rejected: springback always opens the shell.
 
+## Machine checks
+
+The machine has to roll the springback-compensated set diameter, which is smaller than the final one,
+so the minimum diameter and top roll checks use `min(Di, Ds)` (cylinder) or the small end (cone).
+
 ## Strain
 
-Outer fibre engineering strain: `ε = t / (2·ri + t)`. Warning thresholds are indicative: 5 % for
+Outer fibre engineering strain, the pressure-vessel cold-forming expression
+`ε = 50·t / Rn · (1 − Rn / R0) %` with `R0 = ∞` for flat plate, i.e. `ε = t / (2·Rn) = t / (2·ri + t)`. Warning thresholds are indicative: 5 % for
 ferritic steels, 10 % for duplex, 15 % for austenitic grades (cold-forming limits used in pressure
 equipment codes such as EN 13445-4). Check the applicable code for the actual requirement.
 
