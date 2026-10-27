@@ -35,6 +35,12 @@ export interface ConeResult {
   /** Sector angle including flat-end allowance [rad]. */
   angle: number;
   flatEnd: number;
+  /** Arc lengths of the outer (R1) and inner (R2) development edges, allowance included [mm]. */
+  arcOuter: number;
+  arcInner: number;
+  /** Chords across those arcs, for marking out [mm]. */
+  chordOuter: number;
+  chordInner: number;
   /** Bounding box of the development, i.e. the minimum plate to cut it from [mm]. */
   box: { width: number; height: number };
   /** Development area [mm²]. */
@@ -98,6 +104,10 @@ export function solveCone(input: ConeInput): ConeResult | ConeError {
     angleNet,
     angle,
     flatEnd: flat,
+    arcOuter: rOuter * angle,
+    arcInner: rInner * angle,
+    chordOuter: 2 * rOuter * Math.sin(angle / 2),
+    chordInner: 2 * rInner * Math.sin(angle / 2),
     box: sectorBox(rInner, rOuter, angle),
     area: (angle / 2) * (rOuter ** 2 - rInner ** 2),
     rtMin: smallPrincipal / t,

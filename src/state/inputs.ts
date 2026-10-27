@@ -40,7 +40,7 @@ export const defaultInputs: Inputs = {
   dLarge: "1200",
   dSmall: "600",
   height: "800",
-  flatEnds: true,
+  flatEnds: false,
   flatLength: "",
   k: "",
   reActual: "",

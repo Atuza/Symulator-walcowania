@@ -213,6 +213,36 @@ describe("cone", () => {
     expect(r.large.dOuter - r.large.dInner).toBeCloseTo(2 * radialT, 10);
     expect(r.slant).toBeCloseTo(300 / Math.cos(r.alpha), 8);
   });
+  it("reports arc and chord lengths of the development", () => {
+    const r = cone(
+      solveCone({
+        thickness: 1e-9,
+        dLarge: 1000,
+        dSmall: 500,
+        height: 433.0127,
+        surface: "inner",
+        flatEnds: 0,
+        kOverride: null,
+      }),
+    );
+    // Closed cone: the arcs equal the end circumferences.
+    expect(r.arcOuter).toBeCloseTo(Math.PI * 1000, 4);
+    expect(r.arcInner).toBeCloseTo(Math.PI * 500, 4);
+    expect(r.chordOuter).toBeCloseTo(2 * r.rOuter * Math.sin(r.angle / 2), 9);
+    const withFlats = cone(
+      solveCone({
+        thickness: 1e-9,
+        dLarge: 1000,
+        dSmall: 500,
+        height: 433.0127,
+        surface: "inner",
+        flatEnds: 20,
+        kOverride: null,
+      }),
+    );
+    expect(withFlats.arcOuter).toBeGreaterThan(r.arcOuter);
+  });
+
   it("handles a full cone to the apex", () => {
     const r = cone(
       solveCone({

@@ -50,7 +50,11 @@ const defaultSettings: Settings = {
 };
 
 export class App {
-  private inputs: Inputs = load(INPUTS_KEY, inputsSchema) ?? { ...defaultInputs };
+  // The flat-end allowance changes the cut length, so every session starts with it off.
+  private inputs: Inputs = {
+    ...(load(INPUTS_KEY, inputsSchema) ?? defaultInputs),
+    flatEnds: false,
+  };
   private settings: Settings = load(SETTINGS_KEY, settingsSchema) ?? defaultSettings;
   private process: ProcessConfig = loadProcess();
   private materials: Material[] = loadMaterials();
@@ -343,7 +347,7 @@ export class App {
     // Advanced
     const flatToggle = h(
       "label",
-      { class: "switch" },
+      { class: `switch${i.flatEnds ? " is-neon" : ""}` },
       h("input", {
         type: "checkbox",
         role: "switch",
@@ -356,7 +360,12 @@ export class App {
     const adv = h(
       "details",
       { class: "advanced", open: this.advancedOpen },
-      h("summary", {}, t("section.advanced")),
+      h(
+        "summary",
+        {},
+        h("span", {}, t("section.advanced")),
+        i.flatEnds ? h("span", { class: "neon-chip" }, t("flat.on")) : null,
+      ),
       h(
         "div",
         { class: "group-body" },
@@ -437,7 +446,10 @@ export class App {
     });
     const wrap = h(
       "label",
-      { class: `field${primary ? " field-primary" : ""}`, for: id },
+      {
+        class: `field${primary ? " field-primary" : ""}${field === "flatLength" ? " is-neon" : ""}`,
+        for: id,
+      },
       h("span", { class: "field-label" }, label),
       h("span", { class: "input-wrap" }, input, unit ? h("span", { class: "unit" }, unit) : null),
       h("span", { class: "field-msg", id: `${id}-msg` }, hint ?? ""),
@@ -534,6 +546,11 @@ export class App {
         ),
       ),
     );
+
+    if (d.flatEnd > 0)
+      panel.append(
+        h("p", { class: "neon-chip neon-chip-block" }, t("flat.chip", { f: num(d.flatEnd) })),
+      );
 
     const warnings = d.output.warnings;
     if (warnings.length) {
@@ -1055,8 +1072,18 @@ function labelled(label: string, control: HTMLElement) {
 
 function rowEls(r: Row): HTMLElement[] {
   return [
-    h("dt", {}, r.label, r.estimate ? h("span", { class: "tag" }, t("result.estimate")) : null),
-    h("dd", {}, r.value, r.unit ? h("span", { class: "unit" }, ` ${r.unit}`) : null),
+    h(
+      "dt",
+      { class: r.neon ? "is-neon" : "" },
+      r.label,
+      r.estimate ? h("span", { class: "tag" }, t("result.estimate")) : null,
+    ),
+    h(
+      "dd",
+      { class: r.neon ? "is-neon" : "" },
+      r.value,
+      r.unit ? h("span", { class: "unit" }, ` ${r.unit}`) : null,
+    ),
   ];
 }
 

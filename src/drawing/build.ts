@@ -98,7 +98,7 @@ function cylinderViews(
           [f, W],
         ],
         closed: false,
-        stroke: "center",
+        stroke: "flat",
       },
       {
         kind: "path",
@@ -107,7 +107,7 @@ function cylinderViews(
           [L - f, W],
         ],
         closed: false,
-        stroke: "center",
+        stroke: "flat",
       },
     );
   }
@@ -216,7 +216,40 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       offsetScreen: GAP,
       label: mm(r.slant),
     },
+    { kind: "arcDim", c: [0, 0], r: r.rOuter, a0, a1, offsetScreen: GAP, label: mm(r.arcOuter) },
+    {
+      kind: "arcDim",
+      c: [0, 0],
+      // Angle between the apex and the inner edge; with a tiny inner radius it moves onto the plate.
+      r: r.rInner > r.rOuter * 0.25 ? r.rInner * 0.5 : r.rOuter * 0.32,
+      a0,
+      a1,
+      offsetScreen: 0,
+      label: `${num((r.angle * 180) / Math.PI)}°`,
+    },
   ];
+  if (r.rInner > 1e-9)
+    dev.push({
+      kind: "arcDim",
+      c: [0, 0],
+      r: r.rInner,
+      a0,
+      a1,
+      // On the plate side, so it stays clear of the angle dimension near the apex.
+      offsetScreen: GAP,
+      label: mm(r.arcInner),
+    });
+  if (r.flatEnd > 0) {
+    // Allowance is the extra angle beyond the closed cone, split between both seams.
+    const d = (r.angle - r.angleNet) / 2;
+    for (const a of [a0 + d, a1 - d])
+      dev.push({
+        kind: "path",
+        pts: [edge(r.rInner, a), edge(r.rOuter, a)],
+        closed: false,
+        stroke: "flat",
+      });
+  }
   return [
     {
       title: t("section.geometry"),

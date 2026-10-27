@@ -1,10 +1,22 @@
 /** Renderer-independent 2D drawing, in model millimetres with y pointing up. */
 
 export type Pt = readonly [number, number];
-export type Stroke = "part" | "thin" | "center";
+export type Stroke = "part" | "thin" | "center" | "flat";
 
 export type Prim =
   | { kind: "path"; pts: Pt[]; closed: boolean; stroke: Stroke; fill?: boolean }
+  | {
+      /** Arc length or angle dimension around centre c, from angle a0 to a1 (radians, CCW). */
+      kind: "arcDim";
+      c: Pt;
+      /** Radius of the measured feature. */
+      r: number;
+      a0: number;
+      a1: number;
+      /** Radial offset of the dimension arc, in font-size multiples (positive = outwards). */
+      offsetScreen: number;
+      label: string;
+    }
   | {
       kind: "dim";
       /** Feature points the dimension measures between. */
@@ -57,6 +69,7 @@ export function bounds(view: View) {
   };
   for (const p of view.prims) {
     if (p.kind === "path") p.pts.forEach(add);
+    else if (p.kind === "arcDim") arc(p.c[0], p.c[1], p.r, p.a0, p.a1, 32).forEach(add);
     else {
       add(p.a);
       add(p.b);

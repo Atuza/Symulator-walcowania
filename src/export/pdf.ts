@@ -22,6 +22,8 @@ const INK = [20, 20, 22] as const;
 const MUTED = [110, 108, 104] as const;
 const LINE = [205, 202, 195] as const;
 const ACCENT = [236, 103, 43] as const;
+// Neon green on screen; a darker green keeps it legible when printed.
+const FLAT = [0, 150, 40] as const;
 
 async function fontBase64(url: string): Promise<string> {
   const buf = new Uint8Array(await (await fetch(url)).arrayBuffer());
@@ -73,9 +75,18 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   // Left column: tables
   const colW = 112;
   let y = top + 7;
-  y = section(doc, t("pdf.inputs"), data.inputs, m, y, colW);
+  // Shrink the row pitch when the tables would otherwise run into the footer.
+  const rowCount = data.inputs.length + data.groups.reduce((n, g) => n + g.rows.length, 0);
+  const fixed =
+    (data.groups.length + 1) * 9 +
+    22 +
+    (data.warnings.length ? 6.5 + data.warnings.length * 8.2 : 0);
+  const available = PAGE.h - m - 8 - y;
+  const pitch = Math.min(4.4, Math.max(3.3, (available - fixed) / rowCount));
+  const rowFont = pitch < 4 ? 7.2 : 8;
+  y = section(doc, t("pdf.inputs"), data.inputs, m, y, colW, pitch, rowFont);
   y = heroBlock(doc, data.heroes, m, y + 2, colW);
-  for (const g of data.groups) y = section(doc, g.title, g.rows, m, y + 1, colW);
+  for (const g of data.groups) y = section(doc, g.title, g.rows, m, y + 1, colW, pitch, rowFont);
   if (data.warnings.length) {
     y += 2;
     doc.setFont("Poppins", "bold");
@@ -101,6 +112,9 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
 
   doc.setFontSize(7);
   doc.setTextColor(...MUTED);
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.2);
+  doc.setLineDashPattern([], 0);
   doc.line(m, PAGE.h - m - 4, PAGE.w - m, PAGE.h - m - 4);
   doc.text(t("pdf.disclaimer"), m, PAGE.h - m);
   doc.text(`1 / 1`, PAGE.w - m, PAGE.h - m, { align: "right" });
@@ -108,26 +122,36 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   return doc.output("blob");
 }
 
-function section(doc: JsPdf, title: string, rows: Row[], x: number, y: number, w: number): number {
+function section(
+  doc: JsPdf,
+  title: string,
+  rows: Row[],
+  x: number,
+  y: number,
+  w: number,
+  pitch: number,
+  fontSize: number,
+): number {
   doc.setFont("Poppins", "bold");
   doc.setFontSize(9);
   doc.setTextColor(...INK);
   doc.text(title, x, y);
   y += 2;
   doc.setFont("Poppins", "normal");
-  doc.setFontSize(8);
+  doc.setFontSize(fontSize);
   for (const r of rows) {
-    y += 4.4;
+    y += pitch;
     doc.setTextColor(...MUTED);
     doc.text(r.label + (r.estimate ? ` (${t("result.estimate")})` : ""), x, y, {
       maxWidth: w * 0.62,
     });
-    doc.setTextColor(...INK);
+    const c = r.neon ? FLAT : INK;
+    doc.setTextColor(c[0], c[1], c[2]);
     doc.text(r.unit ? `${r.value} ${r.unit}` : r.value, x + w, y, { align: "right" });
     doc.setDrawColor(...LINE);
-    doc.line(x, y + 1.4, x + w, y + 1.4);
+    doc.line(x, y + pitch * 0.32, x + w, y + pitch * 0.32);
   }
-  return y + 6;
+  return y + pitch + 1.6;
 }
 
 function heroBlock(doc: JsPdf, heroes: Row[], x: number, y: number, w: number): number {
@@ -155,10 +179,13 @@ function pdfSink(doc: JsPdf): Sink {
   return {
     path(pts, closed, stroke) {
       if (pts.length < 2) return;
-      const c = stroke === "part" ? INK : MUTED;
+      const c = stroke === "part" ? INK : stroke === "flat" ? FLAT : MUTED;
       doc.setDrawColor(c[0], c[1], c[2]);
-      doc.setLineWidth(stroke === "part" ? 0.35 : 0.15);
-      doc.setLineDashPattern(stroke === "center" ? [2.5, 0.8, 0.4, 0.8] : [], 0);
+      doc.setLineWidth(stroke === "part" ? 0.35 : stroke === "flat" ? 0.3 : 0.15);
+      doc.setLineDashPattern(
+        stroke === "center" ? [2.5, 0.8, 0.4, 0.8] : stroke === "flat" ? [1.5, 0.8] : [],
+        0,
+      );
       const all = closed ? [...pts, pts[0]!] : pts;
       for (let i = 1; i < all.length; i++)
         doc.line(all[i - 1]![0], all[i - 1]![1], all[i]![0], all[i]![1]);

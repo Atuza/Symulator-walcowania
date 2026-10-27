@@ -7,6 +7,8 @@ export interface Row {
   value: string;
   unit?: string;
   estimate?: boolean;
+  /** Highlights values that include the flat-end allowance. */
+  neon?: boolean;
 }
 
 export interface Hero {
@@ -83,6 +85,7 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
         label: t("result.flatEnds"),
         value: `2 × ${mm(r.flatEnd)}`,
         unit: t("unit.mm"),
+        neon: true,
       });
     return [
       { title: t("section.geometry"), rows: [...geometry, ...mass] },
@@ -103,7 +106,21 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
     {
       title: t("result.development"),
       rows: [
+        { label: t("result.arcOuter"), value: mm(r.arcOuter), unit: t("unit.mm") },
+        { label: t("result.arcInner"), value: mm(r.arcInner), unit: t("unit.mm") },
+        { label: t("result.chordOuter"), value: mm(r.chordOuter), unit: t("unit.mm") },
+        { label: t("result.chordInner"), value: mm(r.chordInner), unit: t("unit.mm") },
         { label: t("result.slant"), value: mm(r.slant), unit: t("unit.mm") },
+        ...(r.flatEnd > 0
+          ? [
+              {
+                label: t("result.flatEnds"),
+                value: `2 × ${mm(r.flatEnd)}`,
+                unit: t("unit.mm"),
+                neon: true,
+              },
+            ]
+          : []),
         {
           label: t("result.box"),
           value: `${mm(r.box.width)} × ${mm(r.box.height)}`,

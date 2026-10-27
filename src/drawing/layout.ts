@@ -1,4 +1,4 @@
-import { bounds, type Pt, type Stroke, type View } from "./model";
+import { bounds, type Prim, type Pt, type Stroke, type View } from "./model";
 
 /** Output surface in screen units (px for SVG, mm for PDF), y pointing down. */
 export interface Sink {
@@ -78,6 +78,10 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle) {
       sink.path(p.pts.map(map), p.closed, p.stroke, p.fill);
       continue;
     }
+    if (p.kind === "arcDim") {
+      drawArcDim(p, map, scale, sink, s);
+      continue;
+    }
     const a = map(p.a),
       bb = map(p.b);
     const dx = bb[0] - a[0],
@@ -100,23 +104,86 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle) {
     sink.path([a2, b2], false, "dim");
     arrowHead(sink, a2, -ux, -uy, s.arrow);
     arrowHead(sink, b2, ux, uy, s.arrow);
-
-    let angle = (Math.atan2(uy, ux) * 180) / Math.PI;
-    // Keep labels readable: vertical text reads bottom-to-top, as on drawings.
-    if (angle >= 90 || angle < -90) angle += angle > 0 ? -180 : 180;
     // The label goes on the side of the line facing away from the part (the offset direction).
     const side = off >= 0 ? 1 : -1;
-    const rad = (angle * Math.PI) / 180;
-    // Screen direction of "up" for the rotated text.
-    const upx = Math.sin(rad),
-      upy = -Math.cos(rad);
-    const awayIsUp = upx * nx * side + upy * ny * side >= 0;
-    // Text grows upwards from its baseline, so below-the-line labels shift by a full line height.
-    const lift = awayIsUp ? s.fontSize * 0.35 : -s.fontSize * 1.05;
-    const mx = (a2[0] + b2[0]) / 2 + upx * lift;
-    const my = (a2[1] + b2[1]) / 2 + upy * lift;
-    sink.text(mx, my, p.label, { size: s.fontSize, anchor: "middle", angle, role: "dim" });
+    placeLabel(
+      sink,
+      s,
+      [(a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2],
+      ux,
+      uy,
+      nx * side,
+      ny * side,
+      p.label,
+    );
   }
+}
+
+function drawArcDim(
+  p: Extract<Prim, { kind: "arcDim" }>,
+  map: (pt: Pt) => Pt,
+  scale: number,
+  sink: Sink,
+  s: LayoutStyle,
+) {
+  const rr = p.r + (p.offsetScreen * s.fontSize) / scale;
+  if (!(rr > 0)) return;
+  const at = (r: number, a: number): Pt =>
+    map([p.c[0] + r * Math.cos(a), p.c[1] + r * Math.sin(a)]);
+  const n = 64;
+  const pts: Pt[] = [];
+  for (let i = 0; i <= n; i++) pts.push(at(rr, p.a0 + ((p.a1 - p.a0) * i) / n));
+  if (Math.abs(rr - p.r) * scale > 0.5) {
+    const over = (Math.sign(rr - p.r) * s.arrow * 0.8) / scale;
+    for (const a of [p.a0, p.a1]) sink.path([at(p.r, a), at(rr + over, a)], false, "dim");
+  }
+  sink.path(pts, false, "dim");
+  const dir = (from: Pt, to: Pt): [number, number] => {
+    const dx = to[0] - from[0],
+      dy = to[1] - from[1];
+    const len = Math.hypot(dx, dy) || 1;
+    return [dx / len, dy / len];
+  };
+  const [sx, sy] = dir(pts[1]!, pts[0]!);
+  const [ex, ey] = dir(pts[n - 1]!, pts[n]!);
+  arrowHead(sink, pts[0]!, sx, sy, s.arrow);
+  arrowHead(sink, pts[n]!, ex, ey, s.arrow);
+  const mid = pts[n / 2]!;
+  const [ux, uy] = dir(pts[n / 2 - 1]!, pts[n / 2 + 1]!);
+  const centre = map(p.c);
+  // Labels sit on the outer side of the arc unless the dimension was pushed inwards.
+  const [ox, oy] = dir(centre, mid);
+  const side = p.offsetScreen < 0 ? -1 : 1;
+  placeLabel(sink, s, mid, ux, uy, ox * side, oy * side, p.label);
+}
+
+/** Puts a dimension label along direction (ux, uy) on the side given by the unit vector (ax, ay). */
+function placeLabel(
+  sink: Sink,
+  s: LayoutStyle,
+  mid: Pt,
+  ux: number,
+  uy: number,
+  ax: number,
+  ay: number,
+  label: string,
+) {
+  let angle = (Math.atan2(uy, ux) * 180) / Math.PI;
+  // Keep labels readable: vertical text reads bottom-to-top, as on drawings.
+  if (angle >= 90 || angle < -90) angle += angle > 0 ? -180 : 180;
+  const rad = (angle * Math.PI) / 180;
+  // Screen direction of "up" for the rotated text.
+  const upx = Math.sin(rad),
+    upy = -Math.cos(rad);
+  const awayIsUp = upx * ax + upy * ay >= 0;
+  // Text grows upwards from its baseline, so below-the-line labels shift by a full line height.
+  const lift = awayIsUp ? s.fontSize * 0.35 : -s.fontSize * 1.05;
+  sink.text(mid[0] + upx * lift, mid[1] + upy * lift, label, {
+    size: s.fontSize,
+    anchor: "middle",
+    angle,
+    role: "dim",
+  });
 }
 
 function arrowHead(sink: Sink, tip: Pt, dx: number, dy: number, size: number) {
