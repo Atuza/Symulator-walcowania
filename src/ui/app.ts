@@ -15,7 +15,19 @@ import {
   saveProcess,
   type ProcessConfig,
 } from "../state/config";
+import { meanFactor } from "../domain/calibration";
 import { derive, type Derived } from "../state/derive";
+import {
+  loadTemplates,
+  loadTrials,
+  newTemplate,
+  saveTemplates,
+  saveTrials,
+  TEMPLATES_LIMIT,
+  type Template,
+  type Trial,
+} from "../state/library";
+import { decodeInputs, shareUrl } from "../state/share";
 import {
   addHistory,
   clearHistory,
@@ -58,6 +70,8 @@ export class App {
   private settings: Settings = load(SETTINGS_KEY, settingsSchema) ?? defaultSettings;
   private process: ProcessConfig = loadProcess();
   private materials: Material[] = loadMaterials();
+  private trials: Trial[] = loadTrials();
+  private templates: Template[] = loadTemplates();
   private derived!: Derived;
   private layout!: HTMLElement;
   private editor: Editor | null = null;
@@ -81,6 +95,13 @@ export class App {
   constructor(private root: HTMLElement) {
     setLang(this.settings.lang);
     this.applyTheme();
+    // A calculation link (e.g. scanned from a report) replaces the stored inputs once.
+    const shared = decodeInputs(location.hash);
+    if (shared) {
+      this.inputs = shared;
+      save(INPUTS_KEY, this.inputs);
+    }
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
     this.layout = h(
       "main",
       { class: "layout" },
@@ -127,11 +148,29 @@ export class App {
     const id = this.inputs.materialId;
     if (id !== CUSTOM_MATERIAL_ID && !this.materials.some((m) => m.id === id) && this.materials[0])
       this.inputs = { ...this.inputs, materialId: this.materials[0].id };
-    this.derived = derive(this.inputs, this.settings.machine, this.process, this.materials);
+    this.derived = derive(
+      this.inputs,
+      this.settings.machine,
+      this.process,
+      this.materials,
+      this.trialFactors(),
+    );
     this.renderResults();
     this.markErrors();
     this.renderViews();
     this.refreshPlaceholders();
+  }
+
+  private trialFactors(): Map<string, { factor: number; count: number }> {
+    const groups = new Map<string, number[]>();
+    for (const tr of this.trials)
+      groups.set(tr.materialId, [...(groups.get(tr.materialId) ?? []), tr.factor]);
+    const out = new Map<string, { factor: number; count: number }>();
+    for (const [id, list] of groups) {
+      const factor = meanFactor(list);
+      if (factor !== null) out.set(id, { factor, count: list.length });
+    }
+    return out;
   }
 
   private renderAll() {
@@ -218,6 +257,7 @@ export class App {
     const panel = this.inputsPanel;
     panel.replaceChildren();
 
+    panel.append(this.templateBar());
     panel.append(
       group(
         t("section.shape"),
@@ -406,6 +446,84 @@ export class App {
 
   private advancedOpen = false;
 
+  private templateBar() {
+    const saveBtn = h(
+      "button",
+      { type: "button", class: "chip chip-add", onClick: () => this.saveTemplate() },
+      "+ ",
+      t("tpl.save"),
+    );
+    return h(
+      "div",
+      { class: "group templates" },
+      h("h2", { class: "group-title" }, t("tpl.title")),
+      h(
+        "div",
+        { class: "chips" },
+        ...this.templates.map((tpl) =>
+          h(
+            "button",
+            {
+              type: "button",
+              class: "chip",
+              onClick: () => {
+                this.inputs = { ...tpl.inputs, flatEnds: false };
+                save(INPUTS_KEY, this.inputs);
+                this.renderAll();
+              },
+            },
+            tpl.name,
+          ),
+        ),
+        saveBtn,
+      ),
+    );
+  }
+
+  private saveTemplate() {
+    if (this.templates.length >= TEMPLATES_LIMIT) {
+      this.dialog(
+        t("tpl.title"),
+        h(
+          "div",
+          { class: "dialog-body" },
+          h("p", {}, t("tpl.full", { n: String(TEMPLATES_LIMIT) })),
+        ),
+      );
+      return;
+    }
+    const input = h("input", { type: "text", maxlength: "40", autocomplete: "off" });
+    const ok = h("button", { type: "button", class: "btn btn-primary" }, t("action.save"));
+    const dialog = this.dialog(
+      t("tpl.save"),
+      h(
+        "div",
+        { class: "dialog-body" },
+        h(
+          "label",
+          { class: "field" },
+          h("span", { class: "field-label" }, t("tpl.name")),
+          h("span", { class: "input-wrap" }, input),
+        ),
+      ),
+      ok,
+    );
+    const submit = () => {
+      const name = input.value.trim();
+      if (!name) return input.focus();
+      this.templates = [...this.templates, newTemplate(name, this.inputs)];
+      saveTemplates(this.templates);
+      dialog.close();
+      this.renderInputs();
+      this.compute();
+    };
+    ok.addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submit();
+    });
+    input.focus();
+  }
+
   private surfaceControl() {
     return segmented(
       t("field.surface"),
@@ -481,7 +599,7 @@ export class App {
       k.placeholder = out ? `${t("hint.auto")} ${num(out.result.k, 3)}` : t("hint.auto");
     }
     const cal = this.fieldEls.get("calibration")?.querySelector("input");
-    if (cal) cal.placeholder = num(this.process.calibration);
+    if (cal && d.calibration.source !== "input") cal.placeholder = num(d.calibration.value, 3);
     const re = this.fieldEls.get("reActual")?.querySelector("input");
     if (re && d.material && d.thickness)
       re.placeholder = `min ${num(yieldAt(d.material, d.thickness), 0)}`;
@@ -878,7 +996,16 @@ export class App {
   private async exportPdf(fields: { label: string; value: string }[]) {
     const d = this.derived;
     if (!d.output) return;
-    const { buildPdf } = await import("../export/pdf");
+    const [{ buildPdf }, { qrMatrix }] = await Promise.all([
+      import("../export/pdf"),
+      import("../export/qr"),
+    ]);
+    let qr: { matrix: boolean[][]; caption: string } | null = null;
+    try {
+      qr = { matrix: qrMatrix(shareUrl(location.href, this.inputs)), caption: t("pdf.qr") };
+    } catch {
+      // A link too long for a QR code only costs the code, not the report.
+    }
     const date = new Intl.DateTimeFormat(getLang() === "pl" ? "pl-PL" : "en-GB", {
       dateStyle: "medium",
       timeStyle: "short",
@@ -892,6 +1019,8 @@ export class App {
       groups: resultGroups(d),
       warnings: d.output.warnings.map(warningText),
       views: buildViews(d.output, d.width, this.inputs.surface),
+      qr,
+      version: __APP_VERSION__,
     });
     this.saveToHistory();
     await saveFile(blob, `${this.fileBase()}.pdf`);
@@ -934,11 +1063,22 @@ export class App {
     this.stopPlay();
     this.editor = new Editor({
       root: this.root,
+      currentMaterialId: this.inputs.materialId,
       state: () => ({
         machine: this.settings.machine,
         process: this.process,
         materials: this.materials,
+        trials: this.trials,
+        templates: this.templates,
       }),
+      setTrials: (list) => {
+        this.trials = list;
+        saveTrials(list);
+      },
+      setTemplates: (list) => {
+        this.templates = list;
+        saveTemplates(list);
+      },
       setMachine: (machine) => {
         this.settings = { ...this.settings, machine };
         this.saveSettings();
@@ -961,12 +1101,24 @@ export class App {
         saveProcess(backup.process);
         this.materials = backup.materials;
         saveMaterials(backup.materials);
+        if (backup.trials) {
+          this.trials = backup.trials;
+          saveTrials(backup.trials);
+        }
+        if (backup.templates) {
+          this.templates = backup.templates;
+          saveTemplates(backup.templates);
+        }
       },
       resetAll: () => {
         this.settings = { ...this.settings, machine: emptyMachine };
         this.saveSettings();
         this.process = resetProcess();
         this.materials = resetMaterials();
+        this.trials = [];
+        saveTrials([]);
+        this.templates = [];
+        saveTemplates([]);
       },
     });
     document.documentElement.dataset.mode = "edit";

@@ -1,7 +1,9 @@
+import { calibrationFactor, meanFactor } from "../domain/calibration";
 import type { MachineLimits } from "../domain/calculate";
-import { materialGroups, type Material } from "../domain/materials/schema";
+import { materialGroups, yieldAt, type Material } from "../domain/materials/schema";
 import { saveFile } from "../export/download";
-import { getLang, t, type Key } from "../i18n";
+import { getLang, num, percent, t, type Key } from "../i18n";
+import { paramDoc, type DocId } from "../i18n/docs";
 import {
   defaultMaterial,
   defaultProcess,
@@ -13,6 +15,7 @@ import {
   type ProcessConfig,
 } from "../state/config";
 import { parseNumber } from "../state/inputs";
+import { TRIALS_LIMIT, type Template, type Trial } from "../state/library";
 import { confirmDialog } from "./dialog";
 import { h, segmented } from "./dom";
 
@@ -20,20 +23,26 @@ export interface EditorState {
   machine: MachineLimits;
   process: ProcessConfig;
   materials: Material[];
+  trials: Trial[];
+  templates: Template[];
 }
 
 export interface EditorHost {
   root: HTMLElement;
+  /** Material selected in the calculator; preselected for calibration trials. */
+  currentMaterialId: string;
   state(): EditorState;
   setMachine(machine: MachineLimits): void;
   setProcess(process: ProcessConfig): void;
   setMaterials(materials: Material[]): void;
+  setTrials(trials: Trial[]): void;
+  setTemplates(templates: Template[]): void;
   resetMaterials(): void;
   importAll(backup: Backup): void;
   resetAll(): void;
 }
 
-type Tab = "machine" | "process" | "materials" | "backup";
+type Tab = "machine" | "process" | "materials" | "calibration" | "templates" | "backup";
 
 const machineKeys: (keyof MachineLimits)[] = [
   "topRollD",
@@ -81,6 +90,8 @@ export class Editor {
             { value: "machine", label: t("edit.tab.machine") },
             { value: "process", label: t("edit.tab.process") },
             { value: "materials", label: t("edit.tab.materials") },
+            { value: "calibration", label: t("edit.tab.calibration") },
+            { value: "templates", label: t("edit.tab.templates") },
             { value: "backup", label: t("edit.tab.backup") },
           ],
           this.tab,
@@ -96,7 +107,11 @@ export class Editor {
             ? this.processTab()
             : this.tab === "materials"
               ? this.materialsTab()
-              : this.backupTab(),
+              : this.tab === "calibration"
+                ? this.calibrationTab()
+                : this.tab === "templates"
+                  ? this.templatesTab()
+                  : this.backupTab(),
       ),
     );
   }
@@ -113,9 +128,17 @@ export class Editor {
         "div",
         { class: "field-grid" },
         ...machineKeys.map((k) =>
-          numField(t(`machine.${k}` as Key), draft[k], t("unit.mm"), (n) => {
-            draft[k] = n !== null && n > 0 ? n : null;
-          }),
+          numField(
+            t(`machine.${k}` as Key),
+            draft[k],
+            t("unit.mm"),
+            (n) => {
+              draft[k] = n !== null && n > 0 ? n : null;
+            },
+            undefined,
+            "",
+            `machine.${k}`,
+          ),
         ),
       ),
       h("div", { class: "editor-actions" }, save),
@@ -161,6 +184,8 @@ export class Editor {
           t("unit.xt"),
           (n) => (draft.flatEndFactor = n ?? NaN),
           t("edit.process.flatEndFactor.hint"),
+          "",
+          "process.flatEndFactor",
         ),
         numField(
           t("edit.process.calibration"),
@@ -168,6 +193,8 @@ export class Editor {
           "",
           (n) => (draft.calibration = n ?? NaN),
           t("edit.process.calibration.hint"),
+          "",
+          "process.calibration",
         ),
         numField(
           t("edit.process.springbackWarn"),
@@ -175,6 +202,8 @@ export class Editor {
           t("unit.percent"),
           (n) => (draft.springbackWarn = n === null ? NaN : n / 100),
           t("edit.process.springbackWarn.hint"),
+          "",
+          "process.springbackWarn",
         ),
       ),
       error,
@@ -295,40 +324,46 @@ export class Editor {
 
   private materialForm(m: Material) {
     const errors = h("ul", { class: "editor-errors", role: "alert" });
-    const text = (label: string, value: string, set: (v: string) => void) =>
+    const text = (label: string, value: string, set: (v: string) => void, doc: DocId) =>
+      withDoc(
+        h(
+          "label",
+          { class: "field" },
+          h("span", { class: "field-label" }, label),
+          h(
+            "span",
+            { class: "input-wrap" },
+            h("input", {
+              type: "text",
+              value,
+              autocomplete: "off",
+              onInput: (e: Event) => set((e.target as HTMLInputElement).value),
+            }),
+          ),
+        ),
+        doc,
+      );
+    const groupSelect = withDoc(
       h(
         "label",
         { class: "field" },
-        h("span", { class: "field-label" }, label),
+        h("span", { class: "field-label" }, t("edit.mat.group")),
         h(
           "span",
-          { class: "input-wrap" },
-          h("input", {
-            type: "text",
-            value,
-            autocomplete: "off",
-            onInput: (e: Event) => set((e.target as HTMLInputElement).value),
-          }),
-        ),
-      );
-    const groupSelect = h(
-      "label",
-      { class: "field" },
-      h("span", { class: "field-label" }, t("edit.mat.group")),
-      h(
-        "span",
-        { class: "select-wrap" },
-        h(
-          "select",
-          {
-            onChange: (e: Event) =>
-              (m.group = (e.target as HTMLSelectElement).value as Material["group"]),
-          },
-          ...materialGroups.map((g) =>
-            h("option", { value: g, selected: g === m.group }, t(`group.${g}` as Key)),
+          { class: "select-wrap" },
+          h(
+            "select",
+            {
+              onChange: (e: Event) =>
+                (m.group = (e.target as HTMLSelectElement).value as Material["group"]),
+            },
+            ...materialGroups.map((g) =>
+              h("option", { value: g, selected: g === m.group }, t(`group.${g}` as Key)),
+            ),
           ),
         ),
       ),
+      "mat.group",
     );
 
     const bands = h("div", { class: "bands" });
@@ -487,38 +522,76 @@ export class Editor {
       h(
         "div",
         { class: "field-grid" },
-        text(t("edit.mat.name"), m.name, (v) => (m.name = v)),
-        text(t("edit.mat.number"), m.number ?? "", (v) => (m.number = v.trim() || null)),
+        text(t("edit.mat.name"), m.name, (v) => (m.name = v), "mat.name"),
+        text(
+          t("edit.mat.number"),
+          m.number ?? "",
+          (v) => (m.number = v.trim() || null),
+          "mat.number",
+        ),
         groupSelect,
-        text(t("edit.mat.standard"), m.standard, (v) => (m.standard = v)),
+        text(t("edit.mat.standard"), m.standard, (v) => (m.standard = v), "mat.standard"),
       ),
       h("h3", { class: "group-title" }, t("edit.mat.yield")),
       bands,
+      docPanel("mat.yield"),
       h(
         "div",
         { class: "field-grid" },
         numField(t("edit.mat.rmMin"), m.rm[0], t("unit.mpa"), (n) => (m.rm = [n ?? NaN, m.rm[1]])),
-        numField(t("edit.mat.rmMax"), m.rm[1], t("unit.mpa"), (n) => (m.rm = [m.rm[0], n ?? NaN])),
+        numField(
+          t("edit.mat.rmMax"),
+          m.rm[1],
+          t("unit.mpa"),
+          (n) => (m.rm = [m.rm[0], n ?? NaN]),
+          undefined,
+          "",
+          "mat.rm",
+        ),
         numField(
           t("edit.mat.modulus"),
           m.modulus / 1000,
           t("unit.gpa"),
           (n) => (m.modulus = n === null ? NaN : n * 1000),
+          undefined,
+          "",
+          "mat.modulus",
         ),
-        numField(t("edit.mat.poisson"), m.poisson, "", (n) => (m.poisson = n ?? NaN)),
+        numField(
+          t("edit.mat.poisson"),
+          m.poisson,
+          "",
+          (n) => (m.poisson = n ?? NaN),
+          undefined,
+          "",
+          "mat.poisson",
+        ),
         numField(
           t("edit.mat.density"),
           m.density,
           t("unit.density"),
           (n) => (m.density = n ?? NaN),
+          undefined,
+          "",
+          "mat.density",
         ),
-        numField(t("edit.mat.minRt"), m.minRt, "", (n) => (m.minRt = n ?? NaN)),
+        numField(
+          t("edit.mat.minRt"),
+          m.minRt,
+          "",
+          (n) => (m.minRt = n ?? NaN),
+          undefined,
+          "",
+          "mat.minRt",
+        ),
         numField(
           t("edit.mat.strainLimit"),
           m.strainLimit === null ? null : m.strainLimit * 100,
           t("unit.percent"),
           (n) => (m.strainLimit = n === null ? null : n / 100),
           t("edit.mat.strainLimit.hint"),
+          "",
+          "mat.strainLimit",
         ),
       ),
       errors,
@@ -528,6 +601,329 @@ export class Editor {
         h("div", { class: "editor-actions-secondary" }, ...secondary),
         save,
       ),
+    );
+  }
+
+  // ---- calibration ----------------------------------------------------------
+
+  private calibrationTab() {
+    const state = this.host.state();
+    const materials = state.materials;
+    const first = materials[0];
+    const draft = {
+      materialId:
+        this.calMaterial ??
+        (materials.some((m) => m.id === this.host.currentMaterialId)
+          ? this.host.currentMaterialId
+          : (first?.id ?? "")),
+      thickness: NaN,
+      reActual: null as number | null,
+      setInnerD: NaN,
+      measuredInnerD: NaN,
+    };
+    const preview = h("div", { class: "cal-preview", role: "status" });
+    const material = () => materials.find((m) => m.id === draft.materialId);
+    const compute = () => {
+      const m = material();
+      if (!m) return null;
+      const re = draft.reActual ?? (draft.thickness > 0 ? yieldAt(m, draft.thickness) : NaN);
+      return calibrationFactor({
+        thickness: draft.thickness,
+        setInnerD: draft.setInnerD,
+        measuredInnerD: draft.measuredInnerD,
+        yieldStrength: re,
+        modulus: m.modulus,
+        poisson: m.poisson,
+      });
+    };
+    const refresh = () => {
+      const r = compute();
+      if (r === null || r === "input") {
+        preview.replaceChildren(h("span", { class: "muted" }, t("cal.fill")));
+        return;
+      }
+      if (typeof r === "string") {
+        preview.replaceChildren(h("span", { class: "cal-error" }, t(`cal.err.${r}` as Key)));
+        return;
+      }
+      const odd = r.factor < 0.5 || r.factor > 1.5;
+      preview.replaceChildren(
+        h(
+          "span",
+          { class: "cal-factor" },
+          t("cal.factor"),
+          h("strong", { class: odd ? "cal-odd" : "" }, ` c = ${num(r.factor, 3)}`),
+        ),
+        h(
+          "span",
+          { class: "muted" },
+          `${t("cal.measured")} ${percent(r.measuredRatio)} · ${t("cal.model")} ${percent(r.modelRatio)}`,
+        ),
+        ...(odd ? [h("span", { class: "cal-error" }, t("cal.odd"))] : []),
+      );
+    };
+    const select = withDoc(
+      h(
+        "label",
+        { class: "field" },
+        h("span", { class: "field-label" }, t("result.material")),
+        h(
+          "span",
+          { class: "select-wrap" },
+          h(
+            "select",
+            {
+              onChange: (e: Event) => {
+                draft.materialId = (e.target as HTMLSelectElement).value;
+                this.calMaterial = draft.materialId;
+                refresh();
+              },
+            },
+            ...materials.map((m) =>
+              h("option", { value: m.id, selected: m.id === draft.materialId }, m.name),
+            ),
+          ),
+        ),
+      ),
+      "cal.material",
+    );
+    const save = this.saveButton(() => {
+      const r = compute();
+      if (r === null || typeof r === "string") {
+        refresh();
+        return false;
+      }
+      const trial: Trial = {
+        id: crypto.randomUUID(),
+        materialId: draft.materialId,
+        thickness: draft.thickness,
+        reActual: draft.reActual,
+        setInnerD: draft.setInnerD,
+        measuredInnerD: draft.measuredInnerD,
+        factor: r.factor,
+        savedAt: Date.now(),
+      };
+      this.host.setTrials([trial, ...this.host.state().trials].slice(0, TRIALS_LIMIT));
+      setTimeout(() => this.render(), 900);
+      return true;
+    }, t("cal.save"));
+
+    const form = section(
+      t("edit.tab.calibration"),
+      h("p", { class: "muted" }, t("cal.intro")),
+      h(
+        "ol",
+        { class: "cal-steps" },
+        h("li", {}, t("cal.step1")),
+        h("li", {}, t("cal.step2")),
+        h("li", {}, t("cal.step3")),
+      ),
+      h(
+        "div",
+        { class: "field-grid" },
+        select,
+        numField(
+          t("field.thickness"),
+          null,
+          t("unit.mm"),
+          (n) => ((draft.thickness = n ?? NaN), refresh()),
+          undefined,
+          "",
+          "cal.thickness",
+        ),
+        numField(
+          t("cal.setInnerD"),
+          null,
+          t("unit.mm"),
+          (n) => ((draft.setInnerD = n ?? NaN), refresh()),
+          undefined,
+          "",
+          "cal.setInnerD",
+        ),
+        numField(
+          t("cal.measuredInnerD"),
+          null,
+          t("unit.mm"),
+          (n) => ((draft.measuredInnerD = n ?? NaN), refresh()),
+          undefined,
+          "",
+          "cal.measuredInnerD",
+        ),
+        numField(
+          t("field.reActual"),
+          null,
+          t("unit.mpa"),
+          (n) => ((draft.reActual = n !== null && n > 0 ? n : null), refresh()),
+          undefined,
+          "",
+          "cal.reActual",
+        ),
+      ),
+      preview,
+      docPanel("cal.factor"),
+      h("div", { class: "editor-actions" }, save),
+    );
+    refresh();
+
+    // Per-material summary and the trial log.
+    const byMaterial = new Map<string, Trial[]>();
+    for (const tr of state.trials)
+      byMaterial.set(tr.materialId, [...(byMaterial.get(tr.materialId) ?? []), tr]);
+    const name = (id: string) => materials.find((m) => m.id === id)?.name ?? id;
+    const fmt = new Intl.DateTimeFormat(getLang() === "pl" ? "pl-PL" : "en-GB", {
+      dateStyle: "short",
+    });
+    const summary = section(
+      t("cal.summary"),
+      state.trials.length
+        ? h(
+            "div",
+            { class: "table-wrap" },
+            h(
+              "table",
+              { class: "data-table" },
+              h(
+                "thead",
+                {},
+                h(
+                  "tr",
+                  {},
+                  h("th", {}, t("result.material")),
+                  h("th", {}, t("cal.count")),
+                  h("th", {}, t("cal.mean")),
+                ),
+              ),
+              h(
+                "tbody",
+                {},
+                ...[...byMaterial].map(([id, list]) =>
+                  h(
+                    "tr",
+                    {},
+                    h("td", {}, name(id)),
+                    h("td", { class: "num" }, String(list.length)),
+                    h("td", { class: "num" }, num(meanFactor(list.map((x) => x.factor)) ?? NaN, 3)),
+                  ),
+                ),
+              ),
+            ),
+          )
+        : h("p", { class: "muted" }, t("cal.none")),
+      state.trials.length
+        ? h(
+            "div",
+            { class: "table-wrap" },
+            h(
+              "table",
+              { class: "data-table" },
+              h(
+                "thead",
+                {},
+                h(
+                  "tr",
+                  {},
+                  h("th", {}, t("pdf.date")),
+                  h("th", {}, t("result.material")),
+                  h("th", {}, "t"),
+                  h("th", {}, t("cal.setShort")),
+                  h("th", {}, t("cal.measuredShort")),
+                  h("th", {}, "c"),
+                  h("th", {}, ""),
+                ),
+              ),
+              h(
+                "tbody",
+                {},
+                ...state.trials.map((tr) =>
+                  h(
+                    "tr",
+                    {},
+                    h("td", {}, fmt.format(tr.savedAt)),
+                    h("td", {}, name(tr.materialId)),
+                    h("td", { class: "num" }, num(tr.thickness)),
+                    h("td", { class: "num" }, num(tr.setInnerD)),
+                    h("td", { class: "num" }, num(tr.measuredInnerD)),
+                    h("td", { class: "num" }, num(tr.factor, 3)),
+                    h(
+                      "td",
+                      {},
+                      h(
+                        "button",
+                        {
+                          type: "button",
+                          class: "btn btn-ghost btn-small btn-danger-text",
+                          "aria-label": t("action.delete"),
+                          onClick: () => {
+                            this.host.setTrials(
+                              this.host.state().trials.filter((x) => x.id !== tr.id),
+                            );
+                            this.render();
+                          },
+                        },
+                        "×",
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        : h("span"),
+    );
+    return h("div", { class: "editor-stack" }, form, summary);
+  }
+
+  private calMaterial: string | null = null;
+
+  // ---- templates ------------------------------------------------------------
+
+  private templatesTab() {
+    const list = this.host.state().templates;
+    const rows = list.map((tpl) => {
+      let name = tpl.name;
+      const save = this.saveButton(() => {
+        const clean = name.trim().slice(0, 40);
+        if (!clean) return false;
+        this.host.setTemplates(
+          this.host.state().templates.map((x) => (x.id === tpl.id ? { ...x, name: clean } : x)),
+        );
+        return true;
+      });
+      return h(
+        "div",
+        { class: "tpl-row" },
+        h(
+          "span",
+          { class: "input-wrap" },
+          h("input", {
+            type: "text",
+            value: tpl.name,
+            maxlength: "40",
+            "aria-label": t("tpl.name"),
+            onInput: (e: Event) => (name = (e.target as HTMLInputElement).value),
+          }),
+        ),
+        h("span", { class: "tpl-meta muted" }, describeTemplate(tpl)),
+        save,
+        h(
+          "button",
+          {
+            type: "button",
+            class: "btn btn-ghost btn-danger-text",
+            onClick: () => {
+              this.host.setTemplates(this.host.state().templates.filter((x) => x.id !== tpl.id));
+              this.render();
+            },
+          },
+          t("action.delete"),
+        ),
+      );
+    });
+    return section(
+      t("edit.tab.templates"),
+      h("p", { class: "muted" }, t("tpl.intro")),
+      ...(rows.length ? rows : [h("p", { class: "muted" }, t("tpl.none"))]),
+      docPanel("tpl.name"),
     );
   }
 
@@ -578,6 +974,8 @@ export class Editor {
             machine: s.machine,
             process: s.process,
             materials: s.materials,
+            trials: s.trials,
+            templates: s.templates,
           };
           const date = new Date().toISOString().slice(0, 10);
           void saveFile(
@@ -622,6 +1020,7 @@ export class Editor {
       status,
       h("hr", { class: "editor-rule" }),
       h("div", { class: "editor-actions editor-actions-start" }, resetBtn),
+      h("p", { class: "muted small" }, `${t("edit.version")} ${__APP_VERSION__}`),
     );
   }
 
@@ -673,7 +1072,57 @@ function section(title: string, ...children: HTMLElement[]) {
   );
 }
 
+/** Collapsible reference text: what the parameter is, what it affects, valid range, formula. */
+function docPanel(id: DocId) {
+  const d = paramDoc(id);
+  return h(
+    "details",
+    { class: "param-doc" },
+    h("summary", {}, t("doc.title")),
+    h(
+      "dl",
+      {},
+      h("dt", {}, t("doc.what")),
+      h("dd", {}, d.what),
+      h("dt", {}, t("doc.effect")),
+      h("dd", {}, d.effect),
+      h("dt", {}, t("doc.range")),
+      h("dd", {}, d.range),
+      d.formula ? h("dt", {}, t("doc.formula")) : null,
+      d.formula ? h("dd", {}, h("pre", { class: "formula" }, d.formula)) : null,
+    ),
+  );
+}
+
+function withDoc(field: HTMLElement, doc?: DocId): HTMLElement {
+  return doc ? h("div", { class: "param" }, field, docPanel(doc)) : field;
+}
+
+function describeTemplate(tpl: Template): string {
+  const i = tpl.inputs;
+  const shape = t(i.shape === "cylinder" ? "shape.cylinder" : "shape.cone");
+  const main =
+    i.shape === "cone"
+      ? `Ø ${i.dLarge} / ${i.dSmall} · H ${i.height}`
+      : i.mode === "fromDiameter"
+        ? `${i.dimension === "radius" ? "R" : "Ø"} ${i.value}`
+        : `L ${i.length}`;
+  return `${shape} · t ${i.thickness} · ${main}`;
+}
+
 function numField(
+  label: string,
+  value: number | null,
+  unit: string,
+  onValue: (n: number | null) => void,
+  hint?: string,
+  placeholder = "",
+  doc?: DocId,
+) {
+  return withDoc(numInput(label, value, unit, onValue, hint, placeholder), doc);
+}
+
+function numInput(
   label: string,
   value: number | null,
   unit: string,

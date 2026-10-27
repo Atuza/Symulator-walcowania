@@ -1,6 +1,11 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from "vite";
+import { readFileSync } from "node:fs";
 import { VitePWA } from "vite-plugin-pwa";
+
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
+  version: string;
+};
 
 // GitHub Pages serves the app from /<repo>/, local dev from /.
 const base = process.env.GITHUB_ACTIONS ? "/Symulator-walcowania/" : "/";
@@ -21,6 +26,9 @@ const CSP = [
 
 export default defineConfig({
   base,
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   build: {
     target: "es2022",
     sourcemap: false,

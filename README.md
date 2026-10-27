@@ -15,8 +15,11 @@ offline once loaded, stores nothing outside the device.
 - Material database: structural, high-strength, pressure vessel, stainless and aluminium grades (EN standards).
 - Indicative warnings: R/t, outer fibre strain, springback, machine limits.
 - PDF report (A4) and DXF R12 contour: one closed polyline, layer `cut`, red, 1:1 mm.
-- Edit mode (behind an explicit warning, blueprint colours): machine data, process defaults and the
-  material database; JSON export/import of all settings.
+- Edit mode (behind an explicit warning, blueprint colours): machine data, process defaults, material
+  database, calibration from trial parts and templates, each parameter documented with its effect,
+  range and formula; JSON export/import of all settings.
+- Templates for frequent jobs, one tap in the calculator.
+- PDF report with a QR code that reopens the same calculation.
 - Polish and English, light and dark theme, touch and mouse.
 
 ## Development

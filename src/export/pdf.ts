@@ -15,6 +15,9 @@ export interface ReportData {
   groups: { title: string; rows: Row[] }[];
   warnings: string[];
   views: View[];
+  /** Link back to this calculation, printed as a QR code. */
+  qr: { matrix: boolean[][]; caption: string } | null;
+  version: string;
 }
 
 const PAGE = { w: 297, h: 210, m: 12 };
@@ -61,13 +64,36 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   doc.setFontSize(8.5);
   doc.setTextColor(...MUTED);
   doc.text(data.appName, m + 4.5, m + 8.5);
-  doc.text(`${t("pdf.date")}: ${data.date}`, PAGE.w - m, m + 4, { align: "right" });
+  // QR in the top-right corner; header text is right-aligned against it.
+  const qrSize = 24;
+  const textRight = data.qr ? PAGE.w - m - qrSize - 4 : PAGE.w - m;
+  if (data.qr) {
+    const n = data.qr.matrix.length;
+    const cell = qrSize / n;
+    const qx = PAGE.w - m - qrSize,
+      qy = m - 3;
+    doc.setFillColor(0, 0, 0);
+    data.qr.matrix.forEach((row, r) =>
+      row.forEach((dark, c) => {
+        // Slight overlap avoids hairline gaps between modules in some viewers.
+        if (dark) doc.rect(qx + c * cell, qy + r * cell, cell + 0.02, cell + 0.02, "F");
+      }),
+    );
+    doc.setFontSize(6);
+    doc.setTextColor(...MUTED);
+    doc.text(data.qr.caption, qx + qrSize / 2, qy + qrSize + 3, {
+      align: "center",
+      maxWidth: qrSize + 8,
+    });
+    doc.setFontSize(8.5);
+  }
+  doc.text(`${t("pdf.date")}: ${data.date}`, textRight, m + 4, { align: "right" });
   let fy = m + 8.5;
   for (const f of data.fields) {
-    doc.text(`${f.label}: ${f.value}`, PAGE.w - m, fy, { align: "right", maxWidth: 110 });
+    doc.text(`${f.label}: ${f.value}`, textRight, fy, { align: "right", maxWidth: 100 });
     fy += 4.2;
   }
-  const top = Math.max(m + 14, fy + 2);
+  const top = Math.max(m + 14, fy + 2, data.qr ? m + qrSize + 3 : 0);
   doc.setDrawColor(...LINE);
   doc.setLineWidth(0.2);
   doc.line(m, top, PAGE.w - m, top);
@@ -117,7 +143,7 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   doc.setLineDashPattern([], 0);
   doc.line(m, PAGE.h - m - 4, PAGE.w - m, PAGE.h - m - 4);
   doc.text(t("pdf.disclaimer"), m, PAGE.h - m);
-  doc.text(`1 / 1`, PAGE.w - m, PAGE.h - m, { align: "right" });
+  doc.text(`v${data.version} · 1 / 1`, PAGE.w - m, PAGE.h - m, { align: "right" });
 
   return doc.output("blob");
 }

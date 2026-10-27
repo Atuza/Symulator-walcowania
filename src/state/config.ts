@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { materials as defaultMaterials } from "../domain/materials/data";
 import { materialSchema, type Material } from "../domain/materials/schema";
+import { templateSchema, trialSchema } from "./library";
 import { machineSchema } from "./settings";
 import { load, remove, save } from "./storage";
 
@@ -119,6 +120,8 @@ export const backupSchema = z.object({
   machine: machineSchema,
   process: processSchema,
   materials: z.array(materialSchema).min(1),
+  trials: z.array(trialSchema).optional(),
+  templates: z.array(templateSchema).optional(),
 });
 
 export type Backup = z.infer<typeof backupSchema>;

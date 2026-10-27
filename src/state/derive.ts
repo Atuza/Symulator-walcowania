@@ -19,6 +19,8 @@ export interface Derived {
   width: number | null;
   /** Effective flat end per side, 0 when disabled. */
   flatEnd: number;
+  /** Springback factor in use and where it came from. */
+  calibration: { value: number; source: "input" | "trials" | "default"; trials: number };
   output: CalcOutput | null;
   error: { key: Key; field: TextField } | null;
 }
@@ -40,6 +42,8 @@ export function derive(
   machine: MachineLimits,
   process: ProcessConfig,
   materials: Material[],
+  /** Mean trial factor and trial count per material id. */
+  trialFactors: Map<string, { factor: number; count: number }> = new Map(),
 ): Derived {
   const num = (field: TextField) => parseNumber(inputs[field]);
   const thickness = num("thickness");
@@ -49,12 +53,21 @@ export function derive(
       ? null
       : (materials.find((m) => m.id === inputs.materialId) ?? null);
   const reActual = num("reActual");
+  const typed = num("calibration");
+  const fromTrials = trialFactors.get(inputs.materialId);
+  const calibration: Derived["calibration"] =
+    typed !== null && typed >= 0
+      ? { value: typed, source: "input", trials: 0 }
+      : fromTrials
+        ? { value: fromTrials.factor, source: "trials", trials: fromTrials.count }
+        : { value: process.calibration, source: "default", trials: 0 };
   const base: Omit<Derived, "output" | "error" | "props"> = {
     inputs,
     material,
     thickness,
     width: width !== null && width > 0 ? width : null,
     flatEnd: 0,
+    calibration,
   };
 
   if (thickness === null || thickness <= 0) {
@@ -78,11 +91,10 @@ export function derive(
   const flatEnd = inputs.flatEnds ? (num("flatLength") ?? process.flatEndFactor * thickness) : 0;
   const k = num("k");
   const kOverride = k !== null && k > 0 && k <= 1 ? k : null;
-  const calibration = num("calibration") ?? process.calibration;
   const common = {
     material: props,
     reFromCertificate: reActual !== null && reActual > 0,
-    calibration: calibration >= 0 ? calibration : process.calibration,
+    calibration: calibration.value,
     machine,
     springbackWarn: process.springbackWarn,
   };

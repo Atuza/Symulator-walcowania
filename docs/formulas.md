@@ -64,6 +64,22 @@ Expect large values for thin plate at large radii (tens of percent): the bending
 few times the yield strain. The model ignores work hardening and uses minimum Re, so the actual Re from
 the certificate gives a markedly better estimate.
 
+## Calibration from trial parts
+
+A trial rolled at a known machine setting `Rs` and measured at `Rf` after release gives
+
+```
+Rm = model setting for target Rf (c = 1)
+c  = (Rf − Rs) / (Rf − Rm)
+```
+
+All radii are neutral (mid-surface) radii, converted from inner diameters with `R = (Di + t) / 2`.
+The calculator uses, in this order: a factor typed into the calculator, the mean `c` of the selected
+material's trials, the default factor from edit mode. With `c` from a trial, asking for that trial's
+measured diameter returns exactly its machine setting.
+
+A measured diameter not larger than the set one is rejected: springback always opens the shell.
+
 ## Strain
 
 Outer fibre engineering strain: `ε = t / (2·ri + t)`. Warning thresholds are indicative: 5 % for

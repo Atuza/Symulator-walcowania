@@ -63,6 +63,15 @@ function springRows(set: SetPoint | null, label: Key): Row[] {
 }
 
 /** Secondary results, grouped. */
+function calibrationRow(d: Derived): Row {
+  const c = d.calibration;
+  const source =
+    c.source === "trials"
+      ? t("result.cal.trials", { n: String(c.trials) })
+      : t(c.source === "input" ? "result.cal.input" : "result.cal.default");
+  return { label: `${t("result.calibration")} (${source})`, value: num(c.value, 3) };
+}
+
 export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
   const out = d.output;
   if (!out || !d.props) return [];
@@ -96,6 +105,7 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
           { label: t("result.rt"), value: num(r.rt, 1) },
           { label: t("result.strain"), value: percent(r.outerStrain) },
           { label: t("result.re"), value: num(d.props.re, 0), unit: t("unit.mpa") },
+          calibrationRow(d),
           ...springRows(out.set, "result.setDiameter"),
         ],
       },
@@ -162,6 +172,7 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
         { label: `${t("result.rt")} min`, value: num(r.rtMin, 1) },
         { label: t("result.strain"), value: percent(r.outerStrainMax) },
         { label: t("result.re"), value: num(d.props.re, 0), unit: t("unit.mpa") },
+        calibrationRow(d),
         ...springRows(out.setLarge, "result.setLarge"),
         ...(out.setSmall && out.setSmall.dInner > 0
           ? [
