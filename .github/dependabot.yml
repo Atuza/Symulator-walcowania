@@ -7,6 +7,10 @@ updates:
     groups:
       all:
         patterns: ["*"]
+    # Major versions need a deliberate upgrade (peer ranges, breaking changes).
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

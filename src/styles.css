@@ -1119,7 +1119,7 @@ textarea:focus {
 }
 
 .field-row-dim {
-  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-columns: 1fr;
 }
 
 .heroes-2 {
