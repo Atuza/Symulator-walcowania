@@ -40,6 +40,8 @@ interface Common {
   reFromCertificate: boolean;
   calibration: number;
   machine: MachineLimits;
+  /** Springback share above which an info warning is shown; default 0.3. */
+  springbackWarn?: number;
 }
 
 export type CalcInput =
@@ -71,7 +73,7 @@ export type CalcOutput =
 
 export type CalcError = { error: CylinderError | ConeError };
 
-const LARGE_SPRINGBACK = 0.3;
+const DEFAULT_SPRINGBACK_WARN = 0.3;
 
 export function calculate(input: CalcInput): CalcOutput | CalcError {
   return input.shape === "cylinder" ? calcCylinder(input) : calcCone(input);
@@ -118,10 +120,10 @@ function commonWarnings(
     w.push({ code: "reFromCertificate", severity: "info", values: { re: m.re } });
 }
 
-function springbackWarnings(set: SetPoint | null, w: Warning[]) {
+function springbackWarnings(set: SetPoint | null, limit: number, w: Warning[]) {
   if (!set) return;
   if (set.dInner <= 0 || set.ratio >= 0.999) w.push({ code: "elasticOnly", severity: "warn" });
-  else if (set.ratio > LARGE_SPRINGBACK)
+  else if (set.ratio > limit)
     w.push({ code: "springbackLarge", severity: "info", values: { ratio: set.ratio } });
 }
 
@@ -132,7 +134,7 @@ function calcCylinder(input: Extract<CalcInput, { shape: "cylinder" }>): CalcOut
   const set = setPoint(input, result.dNeutral / 2, t, result.k, 1);
   const w: Warning[] = [];
   commonWarnings(input, t, result.rt, result.outerStrain, w);
-  springbackWarnings(set, w);
+  springbackWarnings(set, input.springbackWarn ?? DEFAULT_SPRINGBACK_WARN, w);
   const mc = input.machine;
   if (mc.maxWidth !== null && input.width !== null && input.width > mc.maxWidth)
     w.push({ code: "machineWidth", severity: "warn", values: { max: mc.maxWidth } });
@@ -161,7 +163,7 @@ function calcCone(input: Extract<CalcInput, { shape: "cone" }>): CalcOutput | Ca
   const w: Warning[] = [];
   if (input.cone.dSmall === 0) w.push({ code: "coneApex", severity: "warn" });
   commonWarnings(input, t, result.rtMin, result.outerStrainMax, w);
-  springbackWarnings(setLarge, w);
+  springbackWarnings(setLarge, input.springbackWarn ?? DEFAULT_SPRINGBACK_WARN, w);
   const mc = input.machine;
   // The generator lies along the rolls, so the slant length is the working width.
   if (mc.maxWidth !== null && result.slant > mc.maxWidth)

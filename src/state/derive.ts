@@ -5,12 +5,11 @@ import {
   type MachineLimits,
   type MaterialProps,
 } from "../domain/calculate";
-import { CUSTOM_MATERIAL_ID, findMaterial } from "../domain/materials/data";
+import { CUSTOM_MATERIAL_ID } from "../domain/materials/data";
 import { yieldAt, type Material } from "../domain/materials/schema";
 import type { Key } from "../i18n";
+import type { ProcessConfig } from "./config";
 import { parseNumber, type Inputs, type TextField } from "./inputs";
-
-export const FLAT_END_FACTOR = 1.5;
 
 export interface Derived {
   inputs: Inputs;
@@ -36,12 +35,19 @@ const errorFields: Record<string, TextField> = {
   tooFlat: "height",
 };
 
-export function derive(inputs: Inputs, machine: MachineLimits): Derived {
+export function derive(
+  inputs: Inputs,
+  machine: MachineLimits,
+  process: ProcessConfig,
+  materials: Material[],
+): Derived {
   const num = (field: TextField) => parseNumber(inputs[field]);
   const thickness = num("thickness");
   const width = num("width");
   const material =
-    inputs.materialId === CUSTOM_MATERIAL_ID ? null : (findMaterial(inputs.materialId) ?? null);
+    inputs.materialId === CUSTOM_MATERIAL_ID
+      ? null
+      : (materials.find((m) => m.id === inputs.materialId) ?? null);
   const reActual = num("reActual");
   const base: Omit<Derived, "output" | "error" | "props"> = {
     inputs,
@@ -69,15 +75,16 @@ export function derive(inputs: Inputs, machine: MachineLimits): Derived {
       error: { key: "error.material", field: "customRe" },
     };
 
-  const flatEnd = inputs.flatEnds ? (num("flatLength") ?? FLAT_END_FACTOR * thickness) : 0;
+  const flatEnd = inputs.flatEnds ? (num("flatLength") ?? process.flatEndFactor * thickness) : 0;
   const k = num("k");
   const kOverride = k !== null && k > 0 && k <= 1 ? k : null;
-  const calibration = num("calibration") ?? 1;
+  const calibration = num("calibration") ?? process.calibration;
   const common = {
     material: props,
     reFromCertificate: reActual !== null && reActual > 0,
-    calibration: calibration >= 0 ? calibration : 1,
+    calibration: calibration >= 0 ? calibration : process.calibration,
     machine,
+    springbackWarn: process.springbackWarn,
   };
 
   let calc: CalcInput;

@@ -15,7 +15,7 @@ export const materialSchema = z.object({
   name: z.string().min(1),
   number: z.string().nullable(),
   group: z.enum(materialGroups),
-  standard: z.string().min(1),
+  standard: z.string(),
   yield: z.array(yieldBand).min(1),
   /** Tensile strength range [MPa], lowest thickness band. */
   rm: z.tuple([z.number().positive(), z.number().positive()]),

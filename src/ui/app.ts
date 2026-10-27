@@ -1,12 +1,21 @@
-import { emptyMachine, type MachineLimits } from "../domain/calculate";
-import { CUSTOM_MATERIAL_ID, materials } from "../domain/materials/data";
-import { materialGroups, yieldAt } from "../domain/materials/schema";
+import { emptyMachine } from "../domain/calculate";
+import { CUSTOM_MATERIAL_ID } from "../domain/materials/data";
+import { materialGroups, yieldAt, type Material } from "../domain/materials/schema";
 import type { Warning } from "../domain/types";
 import { buildViews } from "../drawing/build";
 import { dxfDocument, rectangleContour, sectorContour } from "../export/dxf";
 import { saveFile, slug } from "../export/download";
 import { getLang, num, percent, setLang, t, type Key, type Lang } from "../i18n";
-import { derive, FLAT_END_FACTOR, type Derived } from "../state/derive";
+import {
+  loadMaterials,
+  loadProcess,
+  resetMaterials,
+  resetProcess,
+  saveMaterials,
+  saveProcess,
+  type ProcessConfig,
+} from "../state/config";
+import { derive, type Derived } from "../state/derive";
 import {
   addHistory,
   clearHistory,
@@ -26,7 +35,9 @@ import { load, save } from "../state/storage";
 import { sceneModel } from "../viz/sceneModel";
 import { View2D } from "../viz/view2d";
 import type { RollingScene } from "../viz/scene3d";
+import { openDialog } from "./dialog";
 import { h, segmented } from "./dom";
+import { Editor } from "./editor";
 import { heroes, inputRows, resultGroups, type Row } from "./rows";
 
 const INPUTS_KEY = "rolling.inputs.v1";
@@ -41,7 +52,11 @@ const defaultSettings: Settings = {
 export class App {
   private inputs: Inputs = load(INPUTS_KEY, inputsSchema) ?? { ...defaultInputs };
   private settings: Settings = load(SETTINGS_KEY, settingsSchema) ?? defaultSettings;
+  private process: ProcessConfig = loadProcess();
+  private materials: Material[] = loadMaterials();
   private derived!: Derived;
+  private layout!: HTMLElement;
+  private editor: Editor | null = null;
 
   private inputsPanel = h("section", { class: "panel inputs", "aria-label": "inputs" });
   private resultsPanel = h("aside", { class: "panel results", "aria-live": "polite" });
@@ -62,16 +77,14 @@ export class App {
   constructor(private root: HTMLElement) {
     setLang(this.settings.lang);
     this.applyTheme();
-    root.append(
-      this.header,
-      h(
-        "main",
-        { class: "layout" },
-        this.inputsPanel,
-        h("section", { class: "stage" }, this.stage3d, this.stage2d),
-        this.resultsPanel,
-      ),
+    this.layout = h(
+      "main",
+      { class: "layout" },
+      this.inputsPanel,
+      h("section", { class: "stage" }, this.stage3d, this.stage2d),
+      this.resultsPanel,
     );
+    root.append(this.header, this.layout);
     this.view2d = new View2D(this.stage2d);
     this.buildStageControls();
     this.renderAll();
@@ -106,7 +119,11 @@ export class App {
   }
 
   private compute() {
-    this.derived = derive(this.inputs, this.settings.machine);
+    // A material deleted in edit mode must not leave the calculator without one.
+    const id = this.inputs.materialId;
+    if (id !== CUSTOM_MATERIAL_ID && !this.materials.some((m) => m.id === id) && this.materials[0])
+      this.inputs = { ...this.inputs, materialId: this.materials[0].id };
+    this.derived = derive(this.inputs, this.settings.machine, this.process, this.materials);
     this.renderResults();
     this.markErrors();
     this.renderViews();
@@ -115,6 +132,10 @@ export class App {
 
   private renderAll() {
     this.renderHeader();
+    if (this.editor) {
+      this.editor.render();
+      return;
+    }
     this.renderInputs();
     this.compute();
     this.updateStageLabels();
@@ -125,30 +146,47 @@ export class App {
   private renderHeader() {
     const iconBtn = (label: string, onClick: () => void, text: string) =>
       h("button", { type: "button", class: "btn btn-ghost", onClick, "aria-label": label }, text);
+    const editing = this.editor !== null;
     this.header.replaceChildren(
       h(
         "div",
         { class: "brand" },
         h("span", { class: "brand-dot", "aria-hidden": "true" }),
         h("span", { class: "brand-name" }, t("appName")),
-        h("span", { class: "brand-tag" }, t("appTagline")),
+        editing
+          ? h("span", { class: "edit-badge" }, t("edit.badge"))
+          : h("span", { class: "brand-tag" }, t("appTagline")),
       ),
       h(
         "nav",
         { class: "top-actions" },
-        iconBtn(t("action.machine"), () => this.openMachine(), t("action.machine")),
-        iconBtn(t("action.history"), () => this.openHistory(), t("action.history")),
-        h(
-          "button",
-          {
-            type: "button",
-            class: "btn btn-ghost btn-icon",
-            "aria-label": t("action.theme"),
-            title: t("action.theme"),
-            onClick: () => this.toggleTheme(),
-          },
-          h("span", { class: "theme-glyph", "aria-hidden": "true" }),
-        ),
+        editing
+          ? h(
+              "button",
+              {
+                type: "button",
+                class: "btn btn-primary btn-small",
+                onClick: () => this.exitEdit(),
+              },
+              t("edit.exit"),
+            )
+          : iconBtn(t("action.edit"), () => this.openEditGate(), t("action.edit")),
+        editing
+          ? null
+          : iconBtn(t("action.history"), () => this.openHistory(), t("action.history")),
+        editing
+          ? null
+          : h(
+              "button",
+              {
+                type: "button",
+                class: "btn btn-ghost btn-icon",
+                "aria-label": t("action.theme"),
+                title: t("action.theme"),
+                onClick: () => this.toggleTheme(),
+              },
+              h("span", { class: "theme-glyph", "aria-hidden": "true" }),
+            ),
         segmented<Lang>(
           "Language",
           [
@@ -213,7 +251,7 @@ export class App {
         h(
           "optgroup",
           { label: t(`group.${g}` as Key) },
-          ...materials
+          ...this.materials
             .filter((m) => m.group === g)
             .map((m) =>
               h(
@@ -424,12 +462,14 @@ export class App {
     const d = this.derived;
     const flat = this.fieldEls.get("flatLength")?.querySelector("input");
     if (flat && d.thickness)
-      flat.placeholder = `${t("hint.auto")} ${num(FLAT_END_FACTOR * d.thickness)}`;
+      flat.placeholder = `${t("hint.auto")} ${num(this.process.flatEndFactor * d.thickness)}`;
     const k = this.fieldEls.get("k")?.querySelector("input");
     if (k) {
       const out = d.output;
       k.placeholder = out ? `${t("hint.auto")} ${num(out.result.k, 3)}` : t("hint.auto");
     }
+    const cal = this.fieldEls.get("calibration")?.querySelector("input");
+    if (cal) cal.placeholder = num(this.process.calibration);
     const re = this.fieldEls.get("reActual")?.querySelector("input");
     if (re && d.material && d.thickness)
       re.placeholder = `min ${num(yieldAt(d.material, d.thickness), 0)}`;
@@ -439,7 +479,7 @@ export class App {
   private updateMaterialInfo() {
     const el = this.inputsPanel.querySelector("#material-info");
     if (!el) return;
-    const m = materials.find((x) => x.id === this.inputs.materialId);
+    const m = this.materials.find((x) => x.id === this.inputs.materialId);
     if (!m) {
       el.textContent = "";
       return;
@@ -711,7 +751,7 @@ export class App {
   // ---- exports -------------------------------------------------------------
 
   private materialName(): string {
-    const m = materials.find((x) => x.id === this.inputs.materialId);
+    const m = this.materials.find((x) => x.id === this.inputs.materialId);
     if (m) return m.number && !m.name.includes(m.number) ? `${m.name} (${m.number})` : m.name;
     return t("material.custom").replace("…", "");
   }
@@ -727,7 +767,7 @@ export class App {
         : getLang() === "pl"
           ? "stozek"
           : "cone";
-    const m = materials.find((x) => x.id === this.inputs.materialId);
+    const m = this.materials.find((x) => x.id === this.inputs.materialId);
     const n = (v: number) => String(Math.round(v * 100) / 100).replace(".", "-");
     const main =
       out.shape === "cylinder" ? `L${n(out.result.blankLength)}` : `R${n(out.result.rOuter)}`;
@@ -843,76 +883,88 @@ export class App {
   // ---- dialogs -------------------------------------------------------------
 
   private dialog(title: string, body: HTMLElement, ...actions: HTMLElement[]): HTMLDialogElement {
-    const close = h("button", { type: "button", class: "btn btn-ghost" }, t("action.close"));
-    const dialog = h(
-      "dialog",
-      { class: "dialog", "aria-label": title },
-      h("header", { class: "dialog-head" }, h("h2", {}, title)),
-      body,
-      h("footer", { class: "dialog-foot" }, close, ...actions),
-    );
-    close.addEventListener("click", () => dialog.close());
-    dialog.addEventListener("close", () => dialog.remove());
-    dialog.addEventListener("click", (e) => {
-      if (e.target === dialog) dialog.close();
-    });
-    this.root.append(dialog);
-    dialog.showModal();
-    return dialog;
+    return openDialog(this.root, title, body, ...actions);
   }
 
-  private openMachine() {
-    const keys: (keyof MachineLimits)[] = [
-      "topRollD",
-      "bottomRollD",
-      "sideRollD",
-      "maxThickness",
-      "maxWidth",
-      "minDiameter",
-    ];
-    const draft: MachineLimits = { ...this.settings.machine };
+  // ---- edit mode -------------------------------------------------------------
+
+  private openEditGate() {
+    const enter = h(
+      "button",
+      { type: "button", class: "btn btn-danger", disabled: true },
+      t("edit.gate.enter"),
+    );
+    const check = h("input", {
+      type: "checkbox",
+      onChange: (e: Event) => (enter.disabled = !(e.target as HTMLInputElement).checked),
+    });
     const body = h(
       "div",
       { class: "dialog-body" },
-      h("p", { class: "muted" }, t("machine.intro")),
-      h(
-        "div",
-        { class: "field-grid" },
-        ...keys.map((k) =>
-          h(
-            "label",
-            { class: "field" },
-            h("span", { class: "field-label" }, t(`machine.${k}` as Key)),
-            h(
-              "span",
-              { class: "input-wrap" },
-              h("input", {
-                class: "num",
-                type: "text",
-                inputmode: "decimal",
-                value:
-                  draft[k] === null
-                    ? ""
-                    : String(draft[k]).replace(".", getLang() === "pl" ? "," : "."),
-                onInput: (e: Event) => {
-                  const n = parseNumber((e.target as HTMLInputElement).value);
-                  draft[k] = n !== null && n > 0 ? n : null;
-                },
-              }),
-              h("span", { class: "unit" }, t("unit.mm")),
-            ),
-          ),
-        ),
-      ),
+      h("p", { class: "gate-warning" }, t("edit.gate.text")),
+      h("p", { class: "muted" }, t("edit.gate.storage")),
+      h("label", { class: "check" }, check, h("span", {}, t("edit.gate.confirm"))),
     );
-    const apply = h("button", { type: "button", class: "btn btn-primary" }, t("action.save"));
-    const dialog = this.dialog(t("machine.title"), body, apply);
-    apply.addEventListener("click", () => {
-      this.settings = { ...this.settings, machine: draft };
-      this.saveSettings();
-      this.compute();
+    const dialog = this.dialog(t("edit.gate.title"), body, enter);
+    dialog.classList.add("dialog-warning");
+    enter.addEventListener("click", () => {
       dialog.close();
+      this.enterEdit();
     });
+  }
+
+  private enterEdit() {
+    this.stopPlay();
+    this.editor = new Editor({
+      root: this.root,
+      state: () => ({
+        machine: this.settings.machine,
+        process: this.process,
+        materials: this.materials,
+      }),
+      setMachine: (machine) => {
+        this.settings = { ...this.settings, machine };
+        this.saveSettings();
+      },
+      setProcess: (process) => {
+        this.process = process;
+        saveProcess(process);
+      },
+      setMaterials: (list) => {
+        this.materials = list;
+        saveMaterials(list);
+      },
+      resetMaterials: () => {
+        this.materials = resetMaterials();
+      },
+      importAll: (backup) => {
+        this.settings = { ...this.settings, machine: backup.machine };
+        this.saveSettings();
+        this.process = backup.process;
+        saveProcess(backup.process);
+        this.materials = backup.materials;
+        saveMaterials(backup.materials);
+      },
+      resetAll: () => {
+        this.settings = { ...this.settings, machine: emptyMachine };
+        this.saveSettings();
+        this.process = resetProcess();
+        this.materials = resetMaterials();
+      },
+    });
+    document.documentElement.dataset.mode = "edit";
+    this.layout.replaceWith(this.editor.el);
+    this.renderHeader();
+    window.scrollTo(0, 0);
+  }
+
+  private exitEdit() {
+    if (!this.editor) return;
+    this.editor.el.replaceWith(this.layout);
+    this.editor = null;
+    delete document.documentElement.dataset.mode;
+    this.applyTheme();
+    this.renderAll();
   }
 
   private openHistory() {

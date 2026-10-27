@@ -20,8 +20,14 @@ export/dxf ◄── CalcOutput (contour)
 - **viz/scene3d** and **export/pdf** are loaded on demand to keep the first load small.
 - **i18n**: the only place with user-facing text; code, comments and identifiers are English.
 
-Storage keys (`localStorage`): `rolling.inputs.v1`, `rolling.settings.v1`, `rolling.history.v1`
-(capped at 50 entries). The app works with storage disabled.
+Storage keys (`localStorage`): `rolling.inputs.v1`, `rolling.settings.v1` (language, theme, machine),
+`rolling.process.v1`, `rolling.materials.v1` (edit-mode overrides; absent = built-in defaults) and
+`rolling.history.v1` (capped at 50 entries). The app works with storage disabled.
+
+Edit mode (`ui/editor.ts`) replaces the calculator screen and sets `data-mode="edit"` on the root, which
+switches the palette to blueprint colours. Every saved change goes through `state/config.ts`: the
+material schema plus cross-field checks (band order, Rm range, unique names). Settings exports are
+JSON with a `format`/`version` header and are validated the same way on import.
 
 Security: Content-Security-Policy meta tag in production builds, self-hosted fonts, no third-party
 requests, pinned dependencies and SHA-pinned GitHub Actions, Dependabot.
