@@ -9,6 +9,7 @@ export class View2D {
   readonly el: SVGSVGElement;
   private views: View[] = [];
   private observer: ResizeObserver;
+  private resizeFrame = 0;
   private hint = document.createElement("p");
 
   constructor(
@@ -21,7 +22,15 @@ export class View2D {
     this.el.setAttribute("role", "group");
     this.hint.className = "drawing-hint";
     host.append(this.hint, this.el);
-    this.observer = new ResizeObserver(() => this.render());
+    // Rendering can change scrollbars and therefore the observed width. Defer the write until
+    // after the observer's notification phase to avoid a ResizeObserver feedback-loop error.
+    this.observer = new ResizeObserver(() => {
+      cancelAnimationFrame(this.resizeFrame);
+      this.resizeFrame = requestAnimationFrame(() => {
+        this.resizeFrame = 0;
+        this.render();
+      });
+    });
     this.observer.observe(host);
   }
 
