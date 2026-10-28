@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { chartIsValid } from "../domain/capacity";
 import type { MachineLimits } from "../domain/calculate";
+import { withFixedMachine } from "./fixedMachine";
 
 const nullableNumber = z.number().positive().nullable();
 
@@ -16,17 +17,19 @@ export const chartSchema = z
   })
   .refine(chartIsValid);
 
-export const machineSchema = z.object({
-  topRollD: nullableNumber,
-  bottomRollD: nullableNumber,
-  sideRollD: nullableNumber,
-  maxThickness: nullableNumber,
-  maxWidth: nullableNumber,
-  minDiameter: nullableNumber,
-  // Fields added in 1.1; settings saved earlier lack them.
-  rollLength: nullableNumber.default(null),
-  charts: z.array(chartSchema).max(16).default([]),
-}) satisfies z.ZodType<MachineLimits>;
+export const machineSchema = z
+  .object({
+    topRollD: nullableNumber,
+    bottomRollD: nullableNumber,
+    sideRollD: nullableNumber,
+    maxThickness: nullableNumber,
+    maxWidth: nullableNumber,
+    minDiameter: nullableNumber,
+    // Fields added in 1.1; settings saved earlier lack them.
+    rollLength: nullableNumber.default(null),
+    charts: z.array(chartSchema).max(16).default([]),
+  })
+  .transform(withFixedMachine) satisfies z.ZodType<MachineLimits>;
 
 export const settingsSchema = z.object({
   lang: z.enum(["pl", "en"]),

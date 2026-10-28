@@ -65,7 +65,7 @@ function machineView(
       bottom: machine.bottomRollD ?? top * 0.92,
       side: machine.sideRollD ?? top * 0.8,
     },
-    rollLength: Math.max(machine.rollLength ?? 0, width * 1.15),
+    rollLength: machine.rollLength ?? width * 1.15,
     realRolls: machine.topRollD !== null,
   };
 }

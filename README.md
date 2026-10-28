@@ -4,7 +4,7 @@ Plate rolling calculator for 4-roll plate bending machines: blank length, diamet
 3D rolling preview, 2D drawing, PDF report and DXF cut contour. Runs entirely in the browser, works
 offline once loaded, stores nothing outside the device.
 
-**Version:** 1.1.4
+**Version:** 1.1.5
 
 **App:** https://atuza.github.io/Symulator-walcowania/
 
@@ -56,9 +56,14 @@ close only when their ends meet and the total turn is ±360°.
 - DXF R12: one closed red `POLYLINE` on layer `cut`, 1:1 mm; discrete profile bend lines are blue
   `LINE` entities on layer `bend`. Ellipses have no artificial bend lines. Eccentric cone contours
   use sampled line segments. R12 has no unit header: select mm on CAD import.
+- Fixed installed-machine geometry: top roll Ø 338.38 mm, bottom Ø 310.12 mm, both side rolls
+  Ø 240.02 mm, working roll length 3100 mm and maximum plate width 3000 mm. These values are
+  read-only and survive old settings, imported files and reset. The 3D rolls retain their actual
+  size even when the part is too tight or too wide; machine warnings flag those cases.
 - Local machine capacity charts for rolling/pre-bending, cone thickness limits and JSON machine
   import/export. Non-circular profile checks use the tightest bend and are indicative.
-- Edit mode (behind an explicit warning, blueprint colours): machine data, process defaults, material
+- Edit mode (behind an explicit warning, blueprint colours): read-only machine geometry, additional
+  machine limits, process defaults, material
   database, calibration from trial parts and templates; the Shapes tab explains every shape's
   dimensions, effects, valid ranges, formulas, examples and model limits in Polish and English.
   Other editable parameters are documented with what each is,

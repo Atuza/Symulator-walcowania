@@ -66,9 +66,9 @@ describe("backup", () => {
     materials,
   };
 
-  it("round-trips a valid export", () => {
+  it("loads a valid legacy export with the installed machine geometry", () => {
     const parsed = parseBackup(JSON.stringify(backup));
-    expect(parsed?.machine.topRollD).toBe(450);
+    expect(parsed?.machine.topRollD).toBe(338.38);
     expect(parsed?.materials).toHaveLength(materials.length);
   });
 

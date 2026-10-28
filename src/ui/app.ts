@@ -1,4 +1,4 @@
-import { emptyMachine } from "../domain/calculate";
+import { withFixedMachine } from "../state/fixedMachine";
 import { CUSTOM_MATERIAL_ID } from "../domain/materials/data";
 import { materialGroups, yieldAt, type Material } from "../domain/materials/schema";
 import type { Warning } from "../domain/types";
@@ -65,7 +65,7 @@ const SETTINGS_KEY = "rolling.settings.v1";
 const defaultSettings: Settings = {
   lang: navigator.language.toLowerCase().startsWith("pl") ? "pl" : "en",
   theme: "system",
-  machine: emptyMachine,
+  machine: withFixedMachine(),
 };
 
 export class App {
@@ -1483,7 +1483,7 @@ export class App {
         saveTemplates(list);
       },
       setMachine: (machine) => {
-        this.settings = { ...this.settings, machine };
+        this.settings = { ...this.settings, machine: withFixedMachine(machine) };
         this.saveSettings();
       },
       setProcess: (process) => {
@@ -1498,7 +1498,7 @@ export class App {
         this.materials = resetMaterials();
       },
       importAll: (backup) => {
-        this.settings = { ...this.settings, machine: backup.machine };
+        this.settings = { ...this.settings, machine: withFixedMachine(backup.machine) };
         this.saveSettings();
         this.process = backup.process;
         saveProcess(backup.process);
@@ -1514,7 +1514,7 @@ export class App {
         }
       },
       resetAll: () => {
-        this.settings = { ...this.settings, machine: emptyMachine };
+        this.settings = { ...this.settings, machine: withFixedMachine() };
         this.saveSettings();
         this.process = resetProcess();
         this.materials = resetMaterials();

@@ -58,7 +58,7 @@ const pl: Record<DocId, ParamDoc> = {
     effect:
       "Kontrola wykonalności: ostrzeżenie, gdy średnica do ustawienia na maszynie (po kompensacji sprężynowania) nie mieści walca górnego. Rozmiar walców w widoku 3D. Nie zmienia długości blachy ani sprężynowania.",
     range:
-      "Typowo 100–1000 mm, z dokumentacji maszyny. Puste pole: brak kontroli, walce w 3D rysowane symbolicznie.",
+      "Stałe 338,38 mm (promień 169,19 mm) z parametrów sterowania tej maszyny. Wartość tylko do odczytu.",
     formula: ["D_s > D_g", "D_{s,\\min} \\approx (1,1 \\ldots 1,2) \\cdot D_g"],
     symbols: [
       [
@@ -72,13 +72,14 @@ const pl: Record<DocId, ParamDoc> = {
   "machine.bottomRollD": {
     what: "Średnica dolnego walca zaciskowego. Razem z walcem górnym trzyma i przesuwa blachę, więc w walcarce czterowalcowej arkusz nie ślizga się, a zawijanie obu końców odbywa się bez przekładania.",
     effect: "Tylko rozmiar walca w widoku 3D. Nie wpływa na obliczenia.",
-    range: "Typowo 0,8–1,0 × Ø walca górnego. Puste pole: wartość symboliczna.",
+    range:
+      "Stałe 310,12 mm (promień 155,06 mm) z parametrów sterowania tej maszyny. Wartość tylko do odczytu.",
   },
   "machine.sideRollD": {
     what: "Średnica walców bocznych (gnących). Podniesienie walca bocznego względem linii zacisku ustala krzywiznę: im wyżej, tym mniejszy promień. Jeden walec boczny gnie, drugi podpiera i prowadzi blachę, a przy zawijaniu drugiego końca role się zamieniają.",
     effect:
       "Tylko rozmiar walców w widoku 3D. Położenie walców bocznych zależy od geometrii konkretnej maszyny i nie jest tu liczone.",
-    range: "Typowo 0,6–0,9 × Ø walca górnego. Puste pole: wartość symboliczna.",
+    range: "Stałe 240,02 mm (promień 120,01 mm) dla obu walców bocznych. Wartość tylko do odczytu.",
   },
   "machine.maxThickness": {
     what: "Największa grubość, jaką maszyna zwija na pełnej szerokości, wg tabliczki znamionowej. Producent podaje ją dla określonej granicy plastyczności (zwykle stal o Re około 235–275 MPa) i zwykle dla określonej średnicy.",
@@ -100,10 +101,10 @@ const pl: Record<DocId, ParamDoc> = {
       "Maszyna 20 mm dla Re 235 MPa, blacha S355 (355 MPa) na pełnej szerokości: t_dop ≈ 20 · √(235/355) ≈ 16,3 mm.",
   },
   "machine.maxWidth": {
-    what: "Długość robocza walców, czyli najszersza blacha, jaką można włożyć do maszyny.",
+    what: "Maksymalna szerokość blachy dopuszczona dla tej maszyny: 3000 mm. Jest mniejsza od długości roboczej walców 3100 mm.",
     effect:
       "Ostrzeżenie, gdy szerokość blachy (walec) albo długość tworzącej (stożek) przekracza limit. Rozwinięcie stożka leży w walcach wzdłuż tworzącej, więc to ona jest potrzebną długością roboczą.",
-    range: "Typowo 1000–4000 mm. Puste pole: brak kontroli.",
+    range: "Stałe 3000 mm, z dokumentacji maszyny. Wartość tylko do odczytu.",
     formula: ["s = \\frac{H}{\\cos \\alpha}"],
     symbols: [
       ["s", "długość tworzącej stożka"],
@@ -118,10 +119,10 @@ const pl: Record<DocId, ParamDoc> = {
     range: "Zwykle 1,1–1,5 × Ø walca górnego. Puste pole: brak kontroli.",
   },
   "machine.rollLength": {
-    what: "Długość beczki walca, na której blacha może pracować. Zwykle równa maksymalnej szerokości blachy.",
+    what: "Długość robocza walców tej maszyny wynosi 3100 mm. Maksymalna dopuszczona szerokość blachy wynosi 3000 mm.",
     effect:
       "Reguła dla stożków: im dłuższa tworząca w stosunku do walców, tym mniejszy dopuszczalny udział grubości nominalnej (50 % do ½ długości, 40 % do ¾, 30 % powyżej).",
-    range: "Typowo 1000–4000 mm, z dokumentacji maszyny. Puste pole: przyjmowane 50 %.",
+    range: "Stałe 3100 mm z parametrów sterowania tej maszyny. Wartość tylko do odczytu.",
     formula: [
       "t_{stożek} \\le u \\cdot t_{nom}",
       "u = 0{,}5 \\quad s \\le 0{,}5 \\cdot L_w",
@@ -375,7 +376,7 @@ const en: Record<DocId, ParamDoc> = {
     effect:
       "Feasibility check: warning when the diameter to set on the machine (after springback compensation) does not clear the top roll. Roll size in the 3D view. Does not change the blank length or springback.",
     range:
-      "Typically 100–1000 mm, from the machine documentation. Empty: no check, symbolic rolls in 3D.",
+      "Fixed at 338.38 mm (radius 169.19 mm) from this machine's controller parameters. Read-only.",
     formula: ["D_s > D_t", "D_{s,\\min} \\approx (1.1 \\ldots 1.2) \\cdot D_t"],
     symbols: [
       [
@@ -389,13 +390,14 @@ const en: Record<DocId, ParamDoc> = {
   "machine.bottomRollD": {
     what: "Diameter of the bottom pinch roll. Together with the top roll it grips and drives the plate, so on a 4-roll machine the sheet does not slip and both ends can be pre-bent without turning it over.",
     effect: "3D roll size only. No effect on calculations.",
-    range: "Typically 0.8–1.0 × top roll Ø. Empty: symbolic value.",
+    range:
+      "Fixed at 310.12 mm (radius 155.06 mm) from this machine's controller parameters. Read-only.",
   },
   "machine.sideRollD": {
     what: "Diameter of the side (bending) rolls. Raising a side roll relative to the pinch line sets the curvature: the higher, the smaller the radius. One side roll bends, the other supports and guides the plate; for the second end the roles swap.",
     effect:
       "3D roll size only. Side roll positions depend on the specific machine geometry and are not calculated here.",
-    range: "Typically 0.6–0.9 × top roll Ø. Empty: symbolic value.",
+    range: "Fixed at 240.02 mm (radius 120.01 mm) for both side rolls. Read-only.",
   },
   "machine.maxThickness": {
     what: "Largest thickness the machine rolls at full width, from the rating plate. The maker states it for a given yield strength (usually steel with Re around 235–275 MPa) and usually for a given diameter.",
@@ -417,10 +419,10 @@ const en: Record<DocId, ParamDoc> = {
       "Machine rated 20 mm at Re 235 MPa, S355 plate (355 MPa) at full width: t_allow ≈ 20 · √(235/355) ≈ 16.3 mm.",
   },
   "machine.maxWidth": {
-    what: "Working length of the rolls, i.e. the widest plate the machine accepts.",
+    what: "Maximum permitted plate width for this machine: 3000 mm, below its 3100 mm working roll length.",
     effect:
       "Warning when the plate width (cylinder) or the generator length (cone) exceeds it. A cone development lies in the rolls along its generator, so that is the working length it needs.",
-    range: "Typically 1000–4000 mm. Empty: no check.",
+    range: "Fixed at 3000 mm from the machine documentation. Read-only.",
     formula: ["s = \\frac{H}{\\cos \\alpha}"],
     symbols: [
       ["s", "cone generator length"],
@@ -435,10 +437,10 @@ const en: Record<DocId, ParamDoc> = {
     range: "Usually 1.1–1.5 × top roll Ø. Empty: no check.",
   },
   "machine.rollLength": {
-    what: "Length of the roll barrel the plate can work on; usually equal to the maximum plate width.",
+    what: "This machine has a working roll length of 3100 mm and a maximum permitted plate width of 3000 mm.",
     effect:
       "Cone rule: the longer the slant compared with the rolls, the smaller the allowed share of nominal thickness (50 % up to ½ of the length, 40 % up to ¾, 30 % above).",
-    range: "Typically 1000–4000 mm, from the machine documentation. Empty: 50 % assumed.",
+    range: "Fixed at 3100 mm from this machine's controller parameters. Read-only.",
     formula: [
       "t_{cone} \\le u \\cdot t_{nom}",
       "u = 0.5 \\quad s \\le 0.5 \\cdot L_w",

@@ -244,7 +244,7 @@ export const en = {
 
   "machine.title": "Machine parameters",
   "machine.intro":
-    "Optional. When filled in, the results are checked against the machine and the 3D view uses the real roll sizes.",
+    "Roll dimensions and maximum plate width are fixed for this machine. Importing or resetting settings does not change them. Other limits and capacity charts can be filled in below.",
   "machine.topRollD": "Top roll Ø",
   "machine.bottomRollD": "Bottom roll Ø",
   "machine.sideRollD": "Side roll Ø",
@@ -308,7 +308,7 @@ export const en = {
   "edit.machineFile.import": "Load machine file",
   "edit.machineFile.export": "Save machine file",
   "edit.machineFile.confirm":
-    "Machine settings and capacity charts will be replaced by the file. Materials and trials stay unchanged.",
+    "Other limits and capacity charts will be replaced by the file. Fixed roll dimensions and maximum plate width are preserved. Materials and trials stay unchanged.",
   "edit.machineFile.bad": "This file is not a valid machine file.",
   "edit.saved": "Saved",
   "edit.reset": "Restore defaults",

@@ -3,6 +3,7 @@ import type { CapacityChart } from "../domain/capacity";
 import type { MachineLimits } from "../domain/calculate";
 import { parseNumber } from "./inputs";
 import { machineSchema } from "./settings";
+import { withFixedMachine } from "./fixedMachine";
 
 /*
  * Machine file: the machine's limits and capacity charts on their own, so one machine can be set up
@@ -28,7 +29,11 @@ export function parseMachineFile(text: string): MachineFile | null {
 }
 
 export function machineFileText(machine: MachineLimits): string {
-  const file: MachineFile = { format: "rolling-simulator-machine", version: 1, machine };
+  const file: MachineFile = {
+    format: "rolling-simulator-machine",
+    version: 1,
+    machine: withFixedMachine(machine),
+  };
   return JSON.stringify(file, null, 2);
 }
 

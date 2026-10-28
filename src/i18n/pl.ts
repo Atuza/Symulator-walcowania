@@ -247,7 +247,7 @@ export const pl: Dict = {
 
   "machine.title": "Parametry maszyny",
   "machine.intro":
-    "Opcjonalne. Po uzupełnieniu wyniki są sprawdzane względem maszyny, a widok 3D pokazuje rzeczywiste walce.",
+    "Wymiary wałów i maksymalna szerokość blachy są stałe dla tej maszyny. Import i przywrócenie ustawień ich nie zmieniają. Pozostałe limity i karty wydajności można uzupełnić poniżej.",
   "machine.topRollD": "Ø walca górnego",
   "machine.bottomRollD": "Ø walca dolnego",
   "machine.sideRollD": "Ø walców bocznych",
@@ -313,7 +313,7 @@ export const pl: Dict = {
   "edit.machineFile.import": "Wczytaj plik maszyny",
   "edit.machineFile.export": "Zapisz plik maszyny",
   "edit.machineFile.confirm":
-    "Parametry maszyny i karty wydajności zostaną zastąpione danymi z pliku. Materiały i próby zostają bez zmian.",
+    "Pozostałe limity i karty wydajności zostaną zastąpione danymi z pliku. Stałe wymiary wałów i maksymalna szerokość blachy zostaną zachowane. Materiały i próby zostają bez zmian.",
   "edit.machineFile.bad": "Ten plik nie jest poprawnym plikiem maszyny.",
   "edit.reset": "Przywróć domyślne",
   "edit.process.intro":

@@ -19,8 +19,8 @@ export/dxf ◄── CalcOutput (contour)
 - **drawing**: one renderer-independent model drives both the SVG view and the PDF, so they always match.
 - **viz/scene3d** and **export/pdf** are loaded on demand to keep the first load small.
 - **viz/machine3d** draws the plate roll around the rolls (housings, drop-end yoke, bed, feed
-  table). Roll sizes and barrel length come from the machine settings when set, otherwise symbolic
-  sizes that fit the tightest bend. The exit-side roll follows the bend under the rolls
+  table). The application always uses the installed machine's fixed roll sizes and 3100 mm barrel
+  length. Generic domain callers without machine data retain a symbolic fallback. The exit-side roll follows the bend under the rolls
   (`domain/profile.bendAt`).
 - **i18n**: the only place with user-facing text; code, comments and identifiers are English.
 
@@ -28,6 +28,13 @@ Storage keys (`localStorage`): `rolling.inputs.v1`, `rolling.settings.v1` (langu
 `rolling.process.v1`, `rolling.materials.v1` (edit-mode overrides; absent = built-in defaults),
 `rolling.calibration.v1` (trial parts), `rolling.templates.v1` (saved inputs) and
 `rolling.history.v1` (capped at 50 entries). The app works with storage disabled.
+
+`state/fixedMachine.ts` defines the five immutable physical machine dimensions. The settings schema
+normalizes older storage, machine-file imports and configuration backups to those values while
+preserving other limits, charts and preferences. Application defaults, setters and reset use the same
+normalization. The editor presents dimensions as definitions rather than input fields. A supplied
+working roll length is never stretched to fit the plate in the 3D model. See
+[fixed machine geometry](adr/0008-fixed-machine-geometry.md).
 
 Edit mode (`ui/editor.ts`) replaces the calculator screen and sets `data-mode="edit"` on the root, which
 switches the palette to blueprint colours. Every saved change goes through `state/config.ts`: the

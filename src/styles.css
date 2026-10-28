@@ -1879,6 +1879,16 @@ textarea:focus {
   gap: 0;
 }
 
+.machine-fixed {
+  margin: 0;
+  padding: 0;
+}
+
+.machine-fixed dd {
+  margin: 6px 0 0;
+  font-size: 17px;
+}
+
 .editor .field-grid > .field {
   max-width: 340px;
   padding: 10px 0;

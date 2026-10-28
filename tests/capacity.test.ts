@@ -178,7 +178,7 @@ describe("machine file", () => {
       maxWidth: null,
       minDiameter: null,
     };
-    expect(machineSchema.parse(old)).toMatchObject({ rollLength: null, charts: [] });
+    expect(machineSchema.parse(old)).toMatchObject({ rollLength: 3100, charts: [] });
   });
 
   it("parses a machine file and rejects other JSON", () => {

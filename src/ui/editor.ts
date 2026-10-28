@@ -30,6 +30,7 @@ import {
   parseMachineFile,
 } from "../state/machineFile";
 import { chartSchema } from "../state/settings";
+import { fixedMachineGeometry } from "../state/fixedMachine";
 import { TRIALS_LIMIT, type Template, type Trial } from "../state/library";
 import { confirmDialog } from "./dialog";
 import { h, segmented } from "./dom";
@@ -63,17 +64,9 @@ const DOCS_KEY = "rolling.editor.docs.v1";
 type Tab =
   "machine" | "process" | "geometry" | "materials" | "calibration" | "templates" | "backup";
 
-type MachineKey = Exclude<keyof MachineLimits, "charts">;
+type MachineKey = "maxThickness" | "minDiameter";
 
-const machineKeys: MachineKey[] = [
-  "topRollD",
-  "bottomRollD",
-  "sideRollD",
-  "maxThickness",
-  "maxWidth",
-  "minDiameter",
-  "rollLength",
-];
+const machineKeys: MachineKey[] = ["maxThickness", "minDiameter"];
 
 /** Locale-formatted number for editing, without forced decimals. */
 function plain(n: number | null): string {
@@ -235,6 +228,17 @@ export class Editor {
       h(
         "div",
         { class: "field-grid" },
+        ...(Object.keys(fixedMachineGeometry) as (keyof typeof fixedMachineGeometry)[]).map((k) =>
+          withDoc(
+            h(
+              "dl",
+              { class: "machine-fixed", "data-machine-dimension": k },
+              h("dt", { class: "field-label" }, t(`machine.${k}`)),
+              h("dd", { class: "num" }, `${num(fixedMachineGeometry[k])} ${t("unit.mm")}`),
+            ),
+            `machine.${k}`,
+          ),
+        ),
         ...machineKeys.map((k) =>
           numField(
             t(`machine.${k}` as Key),
