@@ -125,7 +125,15 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   const dx = m + colW + 10;
   const footerTop = PAGE.h - m - 4;
   const blockTop = footerTop - 3 - BLOCK_H;
-  const box = { x: dx, y: top + 4, w: PAGE.w - m - dx, h: blockTop - 4 - (top + 4) };
+  const qrTop = footerTop - 3 - QR_SIZE;
+  const captionTop = data.qr
+    ? qrTop -
+      (QR_SIZE / data.qr.matrix.length) * 4 -
+      3 -
+      qrCaptionLines(doc, data.qr.caption).length * 3.4
+    : blockTop;
+  const drawingBottom = Math.min(blockTop, captionTop) - 4;
+  const box = { x: dx, y: top + 4, w: PAGE.w - m - dx, h: drawingBottom - (top + 4) };
   const scales = drawViews(data.views, box, pdfSink(doc), {
     fontSize: 3,
     arrow: 2.2,
@@ -135,7 +143,7 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   });
   const blockX = PAGE.w - m - BLOCK_W;
   titleBlock(doc, data, scales, blockX, blockTop);
-  if (data.qr) drawQr(doc, data.qr, blockX - 8 - QR_SIZE, footerTop - 3 - QR_SIZE);
+  if (data.qr) drawQr(doc, data.qr, blockX - 8 - QR_SIZE, qrTop);
 
   doc.setFontSize(7);
   doc.setTextColor(...MUTED);
@@ -215,8 +223,14 @@ function drawQr(doc: JsPdf, qr: { matrix: boolean[][]; caption: string }, x: num
   );
   doc.setFontSize(7.5);
   doc.setTextColor(...MUTED);
-  const lines = doc.splitTextToSize(qr.caption, 70) as string[];
-  doc.text(lines, x - quiet - 2, y + QR_SIZE - (lines.length - 1) * 3.4, { align: "right" });
+  const lines = qrCaptionLines(doc, qr.caption);
+  doc.text(lines, x + QR_SIZE / 2, y - quiet - 3 - (lines.length - 1) * 3.4, { align: "center" });
+}
+
+function qrCaptionLines(doc: JsPdf, caption: string): string[] {
+  doc.setFont("Poppins", "normal");
+  doc.setFontSize(7.5);
+  return doc.splitTextToSize(caption, QR_SIZE + 3) as string[];
 }
 
 function section(
@@ -281,6 +295,11 @@ function heroBlock(doc: JsPdf, heroes: Row[], x: number, y: number, w: number): 
 
 function pdfSink(doc: JsPdf): Sink {
   return {
+    textWidth(text, size) {
+      doc.setFont("Poppins", "normal");
+      doc.setFontSize((size * 72) / 25.4);
+      return doc.getTextWidth(text);
+    },
     path(pts, closed, stroke) {
       if (pts.length < 2) return;
       const c = stroke === "part" ? INK : stroke === "flat" ? FLAT : MUTED;

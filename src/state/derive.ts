@@ -34,6 +34,7 @@ const errorFields: Record<string, TextField> = {
   dLarge: "dLarge",
   dSmall: "dSmall",
   height: "height",
+  offset: "offset",
   order: "dSmall",
   tooFlat: "height",
   a: "sizeA",
@@ -145,7 +146,16 @@ export function derive(
       flatEnds: flatEnd,
       kOverride,
     };
-    const offset = num("offset") ?? 0;
+    const parsedOffset = num("offset");
+    if (inputs.offset.trim() && parsedOffset === null)
+      return {
+        ...base,
+        flatEnd,
+        props,
+        output: null,
+        error: { key: "error.offset", field: "offset" },
+      };
+    const offset = parsedOffset ?? 0;
     // A zero offset is the ordinary cone, which has a closed-form development.
     calc =
       offset !== 0

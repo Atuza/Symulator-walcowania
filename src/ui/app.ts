@@ -1350,6 +1350,7 @@ export class App {
     this.editor = new Editor({
       root: this.root,
       currentMaterialId: this.inputs.materialId,
+      currentShape: this.inputs.shape,
       state: () => ({
         machine: this.settings.machine,
         process: this.process,

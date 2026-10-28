@@ -34,6 +34,17 @@ switches the palette to blueprint colours. Every saved change goes through `stat
 material schema plus cross-field checks (band order, Rm range, unique names). Settings exports are
 JSON with a `format`/`version` header and are validated the same way on import. Every editable
 parameter carries reference text (what it is, what it affects, valid range, formula) in `i18n/docs.ts`.
+The read-only Shapes tab uses `i18n/geometry.ts` and the same MathML reference renderer. It starts
+with the calculator's selected shape and explains geometry inputs and model limitations.
+
+`domain/shapes.ts` builds straight-and-arc profiles, including the numerical ellipse approximation
+and free segment lists. `domain/eccentric.ts` develops eccentric cones independently of the profile
+engine. `CalcOutput` distinguishes cylinders, concentric cones, eccentric cones and generic profiles;
+result rows, drawing views and exports consume that union rather than duplicating calculations.
+
+Drawing notes wrap inside each view's cell. PDF uses its actual font metrics; SVG uses a conservative
+monospace estimate. The PDF QR caption occupies its own area above the code, reserved separately from
+the drawing and results column.
 
 Calculation links (`state/share.ts`, ADR 0004) put the inputs that differ from frozen link defaults into
 the URL fragment (`#c=1;key=value;…`). The fragment never reaches the server; the PDF prints it as a

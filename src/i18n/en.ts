@@ -12,6 +12,7 @@ export const en = {
   "result.offset": "Axis offset e",
   "result.alphaMax": "Largest generator lean",
   "field.offset": "Axis offset e",
+  "error.offset": "Enter an axis offset greater than or equal to 0 mm.",
   "hint.offset":
     "0 = concentric cone. Eccentric: distance between the end centres in the front view.",
   "action.flatSide": "Flat side",
@@ -259,6 +260,9 @@ export const en = {
   "edit.banner": "Changes are saved on this device and apply to all calculations immediately.",
   "edit.tab.machine": "Machine",
   "edit.tab.process": "Process",
+  "edit.tab.geometry": "Shapes",
+  "edit.geometry.intro":
+    "Reference for the calculator dimensions: what to enter, valid ranges and development formulas. Select a shape; enter its dimensions in the calculator.",
   "edit.tab.materials": "Materials",
   "edit.tab.backup": "Backup",
   "edit.chart.title": "Capacity charts",

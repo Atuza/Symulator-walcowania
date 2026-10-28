@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { allDocs } from "../src/i18n/docs";
+import { allGeometryDocs } from "../src/i18n/geometry";
 import { parseMath } from "../src/ui/math";
 
 describe("formula notation", () => {
@@ -30,7 +31,7 @@ describe("formula notation", () => {
   });
 
   it("parses every formula and symbol in the parameter reference", () => {
-    for (const doc of allDocs()) {
+    for (const doc of [...allDocs(), ...allGeometryDocs()]) {
       for (const f of doc.formula ?? []) expect(() => parseMath(f), f).not.toThrow();
       for (const [sym] of doc.symbols ?? []) expect(() => parseMath(sym), sym).not.toThrow();
     }

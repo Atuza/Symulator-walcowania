@@ -1294,7 +1294,7 @@ textarea:focus {
 }
 
 .editor-tabs {
-  max-width: 640px;
+  max-width: 100%;
 }
 
 .editor-section,
@@ -1880,6 +1880,7 @@ textarea:focus {
 /* Formula callout drawn like a dimensioned box on a drawing. */
 .doc-formula {
   position: relative;
+  overflow-x: auto;
   margin: 4px 0 0;
   padding: 26px 22px 18px;
   border: 1px solid var(--line-strong);
@@ -2122,6 +2123,19 @@ textarea:focus {
   font-weight: 500;
   font-size: 16px;
   color: var(--ink);
+}
+
+.reference-shapes {
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+}
+
+.reference-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px 0;
+  border-top: 1px dashed var(--line-strong);
+  min-width: 0;
 }
 
 .chart-card {

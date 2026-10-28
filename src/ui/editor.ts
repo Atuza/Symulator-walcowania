@@ -4,7 +4,11 @@ import type { MachineLimits } from "../domain/calculate";
 import { materialGroups, yieldAt, type Material } from "../domain/materials/schema";
 import { saveFile } from "../export/download";
 import { getLang, num, percent, t, type Key } from "../i18n";
-import { paramDoc, type DocId } from "../i18n/docs";
+import { paramDoc, type DocId, type ParamDoc } from "../i18n/docs";
+import { geometryDoc, referenceShapes } from "../i18n/geometry";
+import { SHAPE_FIELDS } from "../domain/shapes";
+import type { Inputs } from "../state/inputs";
+import { shapeIcon } from "./shapeIcons";
 import { mathElement } from "./math";
 import {
   defaultMaterial,
@@ -42,6 +46,7 @@ export interface EditorHost {
   root: HTMLElement;
   /** Material selected in the calculator; preselected for calibration trials. */
   currentMaterialId: string;
+  currentShape: Inputs["shape"];
   state(): EditorState;
   setMachine(machine: MachineLimits): void;
   setProcess(process: ProcessConfig): void;
@@ -55,7 +60,8 @@ export interface EditorHost {
 
 const DOCS_KEY = "rolling.editor.docs.v1";
 
-type Tab = "machine" | "process" | "materials" | "calibration" | "templates" | "backup";
+type Tab =
+  "machine" | "process" | "geometry" | "materials" | "calibration" | "templates" | "backup";
 
 type MachineKey = Exclude<keyof MachineLimits, "charts">;
 
@@ -80,6 +86,7 @@ function plain(n: number | null): string {
 export class Editor {
   readonly el = h("main", { class: "editor" });
   private tab: Tab = "machine";
+  private referenceShape: Inputs["shape"];
   private selectedId: string | null = null;
   private draft: Material | null = null;
   private draftIsNew = false;
@@ -90,11 +97,12 @@ export class Editor {
   private showDocs = load(DOCS_KEY, z.boolean()) ?? true;
 
   constructor(private host: EditorHost) {
-    this.el.classList.toggle("hide-docs", !this.showDocs);
+    this.referenceShape = host.currentShape;
     this.render();
   }
 
   render() {
+    this.el.classList.toggle("hide-docs", !this.showDocs && this.tab !== "geometry");
     this.el.replaceChildren(
       h(
         "div",
@@ -110,6 +118,7 @@ export class Editor {
           [
             { value: "machine", label: t("edit.tab.machine") },
             { value: "process", label: t("edit.tab.process") },
+            { value: "geometry", label: t("edit.tab.geometry") },
             { value: "materials", label: t("edit.tab.materials") },
             { value: "calibration", label: t("edit.tab.calibration") },
             { value: "templates", label: t("edit.tab.templates") },
@@ -122,38 +131,97 @@ export class Editor {
           },
           "editor-tabs",
         ),
-        h(
-          "label",
-          { class: "switch editor-docs-toggle" },
-          h("input", {
-            type: "checkbox",
-            role: "switch",
-            checked: this.showDocs,
-            onChange: (ev: Event) => {
-              this.showDocs = (ev.target as HTMLInputElement).checked;
-              save(DOCS_KEY, this.showDocs);
-              this.el.classList.toggle("hide-docs", !this.showDocs);
-            },
-          }),
-          h("span", { class: "switch-track", "aria-hidden": "true" }),
-          h("span", {}, t("edit.showDocs")),
-        ),
+        this.tab === "geometry"
+          ? null
+          : h(
+              "label",
+              { class: "switch editor-docs-toggle" },
+              h("input", {
+                type: "checkbox",
+                role: "switch",
+                checked: this.showDocs,
+                onChange: (ev: Event) => {
+                  this.showDocs = (ev.target as HTMLInputElement).checked;
+                  save(DOCS_KEY, this.showDocs);
+                  this.el.classList.toggle("hide-docs", !this.showDocs);
+                },
+              }),
+              h("span", { class: "switch-track", "aria-hidden": "true" }),
+              h("span", {}, t("edit.showDocs")),
+            ),
         this.tab === "machine"
           ? this.machineTab()
           : this.tab === "process"
             ? this.processTab()
-            : this.tab === "materials"
-              ? this.materialsTab()
-              : this.tab === "calibration"
-                ? this.calibrationTab()
-                : this.tab === "templates"
-                  ? this.templatesTab()
-                  : this.backupTab(),
+            : this.tab === "geometry"
+              ? this.geometryTab()
+              : this.tab === "materials"
+                ? this.materialsTab()
+                : this.tab === "calibration"
+                  ? this.calibrationTab()
+                  : this.tab === "templates"
+                    ? this.templatesTab()
+                    : this.backupTab(),
       ),
     );
   }
 
   // ---- machine & process ----------------------------------------------------
+
+  private geometryTab() {
+    const shape = this.referenceShape;
+    return section(
+      t("edit.tab.geometry"),
+      h("p", { class: "muted" }, t("edit.geometry.intro")),
+      h(
+        "div",
+        {
+          class: "shape-grid reference-shapes",
+          role: "radiogroup",
+          "aria-label": t("section.shape"),
+        },
+        ...referenceShapes.map((value) =>
+          h(
+            "button",
+            {
+              type: "button",
+              role: "radio",
+              "aria-checked": String(value === shape),
+              class: `shape-option${value === shape ? " is-on" : ""}`,
+              onClick: () => {
+                this.referenceShape = value;
+                this.render();
+              },
+            },
+            shapeIcon(value),
+            h("span", {}, t(`shape.${value}` as Key)),
+          ),
+        ),
+      ),
+      h(
+        "div",
+        { class: "reference-card" },
+        h("h3", { class: "editor-subtitle" }, t(`shape.${shape}` as Key)),
+        referenceBlock(geometryDoc(shape)),
+      ),
+      h(
+        "div",
+        { class: "reference-card" },
+        h("h3", { class: "editor-subtitle" }, t("field.surface")),
+        referenceBlock(geometryDoc("surface")),
+      ),
+      ...(shape === "cone"
+        ? []
+        : [
+            h(
+              "div",
+              { class: "reference-card" },
+              h("h3", { class: "editor-subtitle" }, t("field.width")),
+              referenceBlock(geometryDoc("width")),
+            ),
+          ]),
+    );
+  }
 
   private machineTab() {
     const draft: Pick<MachineLimits, MachineKey> = { ...this.host.state().machine };
@@ -1389,7 +1457,10 @@ function section(title: string, ...children: HTMLElement[]) {
 
 /** Reference text: what the parameter is, what it affects, valid range, formula with symbols. */
 function docBlock(id: DocId) {
-  const d = paramDoc(id);
+  return referenceBlock(paramDoc(id));
+}
+
+function referenceBlock(d: ParamDoc) {
   const fact = (label: Key, text: string, cls = "") =>
     h(
       "div",
@@ -1451,13 +1522,23 @@ function withDoc(field: HTMLElement, doc?: DocId): HTMLElement {
 
 function describeTemplate(tpl: Template): string {
   const i = tpl.inputs;
-  const shape = t(i.shape === "cylinder" ? "shape.cylinder" : "shape.cone");
+  const shape = t(`shape.${i.shape}` as Key);
   const main =
     i.shape === "cone"
-      ? `Ø ${i.dLarge} / ${i.dSmall} · H ${i.height}`
-      : i.mode === "fromDiameter"
-        ? `${i.dimension === "radius" ? "R" : "Ø"} ${i.value}`
-        : `L ${i.length}`;
+      ? `Ø ${i.dLarge} / ${i.dSmall} · H ${i.height}${i.offset ? ` · e ${i.offset}` : ""}`
+      : i.shape === "cylinder"
+        ? i.mode === "fromDiameter"
+          ? `${i.dimension === "radius" ? "R" : "Ø"} ${i.value}`
+          : `L ${i.length}`
+        : i.shape === "free"
+          ? i.freeSegs.replace(/_/g, " · ")
+          : SHAPE_FIELDS[i.shape]
+              .map((f) => {
+                if (i.shape === "halfround" && f === "r")
+                  return `${i.dimension === "radius" ? "R" : "Ø"} ${i.value}`;
+                return `${f === "angle" ? "θ" : f.toUpperCase()} ${{ a: i.sizeA, b: i.sizeB, r: i.sizeR, angle: i.angle }[f]}${f === "angle" ? "°" : ""}`;
+              })
+              .join(" · ");
   return `${shape} · t ${i.thickness} · ${main}`;
 }
 

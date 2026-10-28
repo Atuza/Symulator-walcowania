@@ -5,6 +5,8 @@ export interface Sink {
   path(pts: Pt[], closed: boolean, stroke: Stroke | "dim", fill?: boolean): void;
   fill(pts: Pt[]): void;
   text(x: number, y: number, text: string, opts: TextOpts): void;
+  /** Width in the sink's output units, using the drawing-note font. */
+  textWidth?(text: string, size: number): number;
 }
 
 export interface TextOpts {
@@ -59,7 +61,11 @@ export function standardScale(fit: number): number {
 
 function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
   const titleH = s.fontSize * 1.8;
-  const notesH = view.notes.length * s.fontSize * 1.5;
+  const noteSize = s.fontSize * 0.92;
+  const measure = (text: string) =>
+    sink.textWidth?.(text, noteSize) ?? text.length * noteSize * 0.62;
+  const notes = view.notes.flatMap((note) => wrapNote(note, cell.w - s.gap, measure));
+  const notesH = notes.length * s.fontSize * 1.5;
   const area: Box = {
     x: cell.x + s.pad,
     y: cell.y + titleH + s.pad,
@@ -71,9 +77,9 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
     anchor: "start",
     role: "title",
   });
-  view.notes.forEach((note, i) =>
+  notes.forEach((note, i) =>
     sink.text(cell.x, cell.y + cell.h - notesH + s.fontSize * (1.1 + 1.5 * i), note, {
-      size: s.fontSize * 0.92,
+      size: noteSize,
       anchor: "start",
       role: "note",
     }),
@@ -134,6 +140,29 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
     );
   }
   return scale;
+}
+
+/** Wrap annotations to their own view so they cannot run into another view or the sheet edge. */
+function wrapNote(text: string, width: number, measure: (text: string) => number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/)) {
+    if (line && measure(`${line} ${word}`) > width) {
+      lines.push(line);
+      line = "";
+    }
+    if (measure(word) > width) {
+      for (const char of word) {
+        if (line && measure(line + char) > width) {
+          lines.push(line);
+          line = "";
+        }
+        line += char;
+      }
+    } else line += `${line ? " " : ""}${word}`;
+  }
+  if (line) lines.push(line);
+  return lines;
 }
 
 function drawArcDim(

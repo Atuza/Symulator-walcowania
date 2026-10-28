@@ -63,4 +63,9 @@ describe("eccentric cone", () => {
   it("rejects ends in the wrong order", () => {
     expect(solveEccentric({ ...base, dLarge: 2200, dSmall: 2400 })).toBe("order");
   });
+
+  it("rejects offsets that cannot describe the documented shortest-generator seam", () => {
+    for (const offset of [-100, NaN, Infinity])
+      expect(solveEccentric({ ...base, offset })).toBe("offset");
+  });
 });

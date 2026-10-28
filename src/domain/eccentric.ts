@@ -52,7 +52,8 @@ export interface EccentricResult {
   outerStrainMax: number;
 }
 
-export type EccentricError = "thickness" | "dLarge" | "dSmall" | "height" | "order" | "tooSmall";
+export type EccentricError =
+  "thickness" | "dLarge" | "dSmall" | "height" | "offset" | "order" | "tooSmall";
 
 // φ steps around the circles; the development is accurate far below 0.01 mm at this density.
 const STEPS = 1440;
@@ -63,6 +64,7 @@ export function solveEccentric(input: EccentricInput): EccentricResult | Eccentr
   if (!(dLarge > 0)) return "dLarge";
   if (!(dSmall >= 0)) return "dSmall";
   if (!(H > 0)) return "height";
+  if (!Number.isFinite(e) || e < 0) return "offset";
   if (!(dLarge > dSmall)) return "order";
 
   // Thickness is normal to the wall; across an end plane it spans about t / cos α of the mean slope.

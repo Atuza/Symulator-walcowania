@@ -193,3 +193,12 @@ apex `A = (0, e·s, H·s)`, `s = R1 / (R1 − R2)`. The development is the cone 
 `ρ(φ) = |P1(φ) − A|`, `dθ = |(P1 − A) × P1′| / ρ² · dφ` (Simpson, 1440 steps), the small end at
 `ρ·R2/R1`. Diameters move to the neutral surface with the mean slope `t / cos α`. Seam at the
 shortest generator. Machine checks use the longest generator and the small end.
+
+The axis offset is a distance (`e ≥ 0`); invalid or negative inputs are rejected. For `d = (D1-D2)/2`,
+the extreme generator lengths are `sqrt(H² + (d-e)²)` and `sqrt(H² + (d+e)²)`. Thus a flat-side
+reducer with D1 = 2400, D2 = 2200, H = 1250 and e = 100 mm has generators 1250.00 and 1265.90 mm.
+
+The sampled outline is a numerical development of the model's neutral surface. The constant radial
+thickness conversion uses the mean concentric slope, not the varying local normal of the eccentric
+wall. It is therefore an approximation for a finite-thickness eccentric part, not an exact offset
+surface construction. Validate a trial part before using the contour for production cutting.

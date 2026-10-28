@@ -100,7 +100,8 @@ function eccentricViews(
     { kind: "dim", a: [0, Hb], b: [0, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(Hb) },
   ];
   const devNotes = [
-    `${t("result.slantMin")} ${mm(r.slantMin)} · ${t("result.slantMax")} ${mm(r.slantMax)} ${t("unit.mm")}`,
+    `${t("result.slantMin")}: ${mm(r.slantMin)} ${t("unit.mm")}`,
+    `${t("result.slantMax")}: ${mm(r.slantMax)} ${t("unit.mm")}`,
   ];
   return [
     {
@@ -248,7 +249,8 @@ function profileViews(
 
   const radii = r.radii.map((x) => `R ${mm(x)}`).join(" · ");
   const sectionNotes = [
-    `t = ${mm(r.profile.thickness)} ${t("unit.mm")} · ${radii} (${t("surface.inner").toLowerCase()})`,
+    `t = ${mm(r.profile.thickness)} ${t("unit.mm")}`,
+    `${radii} (${t("surface.inner").toLowerCase()})`,
   ];
   if (r.derivedR !== null)
     sectionNotes.push(`${t("result.tankR")}: ${mm(r.derivedR)} ${t("unit.mm")}`);

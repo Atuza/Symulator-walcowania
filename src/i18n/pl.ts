@@ -14,6 +14,7 @@ export const pl: Dict = {
   "result.offset": "Przesunięcie osi e",
   "result.alphaMax": "Największe pochylenie tworzącej",
   "field.offset": "Przesunięcie osi e",
+  "error.offset": "Podaj przesunięcie osi większe lub równe 0 mm.",
   "hint.offset": "0 = stożek współosiowy. Mimośrodowy: odległość środków końców w rzucie z przodu.",
   "action.flatSide": "Płaski bok",
   "result.sideView": "Widok z boku",
@@ -262,6 +263,9 @@ export const pl: Dict = {
     "Zmiany zapisują się na tym urządzeniu i od razu działają we wszystkich obliczeniach.",
   "edit.tab.machine": "Maszyna",
   "edit.tab.process": "Proces",
+  "edit.tab.geometry": "Kształty",
+  "edit.geometry.intro":
+    "Opis wymiarów kalkulatora: co wpisać, zakresy i wzory rozwinięcia. Wybierz kształt; jego wymiary wpisujesz w kalkulatorze.",
   "edit.tab.materials": "Materiały",
   "edit.tab.backup": "Kopia zapasowa",
   "edit.saved": "Zapisano",

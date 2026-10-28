@@ -20,6 +20,17 @@ import { sceneModel } from "../src/viz/sceneModel";
 const run = (patch: Partial<Inputs>) =>
   derive({ ...defaultInputs, ...patch }, emptyMachine, defaultProcess, materials);
 
+describe("cone offset input", () => {
+  it.each(["-100", "not a number", "Infinity"])(
+    "rejects invalid offset %s instead of silently using a concentric cone",
+    (offset) => {
+      const d = run({ shape: "cone", offset });
+      expect(d.output).toBeNull();
+      expect(d.error).toEqual({ key: "error.offset", field: "offset" });
+    },
+  );
+});
+
 function labels(view: View): string[] {
   return view.prims.flatMap((p) => (p.kind === "path" ? [] : [p.label]));
 }
