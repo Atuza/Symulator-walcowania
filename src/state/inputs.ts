@@ -28,6 +28,7 @@ export const inputsSchema = z.object({
   sizeB: z.string().default(""),
   sizeR: z.string().default(""),
   angle: z.string().default(""),
+  freeSegs: z.string().max(600).default(""),
 });
 
 export type Inputs = z.infer<typeof inputsSchema>;
@@ -58,12 +59,13 @@ export const defaultInputs: Inputs = {
   sizeB: "",
   sizeR: "",
   angle: "",
+  freeSegs: "",
 };
 
 /** Starting sizes when a profile shape is picked and the current ones do not fit it. */
 export const shapeDefaults: Record<
   ProfileShape,
-  Partial<Pick<Inputs, "sizeA" | "sizeB" | "sizeR" | "angle" | "value" | "dimension">>
+  Partial<Pick<Inputs, "sizeA" | "sizeB" | "sizeR" | "angle" | "value" | "dimension" | "freeSegs">>
 > = {
   halfround: { value: "1000", dimension: "diameter", angle: "180" },
   ushape: { sizeA: "600", sizeB: "400" },
@@ -71,6 +73,8 @@ export const shapeDefaults: Record<
   rect: { sizeA: "1000", sizeB: "600", sizeR: "60" },
   tank: { sizeA: "2400", sizeB: "1500", sizeR: "400" },
   bucket: { sizeA: "400", sizeR: "500", angle: "120", sizeB: "500" },
+  ellipse: { sizeA: "2400", sizeB: "1500" },
+  free: { freeSegs: "L300_R400a90_L300_R200a-45_L200" },
 };
 
 /** Parses user text; accepts both decimal comma and dot. Empty or invalid → null. */

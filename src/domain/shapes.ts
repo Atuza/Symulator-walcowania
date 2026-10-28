@@ -1,4 +1,4 @@
-import { develop, type Development, type Profile, type Segment } from "./profile";
+import { develop, traceProfile, type Development, type Profile, type Segment } from "./profile";
 import { surfaceDepth, type Surface } from "./types";
 
 /*
@@ -7,7 +7,8 @@ import { surfaceDepth, type Surface } from "./types";
  * Closed shapes start and end at the seam.
  */
 
-export type ProfileShape = "halfround" | "ushape" | "obround" | "rect" | "tank" | "bucket";
+export type ProfileShape =
+  "halfround" | "ushape" | "obround" | "rect" | "tank" | "bucket" | "ellipse" | "free";
 
 export const PROFILE_SHAPES: ProfileShape[] = [
   "halfround",
@@ -16,7 +17,13 @@ export const PROFILE_SHAPES: ProfileShape[] = [
   "rect",
   "tank",
   "bucket",
+  "ellipse",
+  "free",
 ];
+
+/** One entry of a free shape: a straight, or an arc with its radius on the chosen surface. */
+export type FreeSegment =
+  { kind: "line"; length: number } | { kind: "arc"; radius: number; angle: number };
 
 export interface ShapeInput {
   shape: ProfileShape;
@@ -30,6 +37,8 @@ export interface ShapeInput {
   r: number;
   /** Bend angle [rad]. */
   angle: number;
+  /** Segments of the free shape, in plate order. */
+  free?: FreeSegment[];
   flatEnds: number;
   kOverride: number | null;
 }
@@ -42,6 +51,8 @@ export const SHAPE_FIELDS: Record<ProfileShape, ("a" | "b" | "r" | "angle")[]> =
   rect: ["a", "b", "r"],
   tank: ["a", "b", "r"],
   bucket: ["a", "r", "angle", "b"],
+  ellipse: ["a", "b"],
+  free: [],
 };
 
 export interface ShapeResult {
@@ -63,9 +74,11 @@ export interface ShapeResult {
   flatEnd: number;
   /** Largest tank radius when the shape has one; reported because it is derived [mm]. */
   derivedR: number | null;
+  /** Overall width and height on the chosen surface when they are inputs, for exact labels [mm]. */
+  sizes: [number, number] | null;
 }
 
-export type ShapeError = "thickness" | "a" | "b" | "r" | "angle";
+export type ShapeError = "thickness" | "a" | "b" | "r" | "angle" | "segments";
 
 export function buildShape(input: ShapeInput): ShapeResult | ShapeError {
   const t = input.thickness;
@@ -176,6 +189,41 @@ export function buildShape(input: ShapeInput): ShapeResult | ShapeError {
       closed = false;
       break;
     }
+    case "ellipse": {
+      // a: width, b: height. Seam at the middle of the bottom, as for the tank.
+      if (!positive(input.a)) return "a";
+      if (!positive(input.b)) return "b";
+      const A = across(input.a) / 2,
+        B = across(input.b) / 2;
+      if (!(A > 0)) return "a";
+      if (!(B > 0)) return "b";
+      segments = ellipseArcs(A, B);
+      break;
+    }
+    case "free": {
+      const list = input.free ?? [];
+      if (!list.some((x) => x.kind === "arc")) return "segments";
+      segments = [];
+      for (const x of list) {
+        if (x.kind === "line") {
+          if (!(x.length > 0)) return "segments";
+          segments.push(line(x.length));
+          continue;
+        }
+        const r = radius(x.radius);
+        if (!(r > 0) || !Number.isFinite(x.angle) || x.angle === 0) return "segments";
+        segments.push(bend(r, x.angle));
+      }
+      // Closed when it turns once around and its ends meet; otherwise an open plate.
+      const turn = segments.reduce((sum, x) => sum + (x.kind === "arc" ? x.angle : 0), 0);
+      if (Math.abs(Math.abs(turn) - 2 * Math.PI) < 1e-6) {
+        const pts = traceProfile({ segments, thickness: t, kOverride: null }, 0);
+        const [x0, y0] = pts[0]!;
+        const [x1, y1] = pts[pts.length - 1]!;
+        closed = Math.hypot(x1 - x0, y1 - y0) < 0.5;
+      } else closed = false;
+      break;
+    }
   }
 
   const flat = Math.max(0, input.flatEnds);
@@ -185,10 +233,19 @@ export function buildShape(input: ShapeInput): ShapeResult | ShapeError {
   if (typeof dev === "string") return dev === "thickness" ? "thickness" : "r";
   const arcs = dev.segments.filter((d) => d.segment.kind === "arc");
   const tightest = arcs.reduce((m, d) => (radiusOf(d.segment) < radiusOf(m.segment) ? d : m));
-  const rMin = radiusOf(tightest.segment);
-  const radii = [...new Set(arcs.map((d) => Math.round(radiusOf(d.segment) * 1e6) / 1e6))].sort(
+  let rMin = radiusOf(tightest.segment);
+  let radii = [...new Set(arcs.map((d) => Math.round(radiusOf(d.segment) * 1e6) / 1e6))].sort(
     (x, y) => x - y,
   );
+  if (input.shape === "ellipse") {
+    // The arcs only approximate the varying curvature; report the ellipse's true extremes, and no
+    // bend lines inside the blank, since the curvature changes continuously.
+    const A = across(input.a) / 2,
+      B = across(input.b) / 2;
+    radii = [Math.min(A, B) ** 2 / Math.max(A, B), Math.max(A, B) ** 2 / Math.min(A, B)];
+    rMin = radii[0]!;
+    dev.bendLines = flat > 0 ? [flat, dev.length - flat] : [];
+  }
   return {
     shape: input.shape,
     profile,
@@ -201,7 +258,45 @@ export function buildShape(input: ShapeInput): ShapeResult | ShapeError {
     radii,
     flatEnd: flat,
     derivedR,
+    sizes: input.shape === "ellipse" ? [input.a, input.b] : null,
   };
+}
+
+/** Pieces per quarter of the ellipse; each turns 90° / ELLIPSE_STEPS. */
+// 64 keeps the drawn outline within about 0.15 mm of the true ellipse at 2.4 m.
+const ELLIPSE_STEPS = 64;
+
+/**
+ * Ellipse with semi-axes a (x) and b (y) as circular arcs of equal turning angle, walked from the
+ * bottom middle. Each arc has the exact inner-surface length of its piece of the ellipse, so the
+ * perimeter is exact; its radius is that length over the turning angle.
+ */
+export function ellipseArcs(a: number, b: number): Segment[] {
+  // Point on the ellipse whose outward normal points at angle psi, as the parameter angle.
+  // The outward normal at parameter θ is along (b·cos θ, a·sin θ).
+  const theta = (psi: number) => Math.atan2(b * Math.sin(psi), a * Math.cos(psi));
+  const speed = (th: number) => Math.hypot(a * Math.sin(th), b * Math.cos(th));
+  const arcLength = (t0: number, t1: number) => {
+    // Simpson's rule; the integrand is smooth, 32 panels give far below 1 µm.
+    const n = 32;
+    const h = (t1 - t0) / n;
+    let sum = speed(t0) + speed(t1);
+    for (let i = 1; i < n; i++) sum += speed(t0 + i * h) * (i % 2 ? 4 : 2);
+    return (sum * h) / 3;
+  };
+  const step = Math.PI / 2 / ELLIPSE_STEPS;
+  const out: Segment[] = [];
+  // Normal angle runs from straight down (−π/2) once around.
+  for (let i = 0; i < 4 * ELLIPSE_STEPS; i++) {
+    const p0 = -Math.PI / 2 + i * step;
+    let t0 = theta(p0),
+      t1 = theta(p0 + step);
+    if (t1 < t0) t1 += 2 * Math.PI;
+    if (t1 - t0 > Math.PI) t0 += 2 * Math.PI;
+    const len = arcLength(t0, t1);
+    out.push({ kind: "arc", radius: len / step, angle: step });
+  }
+  return out;
 }
 
 function radiusOf(s: Segment): number {

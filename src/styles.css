@@ -2239,3 +2239,53 @@ textarea:focus {
   background: var(--ink);
   color: var(--on-ink);
 }
+
+/* ---- free shape ----------------------------------------------------------- */
+
+.free-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: seg;
+}
+
+.free-row {
+  display: grid;
+  /* Kind, size, remove; an arc's angle goes on a second line under its radius. */
+  grid-template-columns: 40px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 6px;
+}
+
+.free-kind {
+  min-height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 15px;
+}
+
+.free-kind:hover {
+  border-color: var(--ink);
+}
+
+.free-cell {
+  min-width: 0;
+}
+
+.free-angle {
+  grid-column: 2;
+}
+
+.free-cell .input-wrap input {
+  font-size: 16px;
+}
+
+.free .chips {
+  margin-top: 4px;
+}

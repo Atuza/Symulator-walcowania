@@ -9,6 +9,7 @@ import { CUSTOM_MATERIAL_ID } from "../domain/materials/data";
 import { yieldAt, type Material } from "../domain/materials/schema";
 import type { Key } from "../i18n";
 import type { ProcessConfig } from "./config";
+import { freeSegments } from "./freeShape";
 import { parseNumber, type Inputs, type TextField } from "./inputs";
 
 export interface Derived {
@@ -39,6 +40,7 @@ const errorFields: Record<string, TextField> = {
   b: "sizeB",
   r: "sizeR",
   angle: "angle",
+  segments: "freeSegs",
 };
 
 export function derive(
@@ -171,6 +173,8 @@ export function derive(
         b: num("sizeB") ?? NaN,
         r,
         angle: ((num("angle") ?? NaN) * Math.PI) / 180,
+        // An incomplete row reads as an empty list, which the builder reports.
+        free: shape === "free" ? (freeSegments(inputs.freeSegs) ?? []) : undefined,
         flatEnds: flatEnd,
         kOverride,
       },

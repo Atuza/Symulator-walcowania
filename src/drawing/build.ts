@@ -27,6 +27,8 @@ const SECTION_TURN: Record<ProfileShape, number> = {
   rect: 0,
   tank: 0,
   bucket: Math.PI / 2,
+  ellipse: 0,
+  free: 0,
 };
 
 function profileViews(
@@ -67,7 +69,7 @@ function profileViews(
       b: [x1, by0],
       offsetModel: 0,
       offsetScreen: -GAP,
-      label: mm(x1 - x0),
+      label: mm(r.sizes?.[0] ?? x1 - x0),
     },
     {
       kind: "dim",
@@ -75,7 +77,7 @@ function profileViews(
       b: [bx0, y0],
       offsetModel: 0,
       offsetScreen: -GAP,
-      label: mm(y1 - y0),
+      label: mm(r.sizes?.[1] ?? y1 - y0),
     },
   );
 

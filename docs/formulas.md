@@ -164,3 +164,23 @@ arc turns `2β` with `β = atan2(R_b − B/2, A/2 − r)` and the top and bottom
 Springback is estimated for every distinct bend radius. Machine limits and capacity charts are made
 for cylinders; for other shapes they are checked at the tightest bend as a warning, not a guarantee.
 The DXF carries the bend lines as LINE entities on layer `bend` (colour 5).
+
+## Ellipse
+
+Semi-axes `a`, `b` on the inner surface (after the surface conversion). The ellipse is split into
+`4 × 64` pieces of equal turning angle `Δψ`; each becomes a circular arc whose length is the exact
+inner-surface length of its piece (Simpson's rule on `|r′(θ)| = √(a² sin²θ + b² cos²θ)`) and whose
+radius is that length over `Δψ`. The inner perimeter is therefore exact, and the blank is
+
+    L = P_inner + t · Σ k_i · Δψ        (= P_inner + 2π·k·t for a constant k)
+
+with `k_i` from each piece's radius. The arcs stand in for the varying curvature, so the drawn
+outline is within about 0.15 mm of the true ellipse at 2.4 m; dimension labels show the input axes.
+The reported radii are the exact extremes `b²/a` and `a²/b`; the blank has no bend lines, since the
+curvature changes continuously.
+
+## Free shape
+
+A list of straights `L` and arcs `R` with angle `φ` (negative turns the other way), in plate order,
+stored as `L300_R400a90_L300`. Radii are on the chosen surface of each bend. The shape is closed when
+it turns ±360° and its ends meet within 0.5 mm.

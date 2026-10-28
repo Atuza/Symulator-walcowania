@@ -10,6 +10,8 @@ export const SHAPE_ICONS: Record<Inputs["shape"], string> = {
   rect: "M9 6h14a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Z",
   tank: "M16 8c7 0 11 3 11 8s-4 8-11 8S5 21 5 16s4-8 11-8Z",
   bucket: "M24 5v9a11 11 0 0 1-11 11H5",
+  ellipse: "M5 16a11 7 0 1 0 22 0a11 7 0 1 0-22 0Z",
+  free: "M4 24h7a6 6 0 0 0 6-6v-4a5 5 0 0 1 5-5h6",
 };
 
 const NS = "http://www.w3.org/2000/svg";

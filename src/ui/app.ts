@@ -45,6 +45,7 @@ import {
 } from "../state/inputs";
 import { SHAPE_FIELDS, type ProfileShape } from "../domain/shapes";
 import { shapeIcon } from "./shapeIcons";
+import { formatFreeRows, parseFreeRows } from "../state/freeShape";
 import { settingsSchema, type Settings } from "../state/settings";
 import { load, save } from "../state/storage";
 import { sceneModel } from "../viz/sceneModel";
@@ -477,6 +478,8 @@ export class App {
       "rect",
       "tank",
       "bucket",
+      "ellipse",
+      "free",
     ];
     return h(
       "div",
@@ -503,6 +506,7 @@ export class App {
 
   private profileFields(shape: ProfileShape): HTMLElement[] {
     const out: HTMLElement[] = [labelled(t("field.surface"), this.surfaceControl())];
+    if (shape === "free") return [...out, this.freeEditor()];
     const fields: Record<"a" | "b" | "r" | "angle", TextField> = {
       a: "sizeA",
       b: "sizeB",
@@ -546,6 +550,118 @@ export class App {
       );
     });
     return out;
+  }
+
+  /** Row editor for the free shape; the rows live in one text field so links and history carry them. */
+  private freeEditor() {
+    const rows = parseFreeRows(this.inputs.freeSegs);
+    const commit = (structural: boolean) => this.set("freeSegs", formatFreeRows(rows), structural);
+    const cell = (
+      value: string,
+      label: string,
+      unit: string,
+      onValue: (v: string) => void,
+      extra = "",
+    ) =>
+      h(
+        "label",
+        { class: `free-cell ${extra}` },
+        h("span", { class: "visually-hidden" }, label),
+        h(
+          "span",
+          { class: "input-wrap" },
+          h("input", {
+            class: "num",
+            type: "text",
+            inputmode: "decimal",
+            autocomplete: "off",
+            spellcheck: "false",
+            placeholder: label,
+            value,
+            onInput: (e: Event) => {
+              onValue((e.target as HTMLInputElement).value);
+              commit(false);
+            },
+            onFocus: (e: Event) => (e.target as HTMLInputElement).select(),
+          }),
+          h("span", { class: "unit" }, unit),
+        ),
+      );
+    const list = h(
+      "ol",
+      { class: "free-list" },
+      ...rows.map((row, i) =>
+        h(
+          "li",
+          { class: "free-row" },
+          h(
+            "button",
+            {
+              type: "button",
+              class: "free-kind",
+              title: t(row.kind === "line" ? "free.line" : "free.arc"),
+              onClick: () => {
+                row.kind = row.kind === "line" ? "arc" : "line";
+                if (row.kind === "arc" && !row.angle) row.angle = "90";
+                commit(true);
+              },
+            },
+            row.kind === "line" ? "L" : "R",
+          ),
+          cell(
+            row.size,
+            t(row.kind === "line" ? "free.length" : "free.radius"),
+            t("unit.mm"),
+            (v) => (row.size = v),
+          ),
+          h(
+            "button",
+            {
+              type: "button",
+              class: "btn btn-ghost btn-small",
+              "aria-label": t("free.remove"),
+              onClick: () => {
+                rows.splice(i, 1);
+                commit(true);
+              },
+            },
+            "×",
+          ),
+          row.kind === "arc"
+            ? cell(row.angle, t("free.angle"), t("unit.deg"), (v) => (row.angle = v), "free-angle")
+            : null,
+        ),
+      ),
+    );
+    const add = (kind: "line" | "arc") =>
+      h(
+        "button",
+        {
+          type: "button",
+          class: "chip",
+          disabled: rows.length >= 40,
+          onClick: () => {
+            rows.push(
+              kind === "line"
+                ? { kind, size: "200", angle: "" }
+                : { kind, size: "300", angle: "90" },
+            );
+            commit(true);
+          },
+        },
+        t(kind === "line" ? "free.addLine" : "free.addArc"),
+      );
+    const wrap = h(
+      "div",
+      { class: "field free" },
+      h("span", { class: "field-label" }, t("free.title")),
+      list,
+      h("div", { class: "chips" }, add("line"), add("arc")),
+      h("span", { class: "field-msg" }, t("free.hint")),
+    );
+    wrap.dataset.hint = t("free.hint");
+    this.fieldEls.set("freeSegs", wrap);
+    return wrap;
   }
 
   private templateBar() {

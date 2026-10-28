@@ -1,5 +1,6 @@
 import type { SetPoint } from "../domain/calculate";
 import { SHAPE_FIELDS } from "../domain/shapes";
+import { parseFreeRows } from "../state/freeShape";
 import { num, percent, t, type Key } from "../i18n";
 import type { Derived } from "../state/derive";
 import { parseNumber } from "../state/inputs";
@@ -213,7 +214,12 @@ function profileGroups(
   const r = out.result;
   const radii = r.radii.map((x) => mm(x)).join(" · ");
   const geometry: Row[] = [
-    { label: t("result.bendRadii"), value: radii, unit: t("unit.mm"), list: r.radii.length > 1 },
+    {
+      label: t(r.shape === "ellipse" ? "result.radiusRange" : "result.bendRadii"),
+      value: radii,
+      unit: t("unit.mm"),
+      list: r.radii.length > 1,
+    },
   ];
   if (r.derivedR !== null)
     geometry.push({ label: t("result.tankR"), value: mm(r.derivedR), unit: t("unit.mm") });
@@ -309,6 +315,14 @@ export function inputRows(d: Derived, materialName: string): Row[] {
         unit: t(f === "angle" ? "unit.deg" : "unit.mm"),
       });
     }
+    if (shape === "free")
+      rows.push({
+        label: t("free.title"),
+        value: parseFreeRows(i.freeSegs)
+          .map((r) => (r.kind === "line" ? `L ${v(r.size)}` : `R ${v(r.size)} / ${v(r.angle)}°`))
+          .join(" · "),
+        list: true,
+      });
     if (d.width !== null)
       rows.push({ label: t("field.width"), value: mm(d.width), unit: t("unit.mm") });
   } else {

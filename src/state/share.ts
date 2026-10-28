@@ -39,6 +39,7 @@ const LINK_DEFAULTS: Inputs = {
   sizeB: "",
   sizeR: "",
   angle: "",
+  freeSegs: "",
 };
 
 const KEYS: Record<keyof Inputs, string> = {
@@ -66,6 +67,7 @@ const KEYS: Record<keyof Inputs, string> = {
   sizeB: "b",
   sizeR: "r",
   angle: "an",
+  freeSegs: "fs",
 };
 
 // One-letter codes for enumerated values.
@@ -79,6 +81,8 @@ const CODES: Partial<Record<keyof Inputs, Record<string, string>>> = {
     rect: "re",
     tank: "tk",
     bucket: "bk",
+    ellipse: "el",
+    free: "fr",
   },
   mode: { fromDiameter: "d", fromLength: "l" },
   dimension: { diameter: "d", radius: "r" },
