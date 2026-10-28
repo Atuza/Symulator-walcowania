@@ -381,7 +381,10 @@ function profileGroups(
 export function inputRows(d: Derived, materialName: string): Row[] {
   const i = d.inputs;
   const rows: Row[] = [
-    { label: t("section.shape"), value: t(`shape.${i.shape}` as Key) },
+    {
+      label: t("section.shape"),
+      value: `${t(`shape.${i.shape}` as Key)}${i.profileSegs ? ` · ${t("geometry.modified")}` : ""}`,
+    },
     { label: t("result.material"), value: materialName },
     { label: t("field.thickness"), value: mm(d.thickness ?? 0), unit: t("unit.mm") },
   ];
@@ -390,7 +393,20 @@ export function inputRows(d: Derived, materialName: string): Row[] {
     const n = parseNumber(text);
     return n === null ? text : mm(n);
   };
-  if (i.shape === "cylinder") {
+  if (i.profileSegs) {
+    rows.push({
+      label: `${t("free.title")} (${surface.toLowerCase()})`,
+      value: parseFreeRows(i.profileSegs)
+        .map(
+          (r, j) =>
+            `${j + 1}: ${r.kind === "line" ? `L ${v(r.size)}` : `R ${v(r.size)} / φ ${v(r.angle)}°`}`,
+        )
+        .join(" · "),
+      list: true,
+    });
+    if (d.width !== null)
+      rows.push({ label: t("field.width"), value: mm(d.width), unit: t("unit.mm") });
+  } else if (i.shape === "cylinder") {
     if (i.mode === "fromDiameter") {
       const label = t(i.dimension === "radius" ? "field.value.radius" : "field.value.diameter");
       rows.push({

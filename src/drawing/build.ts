@@ -3,6 +3,7 @@ import { num, t } from "../i18n";
 import { eccentricPoint } from "../domain/eccentric";
 import { surfaceDepth, type Surface } from "../domain/types";
 import { traceProfile } from "../domain/profile";
+import { profileGeometry, profileTurn, referenceSegments } from "../domain/editableProfile";
 import type { ProfileShape } from "../domain/shapes";
 import { arc, circle, type Annotation, type Prim, type Pt, type View } from "./model";
 
@@ -103,9 +104,12 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
     { kind: "dim", a: [0, 0], b: [W, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(W) },
     { kind: "dim", a: [0, Hb], b: [0, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(Hb) },
   ];
-  const devNotes = [
-    `${t("result.slantMin")}: ${mm(r.slantMin)} ${t("unit.mm")}`,
-    `${t("result.slantMax")}: ${mm(r.slantMax)} ${t("unit.mm")}`,
+  const devNotes: Annotation[] = [
+    {
+      text: `${t("result.slantMin")}: ${mm(r.slantMin)} ${t("unit.mm")}`,
+      edit: "cone.slant.short",
+    },
+    { text: `${t("result.slantMax")}: ${mm(r.slantMax)} ${t("unit.mm")}`, edit: "cone.slant.long" },
   ];
   return [
     {
@@ -114,6 +118,8 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
       notes: [
         { text: `t = ${mm(r.thickness)} ${t("unit.mm")}`, edit: "thickness" },
         { text: `e = ${mm(e)} ${t("unit.mm")}`, edit: "offset" },
+        { text: `R1 = ${mm(D1 / 2)} mm`, edit: "cone.radius.large" },
+        { text: `R2 = ${mm(D2 / 2)} mm`, edit: "cone.radius.small" },
       ],
     },
     { title: t("result.development"), prims: dev, notes: devNotes },
@@ -152,14 +158,13 @@ function profileViews(
       ]
     : [{ kind: "path", pts: [...outer, ...inner.slice().reverse()], closed: true, stroke: "part" }];
   // Overall sizes measured on the surface the dimensions were given on.
-  // Fine step: the trace is a chord polyline, and the sizes are read from its extremes.
-  const ref = rot(traceProfile(r.profile, surfaceDepth[surface], Math.PI / 3600));
-  const xs = ref.map((p) => p[0]),
-    ys = ref.map((p) => p[1]);
-  const x0 = Math.min(...xs),
-    x1 = Math.max(...xs),
-    y0 = Math.min(...ys),
-    y1 = Math.max(...ys);
+  const envelope = profileGeometry(
+    referenceSegments(r.profile, surfaceDepth[surface]),
+    r.profile.thickness,
+    surfaceDepth[surface],
+    turn,
+  );
+  const { minX: x0, maxX: x1, minY: y0, maxY: y1 } = envelope;
   const all = [...inner, ...outer];
   const bx0 = Math.min(...all.map((p) => p[0])),
     by0 = Math.min(...all.map((p) => p[1]));
@@ -171,7 +176,7 @@ function profileViews(
       offsetModel: 0,
       offsetScreen: -GAP,
       label: mm(r.sizes?.[0] ?? x1 - x0),
-      edit: ["rect", "obround", "tank", "ellipse", "ushape"].includes(r.shape) ? "a" : undefined,
+      edit: "extent.x",
     },
     {
       kind: "dim",
@@ -180,7 +185,7 @@ function profileViews(
       offsetModel: 0,
       offsetScreen: -GAP,
       label: mm(r.sizes?.[1] ?? y1 - y0),
-      edit: ["rect", "obround", "tank", "ellipse"].includes(r.shape) ? "b" : undefined,
+      edit: "extent.y",
     },
   );
 
@@ -252,54 +257,73 @@ function profileViews(
         offsetModel: 0,
         offsetScreen: -GAP,
         label: mm(b - a),
+        chain: t("drawing.chain"),
       });
     }
 
-  const radii = r.radii.map((x) => `R ${mm(x)}`).join(" · ");
   const sectionNotes: (string | Annotation)[] = [
     { text: `t = ${mm(r.profile.thickness)} ${t("unit.mm")}`, edit: "thickness" },
   ];
-  if (r.shape === "ellipse") sectionNotes.push(`${radii} (${t("surface.inner").toLowerCase()})`);
-  else if (r.shape !== "free") {
-    const radius = r.radii[0]! + surfaceDepth[surface] * r.profile.thickness;
-    sectionNotes.push({
-      text: `R ${mm(radius)} (${t(`surface.${surface}`).toLowerCase()})`,
-      edit: "r",
-    });
-  }
-  const segments = r.profile.segments.slice(r.flatEnd > 0 ? 1 : 0, r.flatEnd > 0 ? -1 : undefined);
-  if (r.shape === "ushape" || r.shape === "bucket") {
-    const first = segments[0]!,
-      last = segments[segments.length - 1]!;
-    if (r.shape === "bucket" && first.kind === "line")
-      sectionNotes.push({ text: `A = ${mm(first.length)} ${t("unit.mm")}`, edit: "a" });
-    if (last.kind === "line")
-      sectionNotes.push({ text: `B = ${mm(last.length)} ${t("unit.mm")}`, edit: "b" });
-  }
-  if (r.shape === "halfround" || r.shape === "bucket") {
-    const angle = segments.reduce((sum, s) => sum + (s.kind === "arc" ? s.angle : 0), 0);
-    sectionNotes.push({ text: `θ = ${mm((angle * 180) / Math.PI)}°`, edit: "angle" });
-  }
-  if (r.shape === "free")
-    segments.forEach((s, i) => {
-      if (s.kind === "line")
-        sectionNotes.push({
-          text: `${i + 1}: L ${mm(s.length)} ${t("unit.mm")}`,
-          edit: `segment.${i}.size`,
-        });
-      else {
-        const radius = s.radius + surfaceDepth[surface] * r.profile.thickness;
-        sectionNotes.push(
-          {
-            text: `${i + 1}: R ${mm(radius)} (${t(`surface.${surface}`).toLowerCase()})`,
-            edit: `segment.${i}.size`,
-          },
-          { text: `${i + 1}: θ ${mm((s.angle * 180) / Math.PI)}°`, edit: `segment.${i}.angle` },
-        );
-      }
-    });
+  if (r.shape === "ellipse" && !r.custom)
+    sectionNotes.push(
+      {
+        text: `R min ${mm(r.radii[0]!)} (${t("surface.inner").toLowerCase()})`,
+        edit: "ellipse.min",
+      },
+      {
+        text: `R max ${mm(r.radii[1]!)} (${t("surface.inner").toLowerCase()})`,
+        edit: "ellipse.max",
+      },
+    );
   if (r.derivedR !== null)
     sectionNotes.push(`${t("result.tankR")}: ${mm(r.derivedR)} ${t("unit.mm")}`);
+  if (r.shape !== "ellipse" || r.custom) {
+    const editable = referenceSegments(r.profile, surfaceDepth[surface], r.flatEnd);
+    const geometry = profileGeometry(
+      editable,
+      r.profile.thickness,
+      surfaceDepth[surface],
+      profileTurn[r.shape],
+    );
+    let lineNumber = 0,
+      arcNumber = 0;
+    for (const f of geometry.features) {
+      const featureAt: Pt = [f.middle[0] + r.flatEnd * c, f.middle[1] + r.flatEnd * sn];
+      const segment = editable[f.index]!;
+      if (segment.kind === "line") {
+        lineNumber++;
+        section.push({
+          kind: "tag",
+          at: featureAt,
+          direction: [Math.sin(f.heading), -Math.cos(f.heading)],
+          label: `L${lineNumber} ${mm(segment.length)}`,
+          edit: `segment.${f.index}.size`,
+        });
+      } else {
+        arcNumber++;
+        const dx = f.middle[0] - f.centre![0],
+          dy = f.middle[1] - f.centre![1],
+          length = Math.hypot(dx, dy) || 1;
+        const direction: Pt = [dx / length, dy / length];
+        section.push({
+          kind: "tag",
+          at: featureAt,
+          direction,
+          label: `R${arcNumber} ${mm(segment.radius)}`,
+          edit: `segment.${f.index}.size`,
+        });
+        if (["halfround", "bucket", "free"].includes(r.shape))
+          section.push({
+            kind: "tag",
+            at: featureAt,
+            direction,
+            row: 1,
+            label: `φ${arcNumber} ${mm((segment.angle * 180) / Math.PI)}°`,
+            edit: `segment.${f.index}.angle`,
+          });
+      }
+    }
+  }
   // Three positions per line keep the notes inside the view.
   const lines = r.dev.bendLines.map((x) => mm(x));
   const devNotes: string[] = [];
@@ -309,7 +333,11 @@ function profileViews(
     );
   if (r.flatEnd > 0) devNotes.push(`${t("result.flatEnds")}: 2 × ${mm(r.flatEnd)} ${t("unit.mm")}`);
   return [
-    { title: t("result.section"), prims: section, notes: sectionNotes },
+    {
+      title: `${t("result.section")}${r.custom ? ` · ${t("geometry.modified")}` : ""}`,
+      prims: section,
+      notes: sectionNotes,
+    },
     { title: t("result.development"), prims: dev, notes: devNotes },
   ];
 }
@@ -417,7 +445,15 @@ function cylinderViews(
     );
     // Chain dimension under the blank: flat end | ring | flat end, so the cut lines can be marked.
     dev.push(
-      { kind: "dim", a: [0, 0], b: [f, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(f) },
+      {
+        kind: "dim",
+        a: [0, 0],
+        b: [f, 0],
+        offsetModel: 0,
+        offsetScreen: -GAP,
+        label: mm(f),
+        chain: t("drawing.chain"),
+      },
       {
         kind: "dim",
         a: [f, 0],
@@ -425,8 +461,17 @@ function cylinderViews(
         offsetModel: 0,
         offsetScreen: -GAP,
         label: mm(r.ringLength),
+        chain: t("drawing.chain"),
       },
-      { kind: "dim", a: [L - f, 0], b: [L, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(f) },
+      {
+        kind: "dim",
+        a: [L - f, 0],
+        b: [L, 0],
+        offsetModel: 0,
+        offsetScreen: -GAP,
+        label: mm(f),
+        chain: t("drawing.chain"),
+      },
     );
   }
   const notes = [`${t("result.ringLength")}: ${mm(r.ringLength)} ${t("unit.mm")}`];
@@ -546,6 +591,7 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       offsetModel: 0,
       offsetScreen: GAP,
       label: mm(r.slant),
+      edit: "cone.slant",
     },
     { kind: "arcDim", c: [0, 0], r: r.rOuter, a0, a1, offsetScreen: GAP, label: mm(r.arcOuter) },
     {
@@ -557,6 +603,7 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       a1,
       offsetScreen: 0,
       label: `${num((r.angle * 180) / Math.PI)}°`,
+      edit: "cone.sector",
     },
   ];
   if (r.rInner > 1e-9)
@@ -628,14 +675,16 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
           edit: "thickness",
         },
         `${t("result.alpha")}: ${num((r.alpha * 180) / Math.PI)}°`,
+        { text: `R1 = ${mm(dl / 2)} mm`, edit: "cone.radius.large" },
+        { text: `R2 = ${mm(ds / 2)} mm`, edit: "cone.radius.small" },
       ],
     },
     {
       title: t("result.development"),
       prims: dev,
       notes: [
-        `R1 ${mm(r.rOuter)} · R2 ${mm(r.rInner)} ${t("unit.mm")}`,
-        `${t("result.angle")}: ${num((r.angle * 180) / Math.PI)}°`,
+        { text: `R1 ${mm(r.rOuter)} ${t("unit.mm")}`, edit: "cone.r1" },
+        { text: `R2 ${mm(r.rInner)} ${t("unit.mm")}`, edit: "cone.r2" },
       ],
     },
   ];

@@ -90,6 +90,7 @@ export class App {
   private header = h("header", { class: "topbar" });
   private fieldEls = new Map<TextField, HTMLElement>();
   private view2d: View2D;
+  private largeDrawing: View2D | null = null;
   private scene: RollingScene | null = null;
   private sceneStatus = h("div", { class: "stage-status" });
   private progress = 1;
@@ -144,6 +145,7 @@ export class App {
    * different things in each (A is a width in one, a length in another), so they never carry over.
    */
   private fitShapeSizes() {
+    this.inputs = { ...this.inputs, profileSegs: "", profileClosed: false };
     const shape = this.inputs.shape;
     if (shape === "cylinder") return;
     if (shape === "cone") {
@@ -304,6 +306,14 @@ export class App {
 
   private renderInputs() {
     const i = this.inputs;
+    const geometry = derive(
+      i,
+      this.settings.machine,
+      this.process,
+      this.materials,
+      this.trialFactors(),
+    );
+    const onDrawing = !!geometry.output;
     this.fieldEls.clear();
     const panel = this.inputsPanel;
     panel.replaceChildren();
@@ -365,7 +375,7 @@ export class App {
         h("span", { class: "select-wrap" }, select),
       ),
       materialInfo,
-      this.numberField("thickness", t("field.thickness"), t("unit.mm")),
+      onDrawing ? null : this.numberField("thickness", t("field.thickness"), t("unit.mm")),
     );
     if (i.materialId === CUSTOM_MATERIAL_ID) {
       materialGroup.append(
@@ -381,8 +391,12 @@ export class App {
     panel.append(materialGroup);
 
     // Geometry
-    const geo = group(t("section.geometry"));
-    if (i.shape === "cylinder" && i.mode === "fromDiameter") {
+    const geo = group(t(onDrawing ? "field.surface" : "geometry.correct"));
+    if (onDrawing) {
+      geo.append(this.surfaceControl());
+      if (i.shape === "cylinder" && i.mode === "fromLength")
+        geo.append(this.numberField("length", t("field.length"), t("unit.mm")));
+    } else if (i.shape === "cylinder" && i.mode === "fromDiameter") {
       geo.append(
         h(
           "div",
@@ -461,8 +475,25 @@ export class App {
     } else {
       geo.append(...this.profileFields(i.shape));
     }
-    if (i.shape !== "cone" && i.shape !== "eccentric")
+    if (i.shape !== "cone" && i.shape !== "eccentric" && (!onDrawing || geometry.width === null))
       geo.append(this.numberField("width", t("field.width"), t("unit.mm")));
+    if (i.profileSegs)
+      geo.append(
+        h("p", { class: "field-hint" }, t("geometry.modified")),
+        h(
+          "button",
+          {
+            type: "button",
+            class: "chip",
+            onClick: () => {
+              this.inputs = { ...this.inputs, profileSegs: "", profileClosed: false };
+              this.schedulePersist();
+              this.renderAll();
+            },
+          },
+          t("geometry.reset"),
+        ),
+      );
     panel.append(geo);
 
     // Advanced
@@ -1033,13 +1064,35 @@ export class App {
         this.renderAll();
       },
     );
-    dialog?.addEventListener("close", () => this.view2d.focusDimension(id));
+    dialog?.addEventListener("close", () => (this.largeDrawing ?? this.view2d).focusDimension(id));
+  }
+
+  private enlargeDrawing() {
+    const host = h("div", { class: "stage-2d drawing-large" });
+    const view = new View2D(
+      host,
+      (id) => this.editDimension(id),
+      (id) => dimensionName(this.derived, id),
+    );
+    this.largeDrawing = view;
+    const dialog = openDialog(this.root, t("geometry.expand"), host);
+    dialog.classList.add("drawing-dialog");
+    dialog.addEventListener("close", () => {
+      view.dispose();
+      this.largeDrawing = null;
+    });
+    if (this.derived.output)
+      view.set(
+        buildViews(this.derived.output, this.derived.width, this.inputs.surface),
+        t("result.development"),
+      );
   }
 
   private renderViews() {
     const d = this.derived;
     const views = d.output ? buildViews(d.output, d.width, this.inputs.surface) : [];
     this.view2d.set(views, t("result.development"));
+    this.largeDrawing?.set(views, t("result.development"));
     this.stage2d.classList.toggle("is-empty", !d.output);
     if (this.scene) {
       this.scene.setModel(
@@ -1082,6 +1135,19 @@ export class App {
       this.sceneStatus,
       h("div", { class: "stage-controls" }, this.playBtn, this.slider, reset),
     );
+    this.stage2d.append(
+      h(
+        "button",
+        {
+          type: "button",
+          class: "drawing-expand",
+          "aria-label": t("geometry.expand"),
+          title: t("geometry.expand"),
+          onClick: () => this.enlargeDrawing(),
+        },
+        "↗",
+      ),
+    );
   }
 
   private updateStageLabels() {
@@ -1089,6 +1155,7 @@ export class App {
     this.slider.setAttribute("aria-label", t("view.progress"));
     const reset = this.stage3d.querySelector("#reset-view");
     if (reset) reset.textContent = t("action.resetView");
+    this.stage2d.querySelector(".drawing-expand")?.setAttribute("aria-label", t("geometry.expand"));
     if (!this.scene && this.sceneStatus.dataset.state !== "error")
       this.sceneStatus.textContent = t("view.loading");
     if (this.sceneStatus.dataset.state === "error")

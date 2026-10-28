@@ -43,6 +43,7 @@ const errorFields: Record<string, TextField> = {
   r: "sizeR",
   angle: "angle",
   segments: "freeSegs",
+  closure: "profileSegs",
 };
 
 export function derive(
@@ -188,6 +189,8 @@ export function derive(
         angle: ((num("angle") ?? NaN) * Math.PI) / 180,
         // An incomplete row reads as an empty list, which the builder reports.
         free: shape === "free" ? (freeSegments(inputs.freeSegs) ?? []) : undefined,
+        override: inputs.profileSegs ? (freeSegments(inputs.profileSegs) ?? []) : undefined,
+        overrideClosed: inputs.profileClosed,
         flatEnds: flatEnd,
         kOverride,
       },

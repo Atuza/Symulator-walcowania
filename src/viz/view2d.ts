@@ -42,6 +42,11 @@ export class View2D {
     this.render();
   }
 
+  dispose() {
+    this.observer.disconnect();
+    cancelAnimationFrame(this.resizeFrame);
+  }
+
   focusDimension(id: DimensionId) {
     const target = Array.from(this.el.querySelectorAll<SVGGElement>("[data-dimension]")).find(
       (el) => el.dataset.dimension === id,
@@ -51,14 +56,14 @@ export class View2D {
 
   private render() {
     const w = this.host.clientWidth;
-    const stacked = w < 520;
+    const stacked = w < (this.views.some((v) => v.prims.some((p) => p.kind === "tag")) ? 900 : 520);
     const cellWidth = (w - 32) / (stacked ? 1 : Math.max(1, this.views.length));
     // Keep the part visible even with a long free-profile dimension list. The canvas can scroll.
     const minCell = Math.max(
       200,
       ...this.views.map(
         (v) =>
-          180 +
+          Math.max(260, v.prims.filter((p) => p.kind === "tag").length * 32 + 80) +
           v.notes.reduce((sum, note) => {
             const text = typeof note === "string" ? note : note.text;
             const editable = typeof note !== "string" && note.edit;

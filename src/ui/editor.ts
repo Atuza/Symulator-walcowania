@@ -1529,15 +1529,17 @@ function describeTemplate(tpl: Template): string {
       ? i.mode === "fromDiameter"
         ? `${i.dimension === "radius" ? "R" : "Ø"} ${i.value}`
         : `L ${i.length}`
-      : i.shape === "free"
-        ? i.freeSegs.replace(/_/g, " · ")
-        : SHAPE_FIELDS[i.shape]
-            .map((f) => {
-              if (i.shape === "halfround" && f === "r")
-                return `${i.dimension === "radius" ? "R" : "Ø"} ${i.value}`;
-              return `${f === "angle" ? "θ" : f.toUpperCase()} ${{ a: i.sizeA, b: i.sizeB, r: i.sizeR, angle: i.angle }[f]}${f === "angle" ? "°" : ""}`;
-            })
-            .join(" · ");
+      : i.profileSegs
+        ? `${t("geometry.modified")} · ${i.profileSegs.replace(/_/g, " · ")}`
+        : i.shape === "free"
+          ? i.freeSegs.replace(/_/g, " · ")
+          : SHAPE_FIELDS[i.shape]
+              .map((f) => {
+                if (i.shape === "halfround" && f === "r")
+                  return `${i.dimension === "radius" ? "R" : "Ø"} ${i.value}`;
+                return `${f === "angle" ? "θ" : f.toUpperCase()} ${{ a: i.sizeA, b: i.sizeB, r: i.sizeR, angle: i.angle }[f]}${f === "angle" ? "°" : ""}`;
+              })
+              .join(" · ");
   return `${shape} · t ${i.thickness} · ${main}`;
 }
 

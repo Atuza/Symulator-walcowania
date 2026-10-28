@@ -64,6 +64,21 @@ existing derivation pipeline before a single commit. Cancel and invalid values n
 calculator. The resulting inputs use the same persistence, history, links and export paths as the form.
 See [drawing dimension editing](adr/0006-drawing-dimensions.md).
 
+Independent bend radii and straight lengths use a reference-surface segment chain stored in
+`profileSegs`, with `profileClosed` preserving the original closure constraint. The original shape
+remains selected, and resetting its geometry restores its preset. `domain/editableProfile.ts` computes
+exact arc extrema and fits connected dimensions while keeping the requested driver fixed. The editor
+lists the linked changes before committing. Every consumer still receives one derived profile.
+Ellipse curvature radii map back to exact semi-axis relations; cone sector radii and generator lengths
+map back through their existing cone models. The sidebar hides fields already available on a valid
+drawing; invalid input retains a recovery form and a modified-profile reset.
+
+Feature annotations occupy two reserved gutters and are packed in non-overlapping rows. Leader
+routing avoids all dimension-label rectangles and penalizes crossings. Small interactive views stack
+and scroll; the enlarged drawing uses the same model and disposes its resize observer on close.
+Crowded developed-interval chains become a wrapped list below the blank, retaining every value.
+See [independent profile dimensions](adr/0007-independent-profile-dimensions.md).
+
 Calculation links (`state/share.ts`, ADR 0004) put the inputs that differ from frozen link defaults into
 the URL fragment (`#c=1;key=value;…`). The fragment never reaches the server; the PDF prints it as a
 QR code, `ui/scanner.ts` reads it with the camera, and the app also loads and clears it on start.

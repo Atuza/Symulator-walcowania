@@ -1,9 +1,10 @@
 import type { DimensionId } from "../drawing/model";
 import type { Key } from "../i18n";
 import { surfaceDepth } from "../domain/types";
-import { formatFreeRows, parseFreeRows } from "./freeShape";
 import { isConeShape, parseNumber, type Inputs, type TextField } from "./inputs";
 import type { Derived } from "./derive";
+import { profileDimensionSpec, changeProfileDimension } from "./profileDimensions";
+import { coneDimensionSpec, changeConeDimension } from "./coneDimensions";
 
 export interface DimensionSpec {
   label: Key;
@@ -12,6 +13,7 @@ export interface DimensionSpec {
   /** Radius and diameter labels identify the surface whose dimensions are being edited. */
   surface?: Inputs["surface"];
   segment?: number;
+  marker?: string;
 }
 
 const fields = {
@@ -27,6 +29,9 @@ const fields = {
 } as const satisfies Partial<Record<DimensionId, TextField>>;
 
 export function dimensionSpec(d: Derived, id: DimensionId): DimensionSpec | null {
+  if (id.startsWith("cone.")) return coneDimensionSpec(d, id);
+  if (id.startsWith("segment.") || id.startsWith("extent.") || id.startsWith("ellipse."))
+    return profileDimensionSpec(d, id);
   const i = d.inputs;
   const spec = (
     label: Key,
@@ -34,24 +39,6 @@ export function dimensionSpec(d: Derived, id: DimensionId): DimensionSpec | null
     unit: "mm" | "deg" = "mm",
   ): DimensionSpec | null =>
     value !== null && Number.isFinite(value) ? { label, value, unit } : null;
-  if (id.startsWith("segment.")) {
-    if (i.shape !== "free") return null;
-    const [, index, property] = id.split(".");
-    const row = parseFreeRows(i.freeSegs)[Number(index)];
-    if (!row || (property === "angle" && row.kind !== "arc")) return null;
-    const s = spec(
-      property === "angle" ? "free.angle" : row.kind === "arc" ? "free.radius" : "free.length",
-      parseNumber(property === "angle" ? row.angle : row.size),
-      property === "angle" ? "deg" : "mm",
-    );
-    return s
-      ? {
-          ...s,
-          segment: Number(index) + 1,
-          ...(row.kind === "arc" && property === "size" ? { surface: i.surface } : {}),
-        }
-      : null;
-  }
   if (id === "diameter.inner" || id === "diameter.outer") {
     if (d.output?.shape !== "cylinder") return null;
     const inner = id === "diameter.inner";
@@ -91,6 +78,9 @@ export function dimensionSpec(d: Derived, id: DimensionId): DimensionSpec | null
 /** An atomic input change; the caller must validate the candidate through derive before committing. */
 export function dimensionInputs(d: Derived, id: DimensionId, value: number): Inputs | null {
   if (!Number.isFinite(value) || !dimensionSpec(d, id)) return null;
+  if (id.startsWith("cone.")) return changeConeDimension(d, id, value);
+  if (id.startsWith("segment.") || id.startsWith("extent.") || id.startsWith("ellipse."))
+    return changeProfileDimension(d, id, value);
   const zeroAllowed =
     id === "offset" ||
     id === "dSmall" ||
@@ -100,15 +90,6 @@ export function dimensionInputs(d: Derived, id: DimensionId, value: number): Inp
   } else if (value < 0 || (value === 0 && !zeroAllowed)) return null;
   const i = d.inputs,
     text = String(value);
-  if (id.startsWith("segment.")) {
-    const [, index, property] = id.split(".");
-    const rows = parseFreeRows(i.freeSegs),
-      row = rows[Number(index)];
-    if (!row) return null;
-    if (property === "angle") row.angle = text;
-    else row.size = text;
-    return { ...i, freeSegs: formatFreeRows(rows) };
-  }
   if (id === "diameter.inner" || id === "diameter.outer")
     return {
       ...i,

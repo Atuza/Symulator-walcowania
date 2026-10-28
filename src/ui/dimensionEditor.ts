@@ -5,12 +5,13 @@ import type { Derived } from "../state/derive";
 import { parseNumber, type Inputs } from "../state/inputs";
 import { openDialog } from "./dialog";
 import { h } from "./dom";
+import { editableSegments, profileDimensionSpec } from "../state/profileDimensions";
 
 export function dimensionName(d: Derived, id: DimensionId): string | null {
   const s = dimensionSpec(d, id);
   if (!s) return null;
   return [
-    s.segment ? `${t("drawing.segment")} ${s.segment}` : "",
+    s.marker ?? (s.segment ? `${t("drawing.segment")} ${s.segment}` : ""),
     t(s.label),
     s.surface ? t(`surface.${s.surface}`) : "",
   ]
@@ -51,13 +52,20 @@ export function openDimensionEditor(
     "aria-live": "polite",
   });
   const save = h("button", { type: "button", class: "btn btn-primary" }, t("drawing.apply"));
+  const linked = h("div", { class: "dimension-linked", "aria-live": "polite" });
   let candidate: Inputs | null = null;
   const check = () => {
     const n = parseNumber(input.value);
     candidate = n === null ? null : dimensionInputs(initial, id, n);
     const derived = candidate ? validate(candidate) : null;
     const valid = !!derived?.output;
-    error.textContent = valid ? "" : derived?.error ? t(derived.error.key) : t("drawing.invalid");
+    error.textContent = valid
+      ? ""
+      : derived?.error
+        ? t(derived.error.key)
+        : n !== null
+          ? t("geometry.constraint")
+          : t("drawing.invalid");
     input.setAttribute("aria-invalid", String(!valid));
     save.disabled = !valid;
     const out = derived?.output;
@@ -65,6 +73,57 @@ export function openDimensionEditor(
       out && (out.shape === "cylinder" || out.shape === "profile")
         ? `${t("result.blankLength")}: ${num(out.result.blankLength)} ${t("unit.mm")}`
         : "";
+    linked.replaceChildren();
+    if (valid && derived) {
+      const before = editableSegments(initial),
+        after = editableSegments(derived);
+      const changes: string[] = [];
+      let lineNumber = 0,
+        arcNumber = 0;
+      if (before && after)
+        before.forEach((a, i) => {
+          const marker = a.kind === "line" ? `L${++lineNumber}` : `R${++arcNumber}`;
+          const b = after[i];
+          if (!b || a.kind !== b.kind) return;
+          const sizeA = a.kind === "line" ? a.length : a.radius,
+            sizeB = b.kind === "line" ? b.length : b.radius;
+          if (Math.abs(sizeA - sizeB) > 0.00001 && id !== `segment.${i}.size`)
+            changes.push(`${marker}: ${num(sizeA)} → ${num(sizeB)} mm`);
+          if (
+            a.kind === "arc" &&
+            b.kind === "arc" &&
+            Math.abs(a.angle - b.angle) > 1e-8 &&
+            id !== `segment.${i}.angle`
+          )
+            changes.push(
+              `φ${arcNumber}: ${num((a.angle * 180) / Math.PI)}° → ${num((b.angle * 180) / Math.PI)}°`,
+            );
+        });
+      for (const extent of ["extent.x", "extent.y"] as const) {
+        const a = profileDimensionSpec(initial, extent),
+          b = profileDimensionSpec(derived, extent);
+        if (a && b && id !== extent && Math.abs(a.value - b.value) > 0.00001)
+          changes.push(`${t(a.label)}: ${num(a.value)} → ${num(b.value)} mm`);
+      }
+      for (const [field, label] of [
+        ["dLarge", "field.dLarge"],
+        ["dSmall", "field.dSmall"],
+        ["height", "field.height"],
+        ["offset", "field.offset"],
+        ["sizeA", "geometry.width"],
+        ["sizeB", "geometry.height"],
+      ] as const) {
+        const a = parseNumber(initial.inputs[field]),
+          b = parseNumber(derived.inputs[field]);
+        if (a !== null && b !== null && Math.abs(a - b) > 0.00001)
+          changes.push(`${t(label)}: ${num(a)} → ${num(b)} mm`);
+      }
+      if (changes.length)
+        linked.append(
+          h("p", {}, t("geometry.coupled")),
+          h("ul", {}, ...changes.map((c) => h("li", {}, c))),
+        );
+    }
     return valid;
   };
   const body = h(
@@ -83,6 +142,7 @@ export function openDimensionEditor(
     ),
     h("p", { class: "muted" }, t("drawing.commitHint")),
     preview,
+    linked,
     error,
   );
   const dialog = openDialog(root, t("drawing.title"), body, save);

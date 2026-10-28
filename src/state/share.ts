@@ -41,6 +41,8 @@ const LINK_DEFAULTS: Inputs = {
   angle: "",
   freeSegs: "",
   offset: "",
+  profileSegs: "",
+  profileClosed: false,
 };
 
 const KEYS: Record<keyof Inputs, string> = {
@@ -70,6 +72,8 @@ const KEYS: Record<keyof Inputs, string> = {
   angle: "an",
   freeSegs: "fs",
   offset: "e",
+  profileSegs: "ps",
+  profileClosed: "pc",
 };
 
 // One-letter codes for enumerated values.
@@ -144,7 +148,7 @@ function decodeV1(payload: string): Record<string, unknown> | null {
     const field = FIELD_BY_KEY.get(part.slice(0, eq));
     if (!field) return null;
     const text = decodeURIComponent(part.slice(eq + 1));
-    if (field === "flatEnds") out[field] = text === "1";
+    if (field === "flatEnds" || field === "profileClosed") out[field] = text === "1";
     else {
       const codes = CODES[field];
       const decoded = codes ? Object.entries(codes).find(([, code]) => code === text)?.[0] : text;

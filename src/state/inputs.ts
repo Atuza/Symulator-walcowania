@@ -32,6 +32,8 @@ export const inputsSchema = z
     freeSegs: z.string().max(600).default(""),
     /** Offset between the cone end centres; empty or 0 is a concentric cone. */
     offset: z.string().default(""),
+    profileSegs: z.string().max(3200).default(""),
+    profileClosed: z.boolean().default(false),
   })
   .transform((inputs) => ({
     ...inputs,
@@ -76,6 +78,8 @@ export const defaultInputs: Inputs = {
   angle: "",
   freeSegs: "",
   offset: "",
+  profileSegs: "",
+  profileClosed: false,
 };
 
 /** Starting sizes when a profile shape is picked and the current ones do not fit it. */

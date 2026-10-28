@@ -4,7 +4,7 @@ Plate rolling calculator for 4-roll plate bending machines: blank length, diamet
 3D rolling preview, 2D drawing, PDF report and DXF cut contour. Runs entirely in the browser, works
 offline once loaded, stores nothing outside the device.
 
-**Version:** 1.1.3
+**Version:** 1.1.4
 
 **App:** https://atuza.github.io/Symulator-walcowania/
 
@@ -45,9 +45,14 @@ close only when their ends meet and the total turn is ±360°.
 - Indicative warnings: R/t, outer fibre strain, springback, machine limits.
 - Dimensioned SVG drawing and landscape PDF reports in A4 or A3, with vector views at preferred
   technical scales, a title block, results and warnings.
-- Click an underlined dimension on the drawing to edit it, including radii, straight lengths,
-  angles and plate width. Enter or Apply validates the change and updates both views and all results;
-  Esc cancels. Developed blank length and other derived dimensions remain read-only.
+- Click an underlined dimension on any shape's drawing to edit it. Each profile bend has its own
+  radius R1, R2, etc.; straight lengths and overall sizes can be changed independently. Closed
+  contours stay closed, and the editor previews any automatically adjusted dimensions. No separate
+  corner-angle fields are shown. Arc sweeps remain available for half-round, bucket and free profiles.
+- Geometry fields move from the sidebar to the drawing, with a larger drawing dialog when needed.
+  Feature labels occupy separate gutters, and their leaders avoid dimension text on screen and paper.
+  Enter or Apply validates and updates both views and all results; Esc cancels. The total developed
+  blank length remains read-only. Modified profiles persist in templates, history and calculation links.
 - DXF R12: one closed red `POLYLINE` on layer `cut`, 1:1 mm; discrete profile bend lines are blue
   `LINE` entities on layer `bend`. Ellipses have no artificial bend lines. Eccentric cone contours
   use sampled line segments. R12 has no unit header: select mm on CAD import.

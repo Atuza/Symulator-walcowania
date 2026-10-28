@@ -729,11 +729,43 @@ textarea:focus {
   position: absolute;
   top: 7px;
   left: 16px;
-  right: 16px;
+  right: 54px;
   margin: 0;
   color: var(--muted);
   font-size: 11px;
   pointer-events: none;
+}
+
+.drawing-expand {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 1;
+  width: 36px;
+  height: 30px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 20px;
+}
+.dialog.drawing-dialog {
+  width: min(96vw, 1800px);
+  max-width: none;
+}
+.drawing-large {
+  height: calc(90dvh - 140px);
+  min-height: 350px;
+}
+.dimension-linked {
+  font-size: 12px;
+  color: var(--muted);
+}
+.dimension-linked ul {
+  padding-left: 18px;
+  line-height: 1.65;
+  max-height: 160px;
+  overflow: auto;
 }
 
 .dimension-edit {

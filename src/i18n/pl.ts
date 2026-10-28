@@ -3,6 +3,19 @@ import type { Dict } from "./en";
 export const pl: Dict = {
   appName: "Symulator walcowania",
   appTagline: "Walcowanie blach · 4 walce",
+  "drawing.chain": "Odcinki rozwinięcia (mm)",
+  "geometry.radiusMin": "Najmniejszy promień krzywizny",
+  "geometry.radiusMax": "Największy promień krzywizny",
+  "geometry.width": "Szerokość całkowita",
+  "geometry.height": "Wysokość całkowita",
+  "geometry.coupled": "Wymiary powiązane dopasowane automatycznie",
+  "geometry.modified": "Profil po zmianach",
+  "geometry.reset": "Przywróć geometrię wzorca",
+  "geometry.constraint":
+    "Ta wartość nie pozwala spełnić zależności geometrycznych. Dotychczasowy detal pozostał bez zmian.",
+  "geometry.correct": "Popraw wymiary",
+  "geometry.expand": "Powiększ rysunek",
+  "error.closure": "Przekrój nie jest zamknięty. Popraw jego długości i kąty.",
   "drawing.hint":
     "Kliknij podkreślony wymiar, aby go zmienić. Długość rozwinięcia jest tylko do odczytu.",
   "drawing.edit": "Zmień {name}: {value}",

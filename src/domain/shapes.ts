@@ -1,5 +1,6 @@
 import { develop, traceProfile, type Development, type Profile, type Segment } from "./profile";
 import { surfaceDepth, type Surface } from "./types";
+import { profileGeometry } from "./editableProfile";
 
 /*
  * Shapes built from straight and circular segments. All dimensions are measured on the chosen surface
@@ -39,6 +40,9 @@ export interface ShapeInput {
   angle: number;
   /** Segments of the free shape, in plate order. */
   free?: FreeSegment[];
+  /** Independent feature dimensions, overriding the preset while preserving its selected tile. */
+  override?: FreeSegment[];
+  overrideClosed?: boolean;
   flatEnds: number;
   kOverride: number | null;
 }
@@ -57,6 +61,7 @@ export const SHAPE_FIELDS: Record<ProfileShape, ("a" | "b" | "r" | "angle")[]> =
 
 export interface ShapeResult {
   shape: ProfileShape;
+  custom: boolean;
   profile: Profile;
   closed: boolean;
   dev: Development;
@@ -78,7 +83,7 @@ export interface ShapeResult {
   sizes: [number, number] | null;
 }
 
-export type ShapeError = "thickness" | "a" | "b" | "r" | "angle" | "segments";
+export type ShapeError = "thickness" | "a" | "b" | "r" | "angle" | "segments" | "closure";
 
 export function buildShape(input: ShapeInput): ShapeResult | ShapeError {
   const t = input.thickness;
@@ -94,137 +99,163 @@ export function buildShape(input: ShapeInput): ShapeResult | ShapeError {
   let segments: Segment[];
   let closed = true;
   let derivedR: number | null = null;
-  switch (input.shape) {
-    case "halfround": {
-      if (!positive(input.r)) return "r";
-      if (!positive(input.angle) || input.angle >= 2 * Math.PI) return "angle";
-      const r = radius(input.r);
-      if (!(r > 0)) return "r";
-      segments = [bend(r, input.angle)];
-      closed = false;
-      break;
-    }
-    case "ushape": {
-      // a: width across the legs, b: straight leg length; the bottom is a half circle.
-      if (!positive(input.a)) return "a";
-      if (!(input.b >= 0)) return "b";
-      const r = across(input.a) / 2;
-      if (!(r > 0)) return "a";
-      segments = [line(input.b), bend(r, Math.PI), line(input.b)];
-      closed = false;
-      break;
-    }
-    case "obround": {
-      // a: overall length, b: width; two half circles joined by straights. Seam mid-straight.
-      if (!positive(input.b)) return "b";
-      if (!positive(input.a) || input.a < input.b) return "a";
-      const r = across(input.b) / 2;
-      if (!(r > 0)) return "b";
-      const s = input.a - input.b;
-      segments = [line(s / 2), bend(r, Math.PI), line(s), bend(r, Math.PI), line(s / 2)];
-      break;
-    }
-    case "rect": {
-      // a × b with corner radius r. Seam in the middle of an a side.
-      if (!positive(input.a)) return "a";
-      if (!positive(input.b)) return "b";
-      if (!positive(input.r)) return "r";
-      const r = radius(input.r);
-      let sa = across(input.a) - 2 * r;
-      let sb = across(input.b) - 2 * r;
-      if (!(r > 0)) return "r";
-      if (sa < -1e-9) return "a";
-      if (sb < -1e-9) return "b";
-      // A side exactly 2 r long has no straight left; rounding must not make it negative.
-      sa = Math.max(0, sa);
-      sb = Math.max(0, sb);
-      const q = Math.PI / 2;
-      segments = [
-        line(sa / 2),
-        bend(r, q),
-        line(sb),
-        bend(r, q),
-        line(sa),
-        bend(r, q),
-        line(sb),
-        bend(r, q),
-        line(sa / 2),
-      ];
-      break;
-    }
-    case "tank": {
-      // Four-arc oval: width a, height b, side radius r; top and bottom radius R follows from
-      // tangency, (a/2 − r)² + (R − b/2)² = (R − r)². Seam at the middle of the bottom.
-      if (!positive(input.a)) return "a";
-      if (!positive(input.b) || input.b >= input.a) return "b";
-      if (!positive(input.r)) return "r";
-      const A = across(input.a),
-        B = across(input.b),
-        r = radius(input.r);
-      if (!(r > 0) || 2 * r >= B) return "r";
-      const R = ((A / 2 - r) ** 2 + (B / 2) ** 2 - r ** 2) / (B - 2 * r);
-      if (!(R > B / 2)) return "r";
-      // Half-angle of each side arc, measured from the horizontal.
-      const beta = Math.atan2(R - B / 2, A / 2 - r);
-      const big = Math.PI - 2 * beta;
-      segments = [
-        bend(R, big / 2),
-        bend(r, 2 * beta),
-        bend(R, big),
-        bend(r, 2 * beta),
-        bend(R, big / 2),
-      ];
-      derivedR = R + depth * t;
-      break;
-    }
-    case "bucket": {
-      // Wrapper plate: straight back a, bend radius r through the angle, straight bottom b.
-      if (!(input.a >= 0)) return "a";
-      if (!(input.b >= 0)) return "b";
-      if (!positive(input.r)) return "r";
-      if (!positive(input.angle) || input.angle >= 2 * Math.PI) return "angle";
-      const r = radius(input.r);
-      if (!(r > 0)) return "r";
-      segments = [line(input.a), bend(r, input.angle), line(input.b)];
-      closed = false;
-      break;
-    }
-    case "ellipse": {
-      // a: width, b: height. Seam at the middle of the bottom, as for the tank.
-      if (!positive(input.a)) return "a";
-      if (!positive(input.b)) return "b";
-      const A = across(input.a) / 2,
-        B = across(input.b) / 2;
-      if (!(A > 0)) return "a";
-      if (!(B > 0)) return "b";
-      segments = ellipseArcs(A, B);
-      break;
-    }
-    case "free": {
-      const list = input.free ?? [];
-      if (!list.some((x) => x.kind === "arc")) return "segments";
-      segments = [];
-      for (const x of list) {
-        if (x.kind === "line") {
-          if (!(x.length > 0)) return "segments";
-          segments.push(line(x.length));
-          continue;
-        }
-        const r = radius(x.radius);
-        if (!(r > 0) || !Number.isFinite(x.angle) || x.angle === 0) return "segments";
-        segments.push(bend(r, x.angle));
+  if (input.override) {
+    if (!input.override.some((s) => s.kind === "arc")) return "segments";
+    segments = [];
+    for (const s of input.override) {
+      if (s.kind === "line") {
+        if (!Number.isFinite(s.length) || s.length < 0) return "segments";
+        segments.push(line(s.length));
+      } else {
+        const r = radius(s.radius);
+        if (
+          !(r > 0) ||
+          !Number.isFinite(s.angle) ||
+          Math.abs(s.angle) < 1e-9 ||
+          Math.abs(s.angle) > 2 * Math.PI + 1e-8
+        )
+          return "segments";
+        segments.push(bend(r, s.angle));
       }
-      // Closed when it turns once around and its ends meet; otherwise an open plate.
-      const turn = segments.reduce((sum, x) => sum + (x.kind === "arc" ? x.angle : 0), 0);
-      if (Math.abs(Math.abs(turn) - 2 * Math.PI) < 1e-6) {
-        const pts = traceProfile({ segments, thickness: t, kOverride: null }, 0);
-        const [x0, y0] = pts[0]!;
-        const [x1, y1] = pts[pts.length - 1]!;
-        closed = Math.hypot(x1 - x0, y1 - y0) < 0.5;
-      } else closed = false;
-      break;
     }
-  }
+    closed = input.overrideClosed ?? false;
+    if (closed) {
+      const g = profileGeometry(input.override, t, depth);
+      if (Math.hypot(...g.end) > 0.01 || Math.abs(Math.abs(g.turn) - 2 * Math.PI) > 1e-7)
+        return "closure";
+    }
+  } else
+    switch (input.shape) {
+      case "halfround": {
+        if (!positive(input.r)) return "r";
+        if (!positive(input.angle) || input.angle >= 2 * Math.PI) return "angle";
+        const r = radius(input.r);
+        if (!(r > 0)) return "r";
+        segments = [bend(r, input.angle)];
+        closed = false;
+        break;
+      }
+      case "ushape": {
+        // a: width across the legs, b: straight leg length; the bottom is a half circle.
+        if (!positive(input.a)) return "a";
+        if (!(input.b >= 0)) return "b";
+        const r = across(input.a) / 2;
+        if (!(r > 0)) return "a";
+        segments = [line(input.b), bend(r, Math.PI), line(input.b)];
+        closed = false;
+        break;
+      }
+      case "obround": {
+        // a: overall length, b: width; two half circles joined by straights. Seam mid-straight.
+        if (!positive(input.b)) return "b";
+        if (!positive(input.a) || input.a < input.b) return "a";
+        const r = across(input.b) / 2;
+        if (!(r > 0)) return "b";
+        const s = input.a - input.b;
+        segments = [line(s / 2), bend(r, Math.PI), line(s), bend(r, Math.PI), line(s / 2)];
+        break;
+      }
+      case "rect": {
+        // a × b with corner radius r. Seam in the middle of an a side.
+        if (!positive(input.a)) return "a";
+        if (!positive(input.b)) return "b";
+        if (!positive(input.r)) return "r";
+        const r = radius(input.r);
+        let sa = across(input.a) - 2 * r;
+        let sb = across(input.b) - 2 * r;
+        if (!(r > 0)) return "r";
+        if (sa < -1e-9) return "a";
+        if (sb < -1e-9) return "b";
+        // A side exactly 2 r long has no straight left; rounding must not make it negative.
+        sa = Math.max(0, sa);
+        sb = Math.max(0, sb);
+        const q = Math.PI / 2;
+        segments = [
+          line(sa / 2),
+          bend(r, q),
+          line(sb),
+          bend(r, q),
+          line(sa),
+          bend(r, q),
+          line(sb),
+          bend(r, q),
+          line(sa / 2),
+        ];
+        break;
+      }
+      case "tank": {
+        // Four-arc oval: width a, height b, side radius r; top and bottom radius R follows from
+        // tangency, (a/2 − r)² + (R − b/2)² = (R − r)². Seam at the middle of the bottom.
+        if (!positive(input.a)) return "a";
+        if (!positive(input.b) || input.b >= input.a) return "b";
+        if (!positive(input.r)) return "r";
+        const A = across(input.a),
+          B = across(input.b),
+          r = radius(input.r);
+        if (!(r > 0) || 2 * r >= B) return "r";
+        const R = ((A / 2 - r) ** 2 + (B / 2) ** 2 - r ** 2) / (B - 2 * r);
+        if (!(R > B / 2)) return "r";
+        // Half-angle of each side arc, measured from the horizontal.
+        const beta = Math.atan2(R - B / 2, A / 2 - r);
+        const big = Math.PI - 2 * beta;
+        segments = [
+          bend(R, big / 2),
+          bend(r, 2 * beta),
+          bend(R, big),
+          bend(r, 2 * beta),
+          bend(R, big / 2),
+        ];
+        derivedR = R + depth * t;
+        break;
+      }
+      case "bucket": {
+        // Wrapper plate: straight back a, bend radius r through the angle, straight bottom b.
+        if (!(input.a >= 0)) return "a";
+        if (!(input.b >= 0)) return "b";
+        if (!positive(input.r)) return "r";
+        if (!positive(input.angle) || input.angle >= 2 * Math.PI) return "angle";
+        const r = radius(input.r);
+        if (!(r > 0)) return "r";
+        segments = [line(input.a), bend(r, input.angle), line(input.b)];
+        closed = false;
+        break;
+      }
+      case "ellipse": {
+        // a: width, b: height. Seam at the middle of the bottom, as for the tank.
+        if (!positive(input.a)) return "a";
+        if (!positive(input.b)) return "b";
+        const A = across(input.a) / 2,
+          B = across(input.b) / 2;
+        if (!(A > 0)) return "a";
+        if (!(B > 0)) return "b";
+        segments = ellipseArcs(A, B);
+        break;
+      }
+      case "free": {
+        const list = input.free ?? [];
+        if (!list.some((x) => x.kind === "arc")) return "segments";
+        segments = [];
+        for (const x of list) {
+          if (x.kind === "line") {
+            if (!(x.length > 0)) return "segments";
+            segments.push(line(x.length));
+            continue;
+          }
+          const r = radius(x.radius);
+          if (!(r > 0) || !Number.isFinite(x.angle) || x.angle === 0) return "segments";
+          segments.push(bend(r, x.angle));
+        }
+        // Closed when it turns once around and its ends meet; otherwise an open plate.
+        const turn = segments.reduce((sum, x) => sum + (x.kind === "arc" ? x.angle : 0), 0);
+        if (Math.abs(Math.abs(turn) - 2 * Math.PI) < 1e-6) {
+          const pts = traceProfile({ segments, thickness: t, kOverride: null }, 0);
+          const [x0, y0] = pts[0]!;
+          const [x1, y1] = pts[pts.length - 1]!;
+          closed = Math.hypot(x1 - x0, y1 - y0) < 0.5;
+        } else closed = false;
+        break;
+      }
+    }
 
   const flat = Math.max(0, input.flatEnds);
   if (flat > 0) segments = [line(flat), ...segments, line(flat)];
@@ -237,7 +268,7 @@ export function buildShape(input: ShapeInput): ShapeResult | ShapeError {
   let radii = [...new Set(arcs.map((d) => Math.round(radiusOf(d.segment) * 1e6) / 1e6))].sort(
     (x, y) => x - y,
   );
-  if (input.shape === "ellipse") {
+  if (input.shape === "ellipse" && !input.override) {
     // The arcs only approximate the varying curvature; report the ellipse's true extremes, and no
     // bend lines inside the blank, since the curvature changes continuously.
     const A = across(input.a) / 2,
@@ -248,6 +279,7 @@ export function buildShape(input: ShapeInput): ShapeResult | ShapeError {
   }
   return {
     shape: input.shape,
+    custom: !!input.override,
     profile,
     closed,
     dev,
@@ -258,7 +290,7 @@ export function buildShape(input: ShapeInput): ShapeResult | ShapeError {
     radii,
     flatEnd: flat,
     derivedR,
-    sizes: input.shape === "ellipse" ? [input.a, input.b] : null,
+    sizes: input.shape === "ellipse" && !input.override ? [input.a, input.b] : null,
   };
 }
 

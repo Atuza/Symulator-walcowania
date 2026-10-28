@@ -3,7 +3,7 @@
 export type Pt = readonly [number, number];
 export type Stroke = "part" | "thin" | "center" | "flat";
 
-/** Input dimensions only. Developed lengths and other derived measures remain read-only. */
+/** Editable geometric measures. Developed blank lengths remain read-only. */
 export type DimensionId =
   | "a"
   | "b"
@@ -17,6 +17,18 @@ export type DimensionId =
   | "dSmall"
   | "diameter.inner"
   | "diameter.outer"
+  | "extent.x"
+  | "extent.y"
+  | "ellipse.min"
+  | "ellipse.max"
+  | "cone.r1"
+  | "cone.r2"
+  | "cone.sector"
+  | "cone.slant"
+  | "cone.radius.large"
+  | "cone.radius.small"
+  | "cone.slant.short"
+  | "cone.slant.long"
   | `segment.${number}.size`
   | `segment.${number}.angle`;
 
@@ -27,6 +39,7 @@ export interface Annotation {
 
 export type Prim =
   | { kind: "path"; pts: Pt[]; closed: boolean; stroke: Stroke; fill?: boolean }
+  | { kind: "tag"; at: Pt; direction: Pt; label: string; edit: DimensionId; row?: number }
   | {
       /** Arc length or angle dimension around centre c, from angle a0 to a1 (radians, CCW). */
       kind: "arcDim";
@@ -50,6 +63,8 @@ export type Prim =
       offsetScreen: number;
       label: string;
       edit?: DimensionId;
+      /** Caption for the compact fallback when a chain of dimensions cannot fit. */
+      chain?: string;
     };
 
 export interface View {
@@ -93,6 +108,7 @@ export function bounds(view: View) {
   };
   for (const p of view.prims) {
     if (p.kind === "path") p.pts.forEach(add);
+    else if (p.kind === "tag") add(p.at);
     else if (p.kind === "arcDim") arc(p.c[0], p.c[1], p.r, p.a0, p.a1, 32).forEach(add);
     else {
       add(p.a);

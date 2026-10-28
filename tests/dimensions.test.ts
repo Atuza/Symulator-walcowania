@@ -41,7 +41,9 @@ describe("drawing dimension changes", () => {
       7,
     );
     expect(
-      buildViews(b, 2500, "inner")[0]!.prims.some((p) => p.kind !== "path" && p.edit === "a"),
+      buildViews(b, 2500, "inner")[0]!.prims.some(
+        (p) => p.kind !== "path" && p.edit === "extent.x",
+      ),
     ).toBe(true);
   });
   it("changes width independently of section and developed length", () => {
@@ -131,7 +133,7 @@ describe("drawing dimension changes", () => {
     expect(dimensionInputs(rectangle(), "a", Infinity)).toBeNull();
     expect(dimensionInputs(rectangle(), "width", 0)).toBeNull();
     expect(dimensionInputs(rectangle(), "thickness", -1)).toBeNull();
-    expect(dimensionInputs(rectangle(), "segment.0.size", 200)).toBeNull();
+    expect(dimensionInputs(rectangle(), "segment.999.size", 200)).toBeNull();
   });
 });
 
@@ -164,7 +166,10 @@ describe("interactive drawing contract", () => {
       expect(ids.length).toBeGreaterThan(0);
       for (const id of ids) expect(dimensionSpec(d, id), id).not.toBeNull();
       for (const p of views[1]!.prims) {
-        if (p.kind !== "path") expect(p.edit === undefined || p.edit === "width").toBe(true);
+        if (p.kind !== "path")
+          expect(p.edit === undefined || p.edit === "width" || p.edit.startsWith("cone.")).toBe(
+            true,
+          );
       }
     },
   );

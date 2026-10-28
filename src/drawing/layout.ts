@@ -46,7 +46,25 @@ const STANDARD_SCALES = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
  * Returns each view's scale as output units per model mm (for a PDF in mm: 1 / n of 1:n).
  */
 export function drawViews(views: View[], box: Box, sink: Sink, style: LayoutStyle): number[] {
-  const stacked = style.stacked ?? box.h > box.w * 0.9;
+  const minimumFeatureCell = Math.max(
+    0,
+    ...views.map((view) => {
+      const tags = view.prims.filter((p) => p.kind === "tag");
+      if (!tags.length) return 0;
+      const labelWidth = Math.max(
+        ...tags.map(
+          (p) =>
+            sink.textWidth?.(p.label, style.fontSize) ?? p.label.length * style.fontSize * 0.62,
+        ),
+      );
+      return (
+        2 * (labelWidth + 3 * style.fontSize) + 2 * style.pad + style.gap + 12 * style.fontSize
+      );
+    }),
+  );
+  const stacked =
+    style.stacked ??
+    (box.h > box.w * 0.9 || (views.length > 1 && box.w / views.length < minimumFeatureCell));
   return views.map((view, i) => {
     const n = views.length;
     const cell: Box = stacked
@@ -64,6 +82,22 @@ export function standardScale(fit: number): number {
 }
 
 function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
+  const occupied: Box[] = [];
+  const original = sink;
+  sink = {
+    ...original,
+    text(x, y, text, o) {
+      if (o.role === "dim") {
+        const w = (original.textWidth?.(text, o.size) ?? text.length * o.size * 0.62) + o.size,
+          h = s.interactive && o.edit ? Math.max(24, o.size * 1.8) : o.size * 1.8,
+          a = ((o.angle ?? 0) * Math.PI) / 180;
+        const width = Math.abs(w * Math.cos(a)) + Math.abs(h * Math.sin(a)),
+          height = Math.abs(w * Math.sin(a)) + Math.abs(h * Math.cos(a));
+        occupied.push({ x: x - width / 2, y: y - height * 0.8, w: width, h: height });
+      }
+      original.text(x, y, text, o);
+    },
+  };
   const titleH = s.fontSize * 1.8;
   const noteSize = s.fontSize * 0.92;
   const measure = (text: string) =>
@@ -74,13 +108,46 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
   });
   const pitch = (edit?: DimensionId) =>
     s.interactive && edit ? Math.max(28, s.fontSize * 1.5) : s.fontSize * 1.5;
-  const notesH = notes.reduce((sum, n) => sum + pitch(n.edit), 0);
+  let notesH = notes.reduce((sum, n) => sum + pitch(n.edit), 0);
+  const tags = view.prims.filter((p): p is Extract<Prim, { kind: "tag" }> => p.kind === "tag");
+  const tagWidth = Math.max(
+    0,
+    ...tags.map(
+      (p) =>
+        (sink.textWidth?.(p.label, s.fontSize) ?? p.label.length * s.fontSize * 0.62) + s.fontSize,
+    ),
+  );
+  // Dedicated gutters keep every feature value away from the part and its overall dimensions.
+  const gutter = tags.length ? tagWidth + s.fontSize * 2 : 0;
+  const padY = Math.max(s.pad, s.fontSize * 3.4);
   const area: Box = {
-    x: cell.x + s.pad,
-    y: cell.y + titleH + s.pad,
-    w: cell.w - 2 * s.pad - s.gap,
-    h: cell.h - titleH - notesH - 2 * s.pad,
+    x: cell.x + s.pad + gutter,
+    y: cell.y + titleH + padY,
+    w: cell.w - 2 * s.pad - s.gap - 2 * gutter,
+    h: cell.h - titleH - notesH - 2 * padY,
   };
+  const b = bounds(view);
+  const bw = Math.max(b.maxX - b.minX, 1e-6),
+    bh = Math.max(b.maxY - b.minY, 1e-6);
+  const chains = view.prims.filter(
+    (p): p is Extract<Prim, { kind: "dim" }> => p.kind === "dim" && !!p.chain,
+  );
+  const trialFit = Math.min(area.w / bw, area.h / bh);
+  const trialScale = s.snapScale ? standardScale(trialFit) : trialFit;
+  const showChains = chains.every(
+    (p) =>
+      Math.hypot(p.b[0] - p.a[0], p.b[1] - p.a[1]) * trialScale >=
+      (sink.textWidth?.(p.label, s.fontSize) ?? p.label.length * s.fontSize * 0.62) +
+        s.fontSize * 1.5,
+  );
+  if (!showChains) {
+    const caption = `${chains[0]!.chain}: ${chains.map((p) => p.label).join(" · ")}`;
+    notes.push(
+      ...wrapNote(caption, cell.w - s.gap, measure).map((text) => ({ text, edit: undefined })),
+    );
+    notesH = notes.reduce((sum, n) => sum + pitch(n.edit), 0);
+    area.h = cell.h - titleH - notesH - 2 * padY;
+  }
   sink.text(cell.x, cell.y + s.fontSize, view.title, {
     size: s.fontSize,
     anchor: "start",
@@ -98,9 +165,6 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
   });
   if (area.w <= 0 || area.h <= 0) return 0;
 
-  const b = bounds(view);
-  const bw = Math.max(b.maxX - b.minX, 1e-6),
-    bh = Math.max(b.maxY - b.minY, 1e-6);
   const fit = Math.min(area.w / bw, area.h / bh);
   const scale = s.snapScale ? standardScale(fit) : fit;
   const ox = area.x + (area.w - bw * scale) / 2;
@@ -108,6 +172,8 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
   const map = ([x, y]: Pt): Pt => [ox + (x - b.minX) * scale, oy + (b.maxY - y) * scale];
 
   for (const p of view.prims) {
+    if (p.kind === "tag") continue;
+    if (p.kind === "dim" && p.chain && !showChains) continue;
     if (p.kind === "path") {
       sink.path(p.pts.map(map), p.closed, p.stroke, p.fill);
       continue;
@@ -152,7 +218,157 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
       p.edit,
     );
   }
+  if (tags.length) {
+    const groups = new Map<string, { at: Pt; tags: typeof tags; box: Box; left: boolean }>();
+    const centreX = (b.minX + b.maxX) / 2;
+    let leftCount = 0,
+      rightCount = 0;
+    for (const tag of tags) {
+      const key = tag.at.map((n) => n.toFixed(6)).join(",");
+      const existing = groups.get(key);
+      if (existing) {
+        existing.tags.push(tag);
+        continue;
+      }
+      const left =
+        Math.abs(tag.at[0] - centreX) < 1e-6 ? leftCount <= rightCount : tag.at[0] < centreX;
+      if (left) leftCount++;
+      else rightCount++;
+      groups.set(key, {
+        at: map(tag.at),
+        tags: [tag],
+        box: { x: 0, y: 0, w: tagWidth, h: 0 },
+        left,
+      });
+    }
+    const top = cell.y + titleH + s.fontSize;
+    const bottom = cell.y + cell.h - notesH - s.fontSize;
+    const row = s.interactive ? Math.max(28, s.fontSize * 2.2) : s.fontSize * 1.8;
+    const arranged = [...groups.values()];
+    for (const left of [true, false]) {
+      const column = arranged.filter((g) => g.left === left).sort((a, b) => a.at[1] - b.at[1]);
+      let cursor = top;
+      for (const group of column) {
+        group.box.h = group.tags.length * row;
+        group.box.x = left
+          ? cell.x + s.fontSize * 0.5
+          : cell.x + cell.w - s.gap - tagWidth - s.fontSize * 0.5;
+        group.box.y = Math.max(
+          cursor,
+          Math.min(bottom - group.box.h, group.at[1] - group.box.h / 2),
+        );
+        cursor = group.box.y + group.box.h + s.fontSize * 0.5;
+      }
+      cursor = bottom;
+      for (const group of [...column].reverse()) {
+        group.box.y = Math.min(group.box.y, cursor - group.box.h);
+        cursor = group.box.y - s.fontSize * 0.5;
+      }
+    }
+    const obstacles = [...occupied, ...arranged.map((g) => g.box)];
+    const leaders: Pt[][] = [];
+    for (const group of arranged) {
+      const box = group.box;
+      const edge: Pt = [group.left ? box.x + box.w : box.x, box.y + box.h / 2];
+      const path = routeLeader(
+        group.at,
+        edge,
+        obstacles.filter((o) => o !== box),
+        leaders,
+        s.fontSize * 0.25,
+      );
+      sink.path(path, false, "thin");
+      leaders.push(path);
+    }
+    for (const group of arranged)
+      group.tags.forEach((tag, i) => {
+        original.text(group.box.x + group.box.w / 2, group.box.y + row * (i + 0.7), tag.label, {
+          size: s.fontSize,
+          anchor: "middle",
+          role: "dim",
+          edit: tag.edit,
+        });
+      });
+  }
   return scale;
+}
+
+/** Visibility routing keeps a leader out of every label, including labels in the other gutter. */
+function routeLeader(start: Pt, end: Pt, labels: Box[], previous: Pt[][], margin: number): Pt[] {
+  const boxes = labels.map((b) => ({
+    x: b.x - margin,
+    y: b.y - margin,
+    w: b.w + margin * 2,
+    h: b.h + margin * 2,
+  }));
+  const inside = (p: Pt, b: Box) =>
+    p[0] > b.x + 1e-6 && p[0] < b.x + b.w - 1e-6 && p[1] > b.y + 1e-6 && p[1] < b.y + b.h - 1e-6;
+  const blocked = (a: Pt, b: Pt, box: Box) => {
+    let low = 0,
+      high = 1;
+    for (const [origin, delta, min, max] of [
+      [a[0], b[0] - a[0], box.x, box.x + box.w],
+      [a[1], b[1] - a[1], box.y, box.y + box.h],
+    ]) {
+      if (Math.abs(delta!) < 1e-9) {
+        if (origin! <= min! + 1e-6 || origin! >= max! - 1e-6) return false;
+      } else {
+        const t0 = (min! - origin!) / delta!,
+          t1 = (max! - origin!) / delta!;
+        low = Math.max(low, Math.min(t0, t1) + 1e-8);
+        high = Math.min(high, Math.max(t0, t1) - 1e-8);
+      }
+    }
+    return low < high;
+  };
+  const cross = (a: Pt, b: Pt, c: Pt, d: Pt) => {
+    const side = (p: Pt, q: Pt, r: Pt) =>
+      (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    return side(a, b, c) * side(a, b, d) < -1e-8 && side(c, d, a) * side(c, d, b) < -1e-8;
+  };
+  const nodes: Pt[] = [
+    start,
+    end,
+    ...boxes.flatMap(
+      (b) =>
+        [
+          [b.x, b.y],
+          [b.x + b.w, b.y],
+          [b.x, b.y + b.h],
+          [b.x + b.w, b.y + b.h],
+        ] as Pt[],
+    ),
+  ].filter((p, i) => i < 2 || !boxes.some((b) => inside(p, b)));
+  const distance = nodes.map(() => Infinity),
+    parent = nodes.map(() => -1),
+    done = new Set<number>();
+  distance[0] = 0;
+  while (!done.has(1)) {
+    let next = -1;
+    for (let i = 0; i < nodes.length; i++)
+      if (!done.has(i) && (next < 0 || distance[i]! < distance[next]!)) next = i;
+    if (next < 0 || !Number.isFinite(distance[next])) return [start, end];
+    done.add(next);
+    for (let i = 0; i < nodes.length; i++) {
+      if (done.has(i)) continue;
+      const a = nodes[next]!,
+        b = nodes[i]!;
+      if (boxes.some((box) => blocked(a, b, box))) continue;
+      const crossings = previous.reduce(
+        (sum, path) => sum + path.slice(1).filter((p, j) => cross(a, b, path[j]!, p)).length,
+        0,
+      );
+      const cost =
+        distance[next]! + Math.hypot(b[0] - a[0], b[1] - a[1]) + crossings * margin * 100;
+      if (cost < distance[i]!) {
+        distance[i] = cost;
+        parent[i] = next;
+      }
+    }
+  }
+  const path: Pt[] = [];
+  for (let i = 1; i >= 0; i = parent[i]!) path.unshift(nodes[i]!);
+  return path;
 }
 
 /** Wrap annotations to their own view so they cannot run into another view or the sheet edge. */
