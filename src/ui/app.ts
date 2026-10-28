@@ -52,6 +52,8 @@ import { sceneModel } from "../viz/sceneModel";
 import { View2D } from "../viz/view2d";
 import type { RollingScene } from "../viz/scene3d";
 import { openDialog } from "./dialog";
+import { dimensionName, openDimensionEditor } from "./dimensionEditor";
+import type { DimensionId } from "../drawing/model";
 import { h, segmented } from "./dom";
 import { Editor } from "./editor";
 import { openScanner } from "./scanner";
@@ -116,7 +118,11 @@ export class App {
       this.resultsPanel,
     );
     root.append(this.header, this.layout);
-    this.view2d = new View2D(this.stage2d);
+    this.view2d = new View2D(
+      this.stage2d,
+      (id) => this.editDimension(id),
+      (id) => dimensionName(this.derived, id),
+    );
     this.buildStageControls();
     this.renderAll();
     void this.loadScene();
@@ -1013,6 +1019,22 @@ export class App {
   }
 
   // ---- views ---------------------------------------------------------------
+
+  private editDimension(id: DimensionId) {
+    const dialog = openDimensionEditor(
+      this.root,
+      this.derived,
+      id,
+      (inputs) =>
+        derive(inputs, this.settings.machine, this.process, this.materials, this.trialFactors()),
+      (inputs) => {
+        this.inputs = inputs;
+        this.schedulePersist();
+        this.renderAll();
+      },
+    );
+    dialog?.addEventListener("close", () => this.view2d.focusDimension(id));
+  }
 
   private renderViews() {
     const d = this.derived;

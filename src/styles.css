@@ -171,6 +171,7 @@ button {
   overflow-y: auto;
   overscroll-behavior: contain;
   min-height: 0;
+  min-width: 0;
   padding: 20px var(--gutter) calc(28px + env(safe-area-inset-bottom));
 }
 
@@ -663,7 +664,7 @@ textarea:focus {
     linear-gradient(var(--grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid) 1px, transparent 1px);
   background-size: 24px 24px;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .drawing {
@@ -722,6 +723,50 @@ textarea:focus {
 
 .drawing .t-note {
   fill: var(--muted);
+}
+
+.drawing-hint {
+  position: absolute;
+  top: 7px;
+  left: 16px;
+  right: 16px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.dimension-edit {
+  cursor: pointer;
+  outline: none;
+}
+
+.drawing .dimension-hit {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 1;
+}
+
+.drawing .dimension-edit text {
+  fill: var(--accent);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  pointer-events: none;
+}
+
+.drawing .dimension-edit:hover .dimension-hit,
+.drawing .dimension-edit:focus .dimension-hit {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+}
+
+.dimension-dialog {
+  max-width: 420px;
+}
+.dimension-error {
+  color: var(--danger);
+  min-height: 1.5em;
+  margin-bottom: 0;
 }
 
 /* ---- results ------------------------------------------------------------ */

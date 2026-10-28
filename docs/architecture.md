@@ -56,6 +56,14 @@ PDF tables measure wrapped labels and values before choosing row spacing. Sectio
 continue on another numbered page when they cannot fit above the footer; the drawing and QR stay
 on the first page.
 
+Drawing primitives and annotations carry optional semantic input-dimension identifiers. SVG renders
+these as labelled, keyboard-accessible controls; PDF treats them as ordinary technical annotations.
+`state/dimensions.ts` maps a selected measure to a complete candidate input set, preserving reference
+surface and radius/diameter semantics. `ui/dimensionEditor.ts` validates the candidate through the
+existing derivation pipeline before a single commit. Cancel and invalid values never modify the
+calculator. The resulting inputs use the same persistence, history, links and export paths as the form.
+See [drawing dimension editing](adr/0006-drawing-dimensions.md).
+
 Calculation links (`state/share.ts`, ADR 0004) put the inputs that differ from frozen link defaults into
 the URL fragment (`#c=1;key=value;…`). The fragment never reaches the server; the PDF prints it as a
 QR code, `ui/scanner.ts` reads it with the camera, and the app also loads and clears it on start.

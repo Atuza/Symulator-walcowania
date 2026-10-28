@@ -1,6 +1,14 @@
 export const en = {
   appName: "Rolling simulator",
   appTagline: "Plate rolling · 4-roll",
+  "drawing.hint": "Click an underlined dimension to edit it. Developed length is read-only.",
+  "drawing.edit": "Edit {name}: {value}",
+  "drawing.title": "Edit dimension",
+  "drawing.apply": "Apply",
+  "drawing.segment": "Segment",
+  "drawing.invalid": "Enter a valid dimension. Lengths and radii must be positive.",
+  "drawing.commitHint":
+    "Enter or Apply updates both views and all results. Esc cancels the change.",
 
   "shape.cylinder": "Cylinder",
   "shape.cone": "Cone",

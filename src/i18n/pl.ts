@@ -3,6 +3,15 @@ import type { Dict } from "./en";
 export const pl: Dict = {
   appName: "Symulator walcowania",
   appTagline: "Walcowanie blach · 4 walce",
+  "drawing.hint":
+    "Kliknij podkreślony wymiar, aby go zmienić. Długość rozwinięcia jest tylko do odczytu.",
+  "drawing.edit": "Zmień {name}: {value}",
+  "drawing.title": "Zmień wymiar",
+  "drawing.apply": "Zastosuj",
+  "drawing.segment": "Odcinek",
+  "drawing.invalid": "Podaj poprawny wymiar. Długości i promienie muszą być dodatnie.",
+  "drawing.commitHint":
+    "Enter lub Zastosuj przelicza oba widoki i wszystkie wyniki. Esc anuluje zmianę.",
 
   "shape.cylinder": "Walec",
   "shape.cone": "Stożek",

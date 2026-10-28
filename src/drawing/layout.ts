@@ -1,4 +1,4 @@
-import { bounds, type Prim, type Pt, type Stroke, type View } from "./model";
+import { bounds, type DimensionId, type Prim, type Pt, type Stroke, type View } from "./model";
 
 /** Output surface in screen units (px for SVG, mm for PDF), y pointing down. */
 export interface Sink {
@@ -15,6 +15,7 @@ export interface TextOpts {
   /** Rotation in degrees, clockwise on screen. */
   angle?: number;
   role: "title" | "dim" | "note";
+  edit?: DimensionId;
 }
 
 export interface Box {
@@ -32,6 +33,9 @@ export interface LayoutStyle {
   gap: number;
   /** Round each view down to a standard scale (1:5, 1:10, 1:20…) so the sheet states a true scale. */
   snapScale?: boolean;
+  /** Explicit orientation for a scrollable interactive canvas. */
+  stacked?: boolean;
+  interactive?: boolean;
 }
 
 // Preferred scales for technical drawings (ISO 5455), as the denominator of 1:n.
@@ -42,7 +46,7 @@ const STANDARD_SCALES = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
  * Returns each view's scale as output units per model mm (for a PDF in mm: 1 / n of 1:n).
  */
 export function drawViews(views: View[], box: Box, sink: Sink, style: LayoutStyle): number[] {
-  const stacked = box.h > box.w * 0.9;
+  const stacked = style.stacked ?? box.h > box.w * 0.9;
   return views.map((view, i) => {
     const n = views.length;
     const cell: Box = stacked
@@ -64,8 +68,13 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
   const noteSize = s.fontSize * 0.92;
   const measure = (text: string) =>
     sink.textWidth?.(text, noteSize) ?? text.length * noteSize * 0.62;
-  const notes = view.notes.flatMap((note) => wrapNote(note, cell.w - s.gap, measure));
-  const notesH = notes.length * s.fontSize * 1.5;
+  const notes = view.notes.flatMap((note) => {
+    const { text, edit } = typeof note === "string" ? { text: note, edit: undefined } : note;
+    return wrapNote(text, cell.w - s.gap, measure).map((text) => ({ text, edit }));
+  });
+  const pitch = (edit?: DimensionId) =>
+    s.interactive && edit ? Math.max(28, s.fontSize * 1.5) : s.fontSize * 1.5;
+  const notesH = notes.reduce((sum, n) => sum + pitch(n.edit), 0);
   const area: Box = {
     x: cell.x + s.pad,
     y: cell.y + titleH + s.pad,
@@ -77,13 +86,16 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
     anchor: "start",
     role: "title",
   });
-  notes.forEach((note, i) =>
-    sink.text(cell.x, cell.y + cell.h - notesH + s.fontSize * (1.1 + 1.5 * i), note, {
+  let noteY = cell.y + cell.h - notesH;
+  notes.forEach((note) => {
+    sink.text(cell.x, noteY + s.fontSize * 1.1, note.text, {
       size: noteSize,
       anchor: "start",
       role: "note",
-    }),
-  );
+      edit: note.edit,
+    });
+    noteY += pitch(note.edit);
+  });
   if (area.w <= 0 || area.h <= 0) return 0;
 
   const b = bounds(view);
@@ -137,6 +149,7 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
       nx * side,
       ny * side,
       p.label,
+      p.edit,
     );
   }
   return scale;
@@ -200,7 +213,7 @@ function drawArcDim(
   // Labels sit on the outer side of the arc unless the dimension was pushed inwards.
   const [ox, oy] = dir(centre, mid);
   const side = p.offsetScreen < 0 ? -1 : 1;
-  placeLabel(sink, s, mid, ux, uy, ox * side, oy * side, p.label);
+  placeLabel(sink, s, mid, ux, uy, ox * side, oy * side, p.label, p.edit);
 }
 
 /** Puts a dimension label along direction (ux, uy) on the side given by the unit vector (ax, ay). */
@@ -213,6 +226,7 @@ function placeLabel(
   ax: number,
   ay: number,
   label: string,
+  edit?: DimensionId,
 ) {
   let angle = (Math.atan2(uy, ux) * 180) / Math.PI;
   // Keep labels readable: vertical text reads bottom-to-top, as on drawings.
@@ -229,6 +243,7 @@ function placeLabel(
     anchor: "middle",
     angle,
     role: "dim",
+    edit,
   });
 }
 

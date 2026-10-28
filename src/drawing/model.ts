@@ -3,6 +3,28 @@
 export type Pt = readonly [number, number];
 export type Stroke = "part" | "thin" | "center" | "flat";
 
+/** Input dimensions only. Developed lengths and other derived measures remain read-only. */
+export type DimensionId =
+  | "a"
+  | "b"
+  | "r"
+  | "angle"
+  | "height"
+  | "offset"
+  | "width"
+  | "thickness"
+  | "dLarge"
+  | "dSmall"
+  | "diameter.inner"
+  | "diameter.outer"
+  | `segment.${number}.size`
+  | `segment.${number}.angle`;
+
+export interface Annotation {
+  text: string;
+  edit?: DimensionId;
+}
+
 export type Prim =
   | { kind: "path"; pts: Pt[]; closed: boolean; stroke: Stroke; fill?: boolean }
   | {
@@ -16,6 +38,7 @@ export type Prim =
       /** Radial offset of the dimension arc, in font-size multiples (positive = outwards). */
       offsetScreen: number;
       label: string;
+      edit?: DimensionId;
     }
   | {
       kind: "dim";
@@ -26,13 +49,14 @@ export type Prim =
       offsetModel: number;
       offsetScreen: number;
       label: string;
+      edit?: DimensionId;
     };
 
 export interface View {
   title: string;
   prims: Prim[];
   /** Extra lines printed under the view (radii, angles). */
-  notes: string[];
+  notes: (string | Annotation)[];
 }
 
 export function arc(

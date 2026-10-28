@@ -4,7 +4,7 @@ import { eccentricPoint } from "../domain/eccentric";
 import { surfaceDepth, type Surface } from "../domain/types";
 import { traceProfile } from "../domain/profile";
 import type { ProfileShape } from "../domain/shapes";
-import { arc, circle, type Prim, type Pt, type View } from "./model";
+import { arc, circle, type Annotation, type Prim, type Pt, type View } from "./model";
 
 // Dimension offset from the part, in multiples of the renderer font size.
 const GAP = 1.8;
@@ -14,7 +14,7 @@ const mm = (v: number) => num(v);
 /** Section and development views for the current result. */
 export function buildViews(out: CalcOutput, width: number | null, surface: Surface): View[] {
   return out.shape === "cylinder"
-    ? cylinderViews(out, width)
+    ? cylinderViews(out, width, surface)
     : out.shape === "cone"
       ? coneViews(out, surface)
       : out.shape === "eccentric"
@@ -57,6 +57,7 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
       offsetModel: 0,
       offsetScreen: GAP,
       label: mm(H),
+      edit: "height",
     },
     {
       kind: "dim",
@@ -65,6 +66,7 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
       offsetModel: 0,
       offsetScreen: GAP,
       label: mm(D1),
+      edit: "dLarge",
     },
     {
       kind: "dim",
@@ -73,6 +75,7 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
       offsetModel: 0,
       offsetScreen: -GAP,
       label: mm(D2),
+      edit: "dSmall",
     },
   ];
 
@@ -108,7 +111,10 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
     {
       title: t("result.sideView"),
       prims: side,
-      notes: [`t = ${mm(r.thickness)} ${t("unit.mm")} · e = ${mm(e)} ${t("unit.mm")}`],
+      notes: [
+        { text: `t = ${mm(r.thickness)} ${t("unit.mm")}`, edit: "thickness" },
+        { text: `e = ${mm(e)} ${t("unit.mm")}`, edit: "offset" },
+      ],
     },
     { title: t("result.development"), prims: dev, notes: devNotes },
   ];
@@ -165,6 +171,7 @@ function profileViews(
       offsetModel: 0,
       offsetScreen: -GAP,
       label: mm(r.sizes?.[0] ?? x1 - x0),
+      edit: ["rect", "obround", "tank", "ellipse", "ushape"].includes(r.shape) ? "a" : undefined,
     },
     {
       kind: "dim",
@@ -173,6 +180,7 @@ function profileViews(
       offsetModel: 0,
       offsetScreen: -GAP,
       label: mm(r.sizes?.[1] ?? y1 - y0),
+      edit: ["rect", "obround", "tank", "ellipse"].includes(r.shape) ? "b" : undefined,
     },
   );
 
@@ -201,6 +209,7 @@ function profileViews(
       offsetModel: 0,
       offsetScreen: GAP,
       label: mm(W),
+      edit: "width",
     });
   for (const x of r.dev.bendLines)
     dev.push({
@@ -247,10 +256,48 @@ function profileViews(
     }
 
   const radii = r.radii.map((x) => `R ${mm(x)}`).join(" · ");
-  const sectionNotes = [
-    `t = ${mm(r.profile.thickness)} ${t("unit.mm")}`,
-    `${radii} (${t("surface.inner").toLowerCase()})`,
+  const sectionNotes: (string | Annotation)[] = [
+    { text: `t = ${mm(r.profile.thickness)} ${t("unit.mm")}`, edit: "thickness" },
   ];
+  if (r.shape === "ellipse") sectionNotes.push(`${radii} (${t("surface.inner").toLowerCase()})`);
+  else if (r.shape !== "free") {
+    const radius = r.radii[0]! + surfaceDepth[surface] * r.profile.thickness;
+    sectionNotes.push({
+      text: `R ${mm(radius)} (${t(`surface.${surface}`).toLowerCase()})`,
+      edit: "r",
+    });
+  }
+  const segments = r.profile.segments.slice(r.flatEnd > 0 ? 1 : 0, r.flatEnd > 0 ? -1 : undefined);
+  if (r.shape === "ushape" || r.shape === "bucket") {
+    const first = segments[0]!,
+      last = segments[segments.length - 1]!;
+    if (r.shape === "bucket" && first.kind === "line")
+      sectionNotes.push({ text: `A = ${mm(first.length)} ${t("unit.mm")}`, edit: "a" });
+    if (last.kind === "line")
+      sectionNotes.push({ text: `B = ${mm(last.length)} ${t("unit.mm")}`, edit: "b" });
+  }
+  if (r.shape === "halfround" || r.shape === "bucket") {
+    const angle = segments.reduce((sum, s) => sum + (s.kind === "arc" ? s.angle : 0), 0);
+    sectionNotes.push({ text: `θ = ${mm((angle * 180) / Math.PI)}°`, edit: "angle" });
+  }
+  if (r.shape === "free")
+    segments.forEach((s, i) => {
+      if (s.kind === "line")
+        sectionNotes.push({
+          text: `${i + 1}: L ${mm(s.length)} ${t("unit.mm")}`,
+          edit: `segment.${i}.size`,
+        });
+      else {
+        const radius = s.radius + surfaceDepth[surface] * r.profile.thickness;
+        sectionNotes.push(
+          {
+            text: `${i + 1}: R ${mm(radius)} (${t(`surface.${surface}`).toLowerCase()})`,
+            edit: `segment.${i}.size`,
+          },
+          { text: `${i + 1}: θ ${mm((s.angle * 180) / Math.PI)}°`, edit: `segment.${i}.angle` },
+        );
+      }
+    });
   if (r.derivedR !== null)
     sectionNotes.push(`${t("result.tankR")}: ${mm(r.derivedR)} ${t("unit.mm")}`);
   // Three positions per line keep the notes inside the view.
@@ -270,6 +317,7 @@ function profileViews(
 function cylinderViews(
   out: Extract<CalcOutput, { shape: "cylinder" }>,
   width: number | null,
+  surface: Surface,
 ): View[] {
   const r = out.result;
   const ro = r.dOuter / 2,
@@ -304,6 +352,7 @@ function cylinderViews(
       offsetModel: -ro,
       offsetScreen: -GAP,
       label: `Ø ${mm(r.dOuter)}`,
+      edit: "diameter.outer",
     },
     {
       kind: "dim",
@@ -312,6 +361,7 @@ function cylinderViews(
       offsetModel: 0,
       offsetScreen: 0,
       label: `Ø ${mm(r.dInner)}`,
+      edit: "diameter.inner",
     },
   ];
 
@@ -341,6 +391,7 @@ function cylinderViews(
       offsetModel: 0,
       offsetScreen: GAP,
       label: mm(W),
+      edit: "width",
     });
   if (r.flatEnd > 0) {
     const f = r.flatEnd;
@@ -387,7 +438,12 @@ function cylinderViews(
       title: t("result.diameters"),
       prims: section,
       notes: [
-        `t = ${mm(thickness)} ${t("unit.mm")} · ${t("result.dNeutral")}: ${mm(r.dNeutral)} ${t("unit.mm")}`,
+        { text: `t = ${mm(thickness)} ${t("unit.mm")}`, edit: "thickness" },
+        {
+          text: `R ${mm(ri + surfaceDepth[surface] * thickness)} (${t(`surface.${surface}`).toLowerCase()})`,
+          edit: "r",
+        },
+        `${t("result.dNeutral")}: ${mm(r.dNeutral)} ${t("unit.mm")}`,
       ],
     },
     { title: t("result.development"), prims: dev, notes },
@@ -451,6 +507,7 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       offsetModel: 0,
       offsetScreen: -GAP,
       label: `Ø ${mm(dl)}`,
+      edit: "dLarge",
     },
     {
       kind: "dim",
@@ -459,6 +516,7 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       offsetModel: 0,
       offsetScreen: GAP,
       label: `Ø ${mm(ds)}`,
+      edit: "dSmall",
     },
     {
       kind: "dim",
@@ -467,6 +525,7 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       offsetModel: 0,
       offsetScreen: GAP,
       label: mm(H),
+      edit: "height",
     },
   );
 
@@ -564,7 +623,11 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       title: t("section.geometry"),
       prims: side,
       notes: [
-        `t = ${mm(((L.dOuter - L.dInner) / 2) * Math.cos(r.alpha))} ${t("unit.mm")} · ${t("result.alpha")}: ${num((r.alpha * 180) / Math.PI)}°`,
+        {
+          text: `t = ${mm(((L.dOuter - L.dInner) / 2) * Math.cos(r.alpha))} ${t("unit.mm")}`,
+          edit: "thickness",
+        },
+        `${t("result.alpha")}: ${num((r.alpha * 180) / Math.PI)}°`,
       ],
     },
     {
