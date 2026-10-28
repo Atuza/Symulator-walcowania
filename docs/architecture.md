@@ -18,6 +18,10 @@ export/dxf ◄── CalcOutput (contour)
 - **state**: typed text inputs (so "12,5" survives re-renders), validated with Zod when read from storage.
 - **drawing**: one renderer-independent model drives both the SVG view and the PDF, so they always match.
 - **viz/scene3d** and **export/pdf** are loaded on demand to keep the first load small.
+- **viz/machine3d** draws the plate roll around the rolls (housings, drop-end yoke, bed, feed
+  table). Roll sizes and barrel length come from the machine settings when set, otherwise symbolic
+  sizes that fit the tightest bend. The exit-side roll follows the bend under the rolls
+  (`domain/profile.bendAt`).
 - **i18n**: the only place with user-facing text; code, comments and identifiers are English.
 
 Storage keys (`localStorage`): `rolling.inputs.v1`, `rolling.settings.v1` (language, theme, machine),

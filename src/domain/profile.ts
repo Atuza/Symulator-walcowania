@@ -147,3 +147,15 @@ export function partlyRolled(profile: Profile, dev: Development, rolled: number)
     segments: [{ kind: "line", length: dev.length - done }, ...reversed],
   };
 }
+
+/**
+ * Neutral radius of the bend being formed after `rolled` mm have passed the pinch, or null while a
+ * straight goes through. Lets the side roll follow the shape as it is rolled.
+ */
+export function bendAt(profile: Profile, dev: Development, rolled: number): number | null {
+  const s = Math.min(dev.length, Math.max(0, rolled));
+  const current =
+    dev.segments.find((d) => s > d.start && s <= d.start + d.length + 1e-9) ?? dev.segments[0];
+  if (!current || current.segment.kind === "line") return null;
+  return current.segment.radius + current.k! * profile.thickness;
+}

@@ -7,6 +7,15 @@ export interface RollSizes {
   side: number;
 }
 
+/** The plate roll drawn around the plate. */
+export interface MachineView {
+  rolls: RollSizes;
+  /** Roll barrel length [mm]. */
+  rollLength: number;
+  /** True when roll sizes come from the machine settings. */
+  realRolls: boolean;
+}
+
 export type SceneModel =
   | {
       shape: "cylinder";
@@ -17,9 +26,7 @@ export type SceneModel =
       /** Blank length including flat ends [mm]. */
       length: number;
       flatEnd: number;
-      rolls: RollSizes;
-      /** True when roll sizes come from the machine settings. */
-      realRolls: boolean;
+      machine: MachineView;
     }
   | {
       shape: "cone";
@@ -33,8 +40,33 @@ export type SceneModel =
       shape: "profile";
       profile: Profile;
       dev: Development;
+      thickness: number;
       width: number;
+      machine: MachineView;
     };
+
+/**
+ * Real roll sizes from the machine settings, or symbolic ones that fit inside the tightest bend.
+ * The barrel is the machine's working length, or a little longer than the plate.
+ */
+function machineView(
+  machine: MachineLimits,
+  tightInnerD: number,
+  thickness: number,
+  width: number,
+): MachineView {
+  const symbolicTop = Math.min(tightInnerD * 0.42, Math.max(thickness * 12, tightInnerD * 0.2));
+  const top = machine.topRollD ?? symbolicTop;
+  return {
+    rolls: {
+      top,
+      bottom: machine.bottomRollD ?? top * 0.92,
+      side: machine.sideRollD ?? top * 0.8,
+    },
+    rollLength: Math.max(machine.rollLength ?? 0, width * 1.15),
+    realRolls: machine.topRollD !== null,
+  };
+}
 
 export function sceneModel(
   out: CalcOutput,
@@ -55,31 +87,25 @@ export function sceneModel(
   }
   if (out.shape === "profile") {
     const r = out.result;
+    const w = width ?? Math.max(r.blankLength * 0.2, 200);
     return {
       shape: "profile",
       profile: r.profile,
       dev: r.dev,
-      width: width ?? Math.max(r.blankLength * 0.2, 200),
+      thickness,
+      width: w,
+      machine: machineView(machine, 2 * r.radii[0]!, thickness, w),
     };
   }
   const r = out.result;
-  const real = machine.topRollD !== null;
-  // Symbolic rolls sized to fit inside the shell when the machine is unknown.
-  const symbolicTop = Math.min(r.dInner * 0.42, Math.max(thickness * 12, r.dInner * 0.2));
-  const top = machine.topRollD ?? symbolicTop;
-  const rolls: RollSizes = {
-    top,
-    bottom: machine.bottomRollD ?? top * 0.92,
-    side: machine.sideRollD ?? top * 0.8,
-  };
+  const w = width ?? Math.max(r.dOuter * 0.6, 200);
   return {
     shape: "cylinder",
     radius: r.dNeutral / 2,
     thickness,
-    width: width ?? Math.max(r.dOuter * 0.6, 200),
+    width: w,
     length: r.blankLength,
     flatEnd: r.flatEnd,
-    rolls,
-    realRolls: real,
+    machine: machineView(machine, r.dInner, thickness, w),
   };
 }

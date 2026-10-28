@@ -21,7 +21,8 @@ import {
   WebGLRenderer,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { partlyRolled, traceProfile } from "../domain/profile";
+import { bendAt, partlyRolled, traceProfile } from "../domain/profile";
+import { buildFrame, housingDepth } from "./machine3d";
 import type { SceneModel } from "./sceneModel";
 
 // Model is built in metres to keep camera and depth precision comfortable.
@@ -49,6 +50,10 @@ export class RollingScene {
   });
   private rollMat = new MeshStandardMaterial({ metalness: 0.7, roughness: 0.35 });
   private accentMat = new MeshStandardMaterial({ metalness: 0.4, roughness: 0.5 });
+  // Machine paint stays the same in both themes, like the real machine.
+  private frameMat = new MeshStandardMaterial({ color: 0xb3261e, metalness: 0.15, roughness: 0.6 });
+  private yokeMat = new MeshStandardMaterial({ color: 0x8c1d17, metalness: 0.15, roughness: 0.6 });
+  private machineGroup = new Group();
   private model: SceneModel | null = null;
   private progress = 1;
   private frame = 0;
@@ -100,6 +105,7 @@ export class RollingScene {
   setProgress(p: number) {
     this.progress = Math.min(1, Math.max(0, p));
     this.rebuildPlate();
+    this.placeSideRoll();
     this.spinRolls();
     this.fit(true);
     this.requestRender();
@@ -144,7 +150,10 @@ export class RollingScene {
    */
   private fit(keepDirection = false) {
     if (!this.model) return;
-    const sphere = new Box3().setFromObject(this.root).getBoundingSphere(new Sphere());
+    // Frame the part and the rolls; the frame and feed table may run out of view.
+    const box = new Box3();
+    for (const o of [this.plate, ...this.rolls]) if (o) box.expandByObject(o);
+    const sphere = box.getBoundingSphere(new Sphere());
     if (!Number.isFinite(sphere.radius) || sphere.radius <= 0) return;
     const dist = (sphere.radius / Math.sin((this.camera.fov * Math.PI) / 360)) * 1.08;
     // Default: mostly along the roll axis, so the bending profile reads clearly.
@@ -168,13 +177,20 @@ export class RollingScene {
   private rebuildRolls() {
     this.rolls.forEach((r) => this.clear(r));
     this.rolls = [];
+    this.root.remove(this.machineGroup);
+    this.machineGroup.traverse((o) => {
+      if (o instanceof Mesh) o.geometry.dispose();
+    });
+    this.machineGroup = new Group();
     const m = this.model;
-    if (!m || m.shape !== "cylinder") return;
-    const { radius: R, thickness: t, rolls } = m;
-    const len = m.width * MM * 1.15;
-    const rt = rolls.top / 2,
-      rb = rolls.bottom / 2,
-      rs = rolls.side / 2;
+    if (!m || m.shape === "cone") return;
+    const mv = m.machine;
+    const t = m.thickness;
+    const rt = mv.rolls.top / 2,
+      rb = mv.rolls.bottom / 2,
+      rs = mv.rolls.side / 2;
+    // Barrels run through both housings, so the journals show where the rolls are carried.
+    const len = (mv.rollLength + 2 * (housingDepth(mv) + 20)) * MM;
     const add = (r: number, x: number, y: number, mat: MeshStandardMaterial) => {
       const geo = new CylinderGeometry(r * MM, r * MM, len, 48, 1);
       geo.rotateX(Math.PI / 2);
@@ -186,23 +202,54 @@ export class RollingScene {
     // Pinch point at the origin: top roll inside the shell, bottom roll below the plate.
     add(rt, 0, t / 2 + rt, this.rollMat);
     add(rb, 0, -t / 2 - rb, this.rollMat);
-    // Exit-side roll rests on the rolled outer surface, entry-side roll under the flat plate.
-    const reach = R + t / 2 + rs;
-    const sinB = Math.min(0.95, ((rb + rs) * 1.08) / reach);
-    const beta = Math.asin(sinB);
-    add(rs, -reach * Math.sin(beta), R - reach * Math.cos(beta), this.accentMat);
+    // Exit-side roll is placed by placeSideRoll; entry-side roll waits under the flat plate.
+    add(rs, 0, 0, this.accentMat);
     add(rs, (rb + rs) * 1.08, -t / 2 - rs - rb * 0.18, this.rollMat);
+    this.placeSideRoll();
+
+    const blank = m.shape === "cylinder" ? m.length : m.dev.length;
+    this.machineGroup = buildFrame(
+      mv,
+      t,
+      Math.min(3000, Math.max(800, blank * 0.5)),
+      { frame: this.frameMat, yoke: this.yokeMat, steel: this.rollMat },
+      MM,
+    );
+    this.root.add(this.machineGroup);
+  }
+
+  /**
+   * The exit-side roll bends the plate: it rests on the outer surface of the bend being formed, or
+   * stays low, mirrored to the entry roll, while a straight passes.
+   */
+  private placeSideRoll() {
+    const m = this.model;
+    const roll = this.rolls[2];
+    if (!m || m.shape === "cone" || !roll) return;
+    const t = m.thickness;
+    const rb = m.machine.rolls.bottom / 2,
+      rs = m.machine.rolls.side / 2;
+    const R =
+      m.shape === "cylinder" ? m.radius : bendAt(m.profile, m.dev, this.progress * m.dev.length);
+    if (R === null) {
+      roll.position.set(-(rb + rs) * 1.08 * MM, (-t / 2 - rs - rb * 0.18) * MM, 0);
+      return;
+    }
+    const reach = R + t / 2 + rs;
+    const beta = Math.asin(Math.min(0.95, ((rb + rs) * 1.08) / reach));
+    roll.position.set(-reach * Math.sin(beta) * MM, (R - reach * Math.cos(beta)) * MM, 0);
   }
 
   private spinRolls() {
     const m = this.model;
-    if (!m || m.shape !== "cylinder") return;
+    if (!m || m.shape === "cone") return;
     // Rolls turn with the plate feed so the motion reads as rolling, not sliding.
-    const fed = this.progress * m.length;
+    const fed = this.progress * (m.shape === "cylinder" ? m.length : m.dev.length);
     const delta = fed - this.lastRollAngle;
     this.lastRollAngle = fed;
+    const sizes = m.machine.rolls;
     this.rolls.forEach((roll, i) => {
-      const r = i === 0 ? m.rolls.top / 2 : i === 1 ? m.rolls.bottom / 2 : m.rolls.side / 2;
+      const r = i === 0 ? sizes.top / 2 : i === 1 ? sizes.bottom / 2 : sizes.side / 2;
       const dir = i === 0 ? 1 : -1;
       roll.rotation.z += (dir * delta) / r;
     });

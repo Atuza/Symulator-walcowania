@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculate, emptyMachine } from "../src/domain/calculate";
-import { partlyRolled, traceProfile } from "../src/domain/profile";
+import { bendAt, partlyRolled, traceProfile } from "../src/domain/profile";
 import { buildShape, type ShapeInput, type ShapeResult } from "../src/domain/shapes";
 import { dxfDocument, rectangleContour } from "../src/export/dxf";
 import { defaultInputs } from "../src/state/inputs";
@@ -103,6 +103,16 @@ describe("partly rolled plate", () => {
     // Mid fibre: inner sizes plus one thickness.
     expect(w).toBeCloseTo(1010, 6);
     expect(h).toBeCloseTo(610, 6);
+  });
+});
+
+describe("bend under the rolls", () => {
+  it("follows straights and corners as the plate passes", () => {
+    const r = build({ shape: "rect", a: 1000, b: 600, r: 60 });
+    // First straight is 440 mm, then a corner with neutral radius 65.
+    expect(bendAt(r.profile, r.dev, 200)).toBeNull();
+    expect(bendAt(r.profile, r.dev, 460)).toBeCloseTo(65, 9);
+    expect(bendAt(r.profile, r.dev, 0)).toBeNull();
   });
 });
 
