@@ -1,5 +1,5 @@
 import { neutralFactor } from "./neutralAxis";
-import type { Surface } from "./types";
+import { surfaceDepth, type Surface } from "./types";
 
 export interface ConeInput {
   thickness: number;
@@ -67,7 +67,7 @@ export function solveCone(input: ConeInput): ConeResult | ConeError {
   // Thickness is normal to the wall, so in an end plane it spans t / cos(α) radially.
   const radialT = t / cos;
 
-  const toInner = (d: number) => (input.surface === "inner" ? d : d - 2 * radialT);
+  const toInner = (d: number) => d - 2 * surfaceDepth[input.surface] * radialT;
   const largeIn = toInner(dLarge);
   const smallIn = toInner(dSmall);
   if (!(largeIn > 0) || smallIn < -1e-9) return "tooSmall";

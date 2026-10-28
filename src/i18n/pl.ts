@@ -11,6 +11,7 @@ export const pl: Dict = {
   "dim.diameter": "Ø",
   "dim.radius": "R",
   "surface.inner": "Wewnętrzna",
+  "surface.mid": "Środkowa",
   "surface.outer": "Zewnętrzna",
 
   "section.shape": "Kształt",
@@ -107,6 +108,16 @@ export const pl: Dict = {
     "Ø wewn. do ustawienia na maszynie ({set} mm, z kompensacją sprężynowania) jest mniejsza od minimum maszyny {min} mm.",
   "warn.machineTopRoll":
     "Ø wewn. do ustawienia na maszynie ({set} mm) nie mieści walca górnego Ø {roll} mm.",
+  "warn.capacityRolling":
+    "Grubość przekracza kartę wydajności zwijania: maks. {tmax} mm przy tej szerokości i Ø (Re {re} MPa).",
+  "warn.capacityPrebending":
+    "Grubość przekracza kartę podginania: maks. {tmax} mm (Re {re} MPa). Bez podgięcia zostaną płaskie końce.",
+  "warn.capacityOutside":
+    "Ø do ustawienia {set} mm jest poniżej zakresu karty wydajności. Producent nie podaje tu grubości.",
+  "warn.coneCapacity":
+    "Stożek: grubość może wynosić najwyżej {share} nominalnej ({nominal} mm), czyli {tmax} mm.",
+  "warn.diameterSmallForThickness":
+    "Ø wewn. to tylko {dt} × t. Producenci walcarek nie zalecają zwijania poniżej 8–10 × t.",
   "warn.reFromCertificate": "Sprężynowanie liczone z Re = {re} MPa z atestu.",
 
   "action.pdf": "Raport PDF",
@@ -140,6 +151,7 @@ export const pl: Dict = {
   "machine.maxThickness": "Maks. grubość",
   "machine.maxWidth": "Maks. szerokość",
   "machine.minDiameter": "Min. Ø wewnętrzna",
+  "machine.rollLength": "Długość robocza walców",
 
   "pdf.title": "Raport PDF",
   "pdf.order": "Nr zlecenia",
@@ -177,6 +189,26 @@ export const pl: Dict = {
   "edit.tab.materials": "Materiały",
   "edit.tab.backup": "Kopia zapasowa",
   "edit.saved": "Zapisano",
+  "edit.chart.title": "Karty wydajności",
+  "edit.chart.intro":
+    "Maksymalna grubość z dokumentacji maszyny: wiersze to szerokość blachy, kolumny to Ø wewnętrzna. Osobne karty dla zwijania i podginania oraz dla każdej granicy plastyczności.",
+  "edit.chart.add": "Dodaj kartę",
+  "edit.chart.edit": "Edytuj",
+  "edit.chart.delete": "Usuń kartę",
+  "edit.chart.kind": "Operacja",
+  "edit.chart.rolling": "Zwijanie",
+  "edit.chart.prebending": "Podginanie",
+  "edit.chart.re": "Re materiału karty",
+  "edit.chart.grid": "Tabela",
+  "edit.chart.gridHint":
+    "Pierwszy wiersz: średnice. Każdy następny: szerokość i grubości. Można wkleić tabelę z arkusza.",
+  "edit.chart.bad":
+    "Tabela jest niepełna albo osie nie rosną. Każdy wiersz musi mieć szerokość i po jednej grubości na każdą średnicę.",
+  "edit.machineFile.import": "Wczytaj plik maszyny",
+  "edit.machineFile.export": "Zapisz plik maszyny",
+  "edit.machineFile.confirm":
+    "Parametry maszyny i karty wydajności zostaną zastąpione danymi z pliku. Materiały i próby zostają bez zmian.",
+  "edit.machineFile.bad": "Ten plik nie jest poprawnym plikiem maszyny.",
   "edit.reset": "Przywróć domyślne",
   "edit.process.intro":
     "Wartości domyślne używane, gdy odpowiednie pole w kalkulatorze jest puste.",

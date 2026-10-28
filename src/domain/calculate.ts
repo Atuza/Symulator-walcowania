@@ -1,3 +1,4 @@
+import { capacity, coneThicknessShare, type CapacityChart } from "./capacity";
 import { solveCone, type ConeError, type ConeInput, type ConeResult } from "./cone";
 import {
   solveCylinder,
@@ -24,6 +25,9 @@ export interface MachineLimits {
   maxThickness: number | null;
   maxWidth: number | null;
   minDiameter: number | null;
+  /** Working length of the rolls [mm]; used for the cone length rule. */
+  rollLength: number | null;
+  charts: CapacityChart[];
 }
 
 export const emptyMachine: MachineLimits = {
@@ -33,6 +37,8 @@ export const emptyMachine: MachineLimits = {
   maxThickness: null,
   maxWidth: null,
   minDiameter: null,
+  rollLength: null,
+  charts: [],
 };
 
 interface Common {
@@ -146,6 +152,65 @@ function machineDiameterWarnings(mc: MachineLimits, dSet: number, w: Warning[]) 
     w.push({ code: "machineTopRoll", severity: "warn", values: { set: dSet, roll: mc.topRollD } });
 }
 
+/** Plate makers advise against rolling an inner diameter below about 10 × t (R/t < 5). */
+function diameterRatioWarning(dSet: number, t: number, w: Warning[]) {
+  if (dSet > 0 && dSet < 10 * t)
+    w.push({ code: "diameterSmallForThickness", severity: "info", values: { dt: dSet / t } });
+}
+
+/**
+ * Thickness against the maker's capacity charts at the set diameter. Pre-bending the ends needs more
+ * force than rolling; with a flat-end allowance the ends are trimmed anyway, so exceeding the
+ * pre-bending chart is then only a note.
+ */
+function capacityWarnings(
+  input: Common,
+  t: number,
+  width: number,
+  dSet: number,
+  flatEnds: boolean,
+  w: Warning[],
+) {
+  const charts = input.machine.charts;
+  const re = input.material.re;
+  const rolling = capacity(charts, "rolling", re, width, dSet);
+  if (rolling.ok && t > rolling.tMax + 1e-9)
+    w.push({ code: "capacityRolling", severity: "warn", values: { tmax: rolling.tMax, re } });
+  if (!rolling.ok && rolling.reason === "diameter")
+    w.push({ code: "capacityOutside", severity: "info", values: { set: dSet } });
+  const pre = capacity(charts, "prebending", re, width, dSet);
+  if (pre.ok && t > pre.tMax + 1e-9)
+    w.push({
+      code: "capacityPrebending",
+      severity: flatEnds ? "info" : "warn",
+      values: { tmax: pre.tMax, re },
+    });
+}
+
+/**
+ * Cones: the thickness may not exceed a share of the nominal capacity read for the small end
+ * (or the machine's rated thickness when there is no chart).
+ */
+function coneCapacityWarning(
+  input: Common,
+  t: number,
+  slant: number,
+  dSetSmall: number,
+  w: Warning[],
+) {
+  const mc = input.machine;
+  const chart = capacity(mc.charts, "rolling", input.material.re, slant, dSetSmall);
+  const nominal = chart.ok ? chart.tMax : mc.maxThickness;
+  if (nominal === null) return;
+  const share = coneThicknessShare(slant, mc.rollLength);
+  if (t > share * nominal + 1e-9)
+    w.push({
+      code: "coneCapacity",
+      severity: "warn",
+      values: { tmax: share * nominal, share, nominal },
+    });
+}
+
 function calcCylinder(input: Extract<CalcInput, { shape: "cylinder" }>): CalcOutput | CalcError {
   const result = solveCylinder(input.cylinder);
   if (typeof result === "string") return { error: result };
@@ -157,7 +222,11 @@ function calcCylinder(input: Extract<CalcInput, { shape: "cylinder" }>): CalcOut
   const mc = input.machine;
   if (mc.maxWidth !== null && input.width !== null && input.width > mc.maxWidth)
     w.push({ code: "machineWidth", severity: "warn", values: { max: mc.maxWidth } });
-  machineDiameterWarnings(mc, rollingDiameter(result.dInner, set), w);
+  const dSet = rollingDiameter(result.dInner, set);
+  machineDiameterWarnings(mc, dSet, w);
+  diameterRatioWarning(dSet, t, w);
+  if (input.width !== null && input.width > 0)
+    capacityWarnings(input, t, input.width, dSet, input.cylinder.flatEnds > 0, w);
 
   const massKg =
     input.width !== null && input.width > 0
@@ -184,7 +253,10 @@ function calcCone(input: Extract<CalcInput, { shape: "cone" }>): CalcOutput | Ca
   // The generator lies along the rolls, so the slant length is the working width.
   if (mc.maxWidth !== null && result.slant > mc.maxWidth)
     w.push({ code: "machineWidth", severity: "warn", values: { max: mc.maxWidth } });
-  machineDiameterWarnings(mc, rollingDiameter(result.small.dInner, setSmall), w);
+  const dSetSmall = rollingDiameter(result.small.dInner, setSmall);
+  machineDiameterWarnings(mc, dSetSmall, w);
+  diameterRatioWarning(dSetSmall, t, w);
+  coneCapacityWarning(input, t, result.slant, dSetSmall, w);
 
   const massKg = result.area * t * 1e-9 * input.material.density;
   return { shape: "cone", result, setLarge, setSmall, massKg, warnings: w };

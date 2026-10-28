@@ -2091,3 +2091,79 @@ textarea:focus {
     font-size: 12px;
   }
 }
+
+/* ---- capacity charts (edit mode) ---------------------------------------- */
+
+.charts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.editor-subtitle {
+  margin: 0;
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  min-width: 0;
+}
+
+.chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chart-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.chart-scroll {
+  overflow-x: auto;
+}
+
+.chart-table {
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-table th,
+.chart-table td {
+  padding: 3px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--line);
+}
+
+.chart-table th {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.chart-text {
+  width: 100%;
+  min-height: 160px;
+  padding: 10px;
+  font: 13px/1.5 var(--mono);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  resize: vertical;
+  tab-size: 8;
+}

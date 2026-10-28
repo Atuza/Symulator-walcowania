@@ -9,6 +9,7 @@ export const en = {
   "dim.diameter": "Ø",
   "dim.radius": "R",
   "surface.inner": "Inner",
+  "surface.mid": "Mid",
   "surface.outer": "Outer",
 
   "section.shape": "Shape",
@@ -103,6 +104,16 @@ export const en = {
     "Inner Ø to set on the machine ({set} mm, springback compensated) is below the machine minimum {min} mm.",
   "warn.machineTopRoll":
     "Inner Ø to set on the machine ({set} mm) does not clear the top roll Ø {roll} mm.",
+  "warn.capacityRolling":
+    "Thickness exceeds the rolling capacity chart: max {tmax} mm at this width and diameter (Re {re} MPa).",
+  "warn.capacityPrebending":
+    "Thickness exceeds the pre-bending chart: max {tmax} mm (Re {re} MPa). Without pre-bending the ends stay flat.",
+  "warn.capacityOutside":
+    "Set diameter {set} mm is below the capacity chart. The maker states no thickness here.",
+  "warn.coneCapacity":
+    "Cone: thickness may be at most {share} of nominal ({nominal} mm), i.e. {tmax} mm.",
+  "warn.diameterSmallForThickness":
+    "Inner diameter is only {dt} × t. Roll makers advise against rolling below 8–10 × t.",
   "warn.reFromCertificate": "Springback uses Re = {re} MPa from the certificate.",
 
   "action.pdf": "PDF report",
@@ -135,6 +146,7 @@ export const en = {
   "machine.sideRollD": "Side roll Ø",
   "machine.maxThickness": "Max thickness",
   "machine.maxWidth": "Max width",
+  "machine.rollLength": "Roll working length",
   "machine.minDiameter": "Min inner Ø",
 
   "pdf.title": "PDF report",
@@ -171,6 +183,26 @@ export const en = {
   "edit.tab.process": "Process",
   "edit.tab.materials": "Materials",
   "edit.tab.backup": "Backup",
+  "edit.chart.title": "Capacity charts",
+  "edit.chart.intro":
+    "Maximum thickness from the machine documentation: rows are plate width, columns inner diameter. Separate charts for rolling and pre-bending and for each yield strength.",
+  "edit.chart.add": "Add chart",
+  "edit.chart.edit": "Edit",
+  "edit.chart.delete": "Delete chart",
+  "edit.chart.kind": "Operation",
+  "edit.chart.rolling": "Rolling",
+  "edit.chart.prebending": "Pre-bending",
+  "edit.chart.re": "Chart material Re",
+  "edit.chart.grid": "Table",
+  "edit.chart.gridHint":
+    "First line: diameters. Every next line: width and thicknesses. A table copied from a spreadsheet pastes as it is.",
+  "edit.chart.bad":
+    "The table is incomplete or an axis does not ascend. Each row needs a width and one thickness per diameter.",
+  "edit.machineFile.import": "Load machine file",
+  "edit.machineFile.export": "Save machine file",
+  "edit.machineFile.confirm":
+    "Machine settings and capacity charts will be replaced by the file. Materials and trials stay unchanged.",
+  "edit.machineFile.bad": "This file is not a valid machine file.",
   "edit.saved": "Saved",
   "edit.reset": "Restore defaults",
   "edit.process.intro": "Defaults used when the matching field in the calculator is left empty.",

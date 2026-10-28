@@ -22,6 +22,8 @@ export type DocId =
   | "machine.maxThickness"
   | "machine.maxWidth"
   | "machine.minDiameter"
+  | "machine.rollLength"
+  | "machine.charts"
   | "process.flatEndFactor"
   | "process.calibration"
   | "process.springbackWarn"
@@ -114,6 +116,41 @@ const pl: Record<DocId, ParamDoc> = {
     effect:
       "Ostrzeżenie, gdy średnica do ustawienia na maszynie (po kompensacji sprężynowania) jest mniejsza. Dla stożka sprawdzany jest mały koniec.",
     range: "Zwykle 1,1–1,5 × Ø walca górnego. Puste pole: brak kontroli.",
+  },
+  "machine.rollLength": {
+    what: "Długość beczki walca, na której blacha może pracować. Zwykle równa maksymalnej szerokości blachy.",
+    effect:
+      "Reguła dla stożków: im dłuższa tworząca w stosunku do walców, tym mniejszy dopuszczalny udział grubości nominalnej (50 % do ½ długości, 40 % do ¾, 30 % powyżej).",
+    range: "Typowo 1000–4000 mm, z dokumentacji maszyny. Puste pole: przyjmowane 50 %.",
+    formula: [
+      "t_{stożek} \\le u \\cdot t_{nom}",
+      "u = 0{,}5 \\quad s \\le 0{,}5 \\cdot L_w",
+      "u = 0{,}4 \\quad s \\le 0{,}75 \\cdot L_w",
+      "u = 0{,}3 \\quad s > 0{,}75 \\cdot L_w",
+    ],
+    symbols: [
+      [
+        "t_{nom}",
+        "grubość z karty zwijania dla małej średnicy stożka (bez karty: maks. grubość maszyny)",
+      ],
+      ["s", "długość tworzącej stożka"],
+      ["L_w", "długość robocza walców"],
+    ],
+    source: "zalecenia producentów walcarek czterowalcowych dotyczące zwijania stożków",
+  },
+  "machine.charts": {
+    what: "Tabele producenta z maksymalną grubością blachy dla danej szerokości i średnicy wewnętrznej, osobno dla zwijania i dla podginania końców, każda dla jednej granicy plastyczności (np. 260 i 360 MPa).",
+    effect:
+      "Ostrzeżenie, gdy grubość przekracza wartość odczytaną z karty dla szerokości blachy i średnicy do ustawienia. Między wierszami i kolumnami interpolacja liniowa; między kartami liniowo po Re; dla materiału mocniejszego niż wszystkie karty skalowanie pierwiastkiem. Przekroczenie karty podginania przy włączonym naddatku na płaskie końce jest tylko informacją.",
+    range:
+      "Wartości przepisane z dokumentacji maszyny. Węższa blacha czyta pierwszy wiersz, większa średnica ostatnią kolumnę (bezpiecznie). Średnica poniżej karty: brak odczytu.",
+    formula: ["t_{max}(R_e) = t_{karta} \\cdot \\sqrt{\\frac{R_{e,karta}}{R_e}}"],
+    symbols: [
+      ["t_{karta}", "grubość z karty o najwyższym Re"],
+      ["R_{e,karta}", "granica plastyczności, dla której sporządzono kartę"],
+      ["R_e", "granica plastyczności materiału (z atestu, jeśli podana)"],
+    ],
+    tip: "Moment gnący potrzebny do uplastycznienia blachy rośnie z Re · t², a moment maszyny jest stały, stąd pierwiastek.",
   },
   "process.flatEndFactor": {
     what: "Na początku i końcu arkusza zostaje odcinek, którego walce nie wyginają, bo muszą blachę nim chwycić. Zawijanie końców w walcarce czterowalcowej zmniejsza go do kilku grubości. Ten parametr to długość takiego odcinka wyrażona jako wielokrotność grubości.",
@@ -396,6 +433,41 @@ const en: Record<DocId, ParamDoc> = {
     effect:
       "Warning when the diameter to set on the machine (after springback compensation) is smaller. For a cone the small end is checked.",
     range: "Usually 1.1–1.5 × top roll Ø. Empty: no check.",
+  },
+  "machine.rollLength": {
+    what: "Length of the roll barrel the plate can work on; usually equal to the maximum plate width.",
+    effect:
+      "Cone rule: the longer the slant compared with the rolls, the smaller the allowed share of nominal thickness (50 % up to ½ of the length, 40 % up to ¾, 30 % above).",
+    range: "Typically 1000–4000 mm, from the machine documentation. Empty: 50 % assumed.",
+    formula: [
+      "t_{cone} \\le u \\cdot t_{nom}",
+      "u = 0.5 \\quad s \\le 0.5 \\cdot L_w",
+      "u = 0.4 \\quad s \\le 0.75 \\cdot L_w",
+      "u = 0.3 \\quad s > 0.75 \\cdot L_w",
+    ],
+    symbols: [
+      [
+        "t_{nom}",
+        "rolling chart thickness at the cone's small diameter (without a chart: machine maximum)",
+      ],
+      ["s", "cone slant length"],
+      ["L_w", "roll working length"],
+    ],
+    source: "four-roll plate roll makers' guidance on cone rolling",
+  },
+  "machine.charts": {
+    what: "Maker's tables of maximum plate thickness for a width and an inner diameter, separately for rolling and for pre-bending the ends, each for one yield strength (e.g. 260 and 360 MPa).",
+    effect:
+      "Warning when the thickness exceeds the chart value at the plate width and the set diameter. Linear interpolation between rows and columns, linear in Re between charts, square-root scaling for a material stronger than every chart. Exceeding the pre-bending chart with the flat-end allowance on is only a note.",
+    range:
+      "Values copied from the machine documentation. A narrower plate reads the first row, a larger diameter the last column (safe side). Diameter below the chart: no reading.",
+    formula: ["t_{max}(R_e) = t_{chart} \\cdot \\sqrt{\\frac{R_{e,chart}}{R_e}}"],
+    symbols: [
+      ["t_{chart}", "thickness from the chart with the highest Re"],
+      ["R_{e,chart}", "yield strength the chart was made for"],
+      ["R_e", "material yield strength (from the certificate when given)"],
+    ],
+    tip: "The bending moment needed to yield the plate grows with Re · t² while the machine's moment is fixed, hence the square root.",
   },
   "process.flatEndFactor": {
     what: "At the start and end of the plate a strip stays unbent, because the rolls have to grip the plate by it. Pre-bending on a 4-roll machine shortens it to a few thicknesses. This parameter is that length as a multiple of thickness.",

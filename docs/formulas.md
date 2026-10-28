@@ -108,3 +108,24 @@ Minimum yield (ReH or Rp0.2) by thickness band, tensile range, modulus and densi
 | Aluminium, O/H111               | EN 485-2:2016+A1:2018                                           |
 
 `minRt` is indicative rolling guidance, not a standard requirement.
+
+## Capacity charts
+
+Maker's charts give the maximum thickness `t(B, D)` for plate width `B` (rows) and inner diameter
+`D` (columns) at one yield strength, separately for rolling and for pre-bending the ends.
+
+- Reading: bilinear between grid points. A width beyond the last row or a diameter below the first
+  column has no reading; a narrower plate reads the first row and a larger diameter the last column.
+- The diameter checked is the set diameter (springback-compensated), as for the other machine limits.
+- Between charts: linear in `Re`. Below the weakest chart: that chart unchanged. Above the strongest:
+  `t_max = t_chart · √(Re_chart / Re)`, since the bending moment needed grows with `Re · t²`.
+- Pre-bending above the chart is a warning, or a note when the flat-end allowance is on.
+- Cones: `t ≤ u · t_nom` with `t_nom` read from the rolling chart at the small-end set diameter and
+  the slant length as width (machine maximum thickness when there is no chart);
+  `u = 0.5` for `s ≤ ½ L_w`, `0.4` for `s ≤ ¾ L_w`, `0.3` above.
+- Note when `D_set < 10 t`.
+
+## Reference surface
+
+The given diameter can be on the inner, mid or outer surface: `D_in = D − 2·c·t` with
+`c = 0, ½, 1`; for a cone `t` is replaced by the radial thickness `t / cos α`.

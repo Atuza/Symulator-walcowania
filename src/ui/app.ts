@@ -543,6 +543,7 @@ export class App {
       t("field.surface"),
       [
         { value: "inner", label: t("surface.inner") },
+        { value: "mid", label: t("surface.mid") },
         { value: "outer", label: t("surface.outer") },
       ],
       this.inputs.surface,
@@ -1303,13 +1304,15 @@ function warningText(w: Warning): string {
   const values: Record<string, string> = {};
   for (const [k, n] of Object.entries(v)) {
     values[k] =
-      k === "strain" || k === "limit" || k === "ratio"
+      k === "strain" || k === "limit" || k === "ratio" || k === "share"
         ? percent(n)
-        : k === "re"
-          ? num(n, 0)
-          : k === "rt" || k === "min"
-            ? num(n, 1)
-            : num(n, 0);
+        : k === "tmax" || k === "nominal" || k === "dt"
+          ? num(n, 1)
+          : k === "re"
+            ? num(n, 0)
+            : k === "rt" || k === "min"
+              ? num(n, 1)
+              : num(n, 0);
   }
   return t(`warn.${w.code}` as Key, values);
 }

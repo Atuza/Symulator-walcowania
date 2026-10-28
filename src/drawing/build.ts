@@ -1,6 +1,6 @@
 import type { CalcOutput } from "../domain/calculate";
 import { num, t } from "../i18n";
-import type { Surface } from "../domain/types";
+import { surfaceDepth, type Surface } from "../domain/types";
 import { arc, circle, type Prim, type View } from "./model";
 
 // Dimension offset from the part, in multiples of the renderer font size.
@@ -185,8 +185,10 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       stroke: "center",
     },
   ];
-  const dl = surface === "inner" ? L.dInner : L.dOuter;
-  const ds = surface === "inner" ? S.dInner : S.dOuter;
+  const onSurface = (e: { dInner: number; dOuter: number }) =>
+    e.dInner + (e.dOuter - e.dInner) * surfaceDepth[surface];
+  const dl = onSurface(L);
+  const ds = onSurface(S);
   side.push(
     {
       kind: "dim",

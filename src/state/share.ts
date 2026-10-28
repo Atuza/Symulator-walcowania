@@ -65,7 +65,7 @@ const CODES: Partial<Record<keyof Inputs, Record<string, string>>> = {
   shape: { cylinder: "c", cone: "k" },
   mode: { fromDiameter: "d", fromLength: "l" },
   dimension: { diameter: "d", radius: "r" },
-  surface: { inner: "i", outer: "o" },
+  surface: { inner: "i", mid: "m", outer: "o" },
 };
 
 const FIELD_BY_KEY = new Map(

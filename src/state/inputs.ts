@@ -7,7 +7,7 @@ export const inputsSchema = z.object({
   materialId: z.string(),
   thickness: z.string(),
   dimension: z.enum(["diameter", "radius"]),
-  surface: z.enum(["inner", "outer"]),
+  surface: z.enum(["inner", "mid", "outer"]),
   value: z.string(),
   length: z.string(),
   width: z.string(),

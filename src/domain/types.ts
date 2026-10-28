@@ -1,4 +1,7 @@
-export type Surface = "inner" | "outer";
+export type Surface = "inner" | "mid" | "outer";
+
+/** Share of the thickness between the inner surface and the given one. */
+export const surfaceDepth: Record<Surface, number> = { inner: 0, mid: 0.5, outer: 1 };
 
 export type Severity = "info" | "warn";
 
@@ -18,4 +21,9 @@ export type WarningCode =
   | "machineWidth"
   | "machineDiameter"
   | "machineTopRoll"
+  | "capacityRolling"
+  | "capacityPrebending"
+  | "capacityOutside"
+  | "coneCapacity"
+  | "diameterSmallForThickness"
   | "reFromCertificate";

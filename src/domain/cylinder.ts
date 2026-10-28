@@ -1,5 +1,5 @@
 import { neutralFactor } from "./neutralAxis";
-import type { Surface } from "./types";
+import { surfaceDepth, type Surface } from "./types";
 
 export interface CylinderFromDiameter {
   mode: "fromDiameter";
@@ -52,7 +52,7 @@ export function solveCylinder(input: CylinderInput): CylinderResult | CylinderEr
   if (input.mode === "fromDiameter") {
     if (!(input.value > 0)) return "value";
     const d = input.isRadius ? input.value * 2 : input.value;
-    dInner = input.surface === "inner" ? d : d - 2 * t;
+    dInner = d - 2 * surfaceDepth[input.surface] * t;
     if (!(dInner > 0)) return "tooSmall";
     k = input.kOverride ?? neutralFactor(dInner / 2, t);
   } else {

@@ -1,7 +1,20 @@
 import { z } from "zod";
+import { chartIsValid } from "../domain/capacity";
 import type { MachineLimits } from "../domain/calculate";
 
 const nullableNumber = z.number().positive().nullable();
+
+const axis = z.array(z.number().positive()).min(1).max(40);
+
+export const chartSchema = z
+  .object({
+    kind: z.enum(["rolling", "prebending"]),
+    re: z.number().positive().max(3000),
+    widths: axis,
+    diameters: axis,
+    thickness: z.array(z.array(z.number().positive().max(1000)).max(40)).max(40),
+  })
+  .refine(chartIsValid);
 
 export const machineSchema = z.object({
   topRollD: nullableNumber,
@@ -10,6 +23,9 @@ export const machineSchema = z.object({
   maxThickness: nullableNumber,
   maxWidth: nullableNumber,
   minDiameter: nullableNumber,
+  // Fields added in 1.1; settings saved earlier lack them.
+  rollLength: nullableNumber.default(null),
+  charts: z.array(chartSchema).max(16).default([]),
 }) satisfies z.ZodType<MachineLimits>;
 
 export const settingsSchema = z.object({
