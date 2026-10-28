@@ -4,6 +4,18 @@ export const en = {
 
   "shape.cylinder": "Cylinder",
   "shape.cone": "Cone",
+  "result.slantMin": "Shortest generator",
+  "result.slantMax": "Longest generator",
+  "result.arcLarge": "Large end circumference",
+  "result.arcSmall": "Small end circumference",
+  "result.generators": "Generators every 30°, from the shortest",
+  "result.offset": "Axis offset e",
+  "result.alphaMax": "Largest generator lean",
+  "field.offset": "Axis offset e",
+  "hint.offset":
+    "0 = concentric cone. Eccentric: distance between the end centres in the front view.",
+  "action.flatSide": "Flat side",
+  "result.sideView": "Side view",
   "shape.ellipse": "Ellipse",
   "shape.free": "Free",
   "size.ellipse.a": "Width A",

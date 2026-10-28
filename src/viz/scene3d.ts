@@ -22,6 +22,7 @@ import {
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { bendAt, partlyRolled, traceProfile } from "../domain/profile";
+import { eccentricPoint } from "../domain/eccentric";
 import { buildFrame, housingDepth } from "./machine3d";
 import type { SceneModel } from "./sceneModel";
 
@@ -183,7 +184,7 @@ export class RollingScene {
     });
     this.machineGroup = new Group();
     const m = this.model;
-    if (!m || m.shape === "cone") return;
+    if (!m || m.shape === "cone" || m.shape === "eccentric") return;
     const mv = m.machine;
     const t = m.thickness;
     const rt = mv.rolls.top / 2,
@@ -225,7 +226,7 @@ export class RollingScene {
   private placeSideRoll() {
     const m = this.model;
     const roll = this.rolls[2];
-    if (!m || m.shape === "cone" || !roll) return;
+    if (!m || m.shape === "cone" || m.shape === "eccentric" || !roll) return;
     const t = m.thickness;
     const rb = m.machine.rolls.bottom / 2,
       rs = m.machine.rolls.side / 2;
@@ -242,7 +243,7 @@ export class RollingScene {
 
   private spinRolls() {
     const m = this.model;
-    if (!m || m.shape === "cone") return;
+    if (!m || m.shape === "cone" || m.shape === "eccentric") return;
     // Rolls turn with the plate feed so the motion reads as rolling, not sliding.
     const fed = this.progress * (m.shape === "cylinder" ? m.length : m.dev.length);
     const delta = fed - this.lastRollAngle;
@@ -265,7 +266,9 @@ export class RollingScene {
         ? cylinderPlate(m, this.progress)
         : m.shape === "cone"
           ? conePlate(m, this.progress)
-          : profilePlate(m, this.progress);
+          : m.shape === "eccentric"
+            ? eccentricPlate(m, this.progress)
+            : profilePlate(m, this.progress);
     this.plate = new Mesh(geo, this.plateMat);
     this.root.add(this.plate);
   }
@@ -276,7 +279,45 @@ function scaleOf(m: SceneModel): number {
     ? Math.round(Math.log2(m.radius * m.width))
     : m.shape === "cone"
       ? Math.round(Math.log2(m.rOuter))
-      : Math.round(Math.log2(m.dev.length * m.width));
+      : m.shape === "eccentric"
+        ? Math.round(Math.log2(m.result.large.dNeutral))
+        : Math.round(Math.log2(m.dev.length * m.width));
+}
+
+/**
+ * Eccentric cone formed up to the share `progress` of its circumference, starting at the shortest
+ * generator. The wall is drawn on the neutral surface, centred on the part.
+ */
+function eccentricPlate(
+  m: Extract<SceneModel, { shape: "eccentric" }>,
+  progress: number,
+): BufferGeometry {
+  const r = m.result;
+  const nU = 6,
+    nPhi = Math.max(2, Math.round(160 * Math.max(0.02, progress)));
+  const end = 2 * Math.PI * Math.max(0.02, Math.min(1, progress));
+  const pos = new Float32Array((nU + 1) * (nPhi + 1) * 3);
+  let o = 0;
+  for (let j = 0; j <= nPhi; j++) {
+    for (let i = 0; i <= nU; i++) {
+      const [x, y, z] = eccentricPoint(r, (end * j) / nPhi, i / nU);
+      pos[o++] = x * MM;
+      pos[o++] = (y - r.offset / 2) * MM;
+      pos[o++] = (z - r.height / 2) * MM;
+    }
+  }
+  const index: number[] = [];
+  for (let j = 0; j < nPhi; j++)
+    for (let i = 0; i < nU; i++) {
+      const a = j * (nU + 1) + i,
+        b = a + nU + 1;
+      index.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  const geo = new BufferGeometry();
+  geo.setAttribute("position", new BufferAttribute(pos, 3));
+  geo.setIndex(index);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 /**

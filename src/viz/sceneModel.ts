@@ -1,4 +1,5 @@
 import type { CalcOutput, MachineLimits } from "../domain/calculate";
+import type { EccentricResult } from "../domain/eccentric";
 import type { Development, Profile } from "../domain/profile";
 
 export interface RollSizes {
@@ -36,6 +37,7 @@ export type SceneModel =
       alpha: number;
       thickness: number;
     }
+  | { shape: "eccentric"; result: EccentricResult }
   | {
       shape: "profile";
       profile: Profile;
@@ -85,6 +87,7 @@ export function sceneModel(
       thickness,
     };
   }
+  if (out.shape === "eccentric") return { shape: "eccentric", result: out.result };
   if (out.shape === "profile") {
     const r = out.result;
     const w = width ?? Math.max(r.blankLength * 0.2, 200);

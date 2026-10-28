@@ -16,7 +16,102 @@ export function buildViews(out: CalcOutput, width: number | null, surface: Surfa
     ? cylinderViews(out, width)
     : out.shape === "cone"
       ? coneViews(out, surface)
-      : profileViews(out, width, surface);
+      : out.shape === "eccentric"
+        ? eccentricViews(out, surface)
+        : profileViews(out, width, surface);
+}
+
+/** Side view as the part is usually drawn (offset shown by the slanted edge) and the development. */
+function eccentricViews(
+  out: Extract<CalcOutput, { shape: "eccentric" }>,
+  surface: Surface,
+): View[] {
+  const r = out.result;
+  const e = r.offset,
+    H = r.height;
+  const onSurface = (x: { dInner: number; dOuter: number }) =>
+    x.dInner + (x.dOuter - x.dInner) * surfaceDepth[surface];
+  const D1 = onSurface(r.large),
+    D2 = onSurface(r.small);
+  const R1o = r.large.dOuter / 2,
+    R2o = r.small.dOuter / 2;
+
+  // Small end on the left, large end on the right; y up, offset towards +y.
+  const side: Prim[] = [
+    {
+      kind: "path",
+      pts: [
+        [0, e + R2o],
+        [H, R1o],
+        [H, -R1o],
+        [0, e - R2o],
+      ],
+      closed: true,
+      stroke: "part",
+    },
+    {
+      kind: "dim",
+      a: [0, e + R2o],
+      b: [H, e + R2o],
+      offsetModel: 0,
+      offsetScreen: GAP,
+      label: mm(H),
+    },
+    {
+      kind: "dim",
+      a: [H, D1 / 2],
+      b: [H, -D1 / 2],
+      offsetModel: 0,
+      offsetScreen: GAP,
+      label: mm(D1),
+    },
+    {
+      kind: "dim",
+      a: [0, e + D2 / 2],
+      b: [0, e - D2 / 2],
+      offsetModel: 0,
+      offsetScreen: -GAP,
+      label: mm(D2),
+    },
+  ];
+
+  const W = r.box.width,
+    Hb = r.box.height;
+  const dev: Prim[] = [
+    { kind: "path", pts: r.outline, closed: true, stroke: "part", fill: true },
+    ...r.generators.map((g): Prim => ({
+      kind: "path",
+      pts: [g.a, g.b],
+      closed: false,
+      stroke: "center",
+    })),
+    {
+      kind: "path",
+      pts: [
+        [0, 0],
+        [W, 0],
+        [W, Hb],
+        [0, Hb],
+      ],
+      closed: true,
+      stroke: "thin",
+    },
+    { kind: "dim", a: [0, 0], b: [W, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(W) },
+    { kind: "dim", a: [0, Hb], b: [0, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(Hb) },
+  ];
+  const devNotes = [
+    `${t("result.slantMin")} ${mm(r.slantMin)} · ${t("result.slantMax")} ${mm(r.slantMax)} ${t("unit.mm")}`,
+  ];
+  return [
+    {
+      title: t("result.sideView"),
+      prims: side,
+      notes: [
+        `t = ${mm(((r.large.dOuter - r.large.dInner) / 2) * Math.cos(Math.atan((r.large.dNeutral - r.small.dNeutral) / 2 / H)))} ${t("unit.mm")} · e = ${mm(e)} ${t("unit.mm")}`,
+      ],
+    },
+    { title: t("result.development"), prims: dev, notes: devNotes },
+  ];
 }
 
 // Turns the traced section so open shapes stand the way they are usually drawn (opening upwards).

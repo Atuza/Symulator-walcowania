@@ -401,6 +401,31 @@ export class App {
           this.numberField("dSmall", t("field.dSmall"), t("unit.mm")),
         ),
         this.numberField("height", t("field.height"), t("unit.mm")),
+        h(
+          "div",
+          { class: "field-action" },
+          this.numberField("offset", t("field.offset"), t("unit.mm"), "0", false, t("hint.offset")),
+          h(
+            "button",
+            {
+              type: "button",
+              class: "chip",
+              onClick: () => {
+                // Flat side: the end circles touch one common line, e = (D1 − D2) / 2.
+                const d1 = parseNumber(this.inputs.dLarge),
+                  d2 = parseNumber(this.inputs.dSmall);
+                if (d1 === null || d2 === null) return;
+                const e = Math.round(((d1 - d2) / 2) * 100) / 100;
+                this.set(
+                  "offset",
+                  getLang() === "pl" ? String(e).replace(".", ",") : String(e),
+                  true,
+                );
+              },
+            },
+            t("action.flatSide"),
+          ),
+        ),
       );
     } else {
       geo.append(...this.profileFields(i.shape));
@@ -915,7 +940,8 @@ export class App {
 
   private actions(enabled: boolean) {
     const d = this.derived;
-    const canDxf = enabled && !(d.output?.shape !== "cone" && d.width === null);
+    const needsWidth = d.output?.shape === "cylinder" || d.output?.shape === "profile";
+    const canDxf = enabled && !(needsWidth && d.width === null);
     const saveBtn = h(
       "button",
       {
@@ -1116,7 +1142,11 @@ export class App {
     const m = this.materials.find((x) => x.id === this.inputs.materialId);
     const n = (v: number) => String(Math.round(v * 100) / 100).replace(".", "-");
     const main =
-      out.shape === "cone" ? `R${n(out.result.rOuter)}` : `L${n(out.result.blankLength)}`;
+      out.shape === "cone"
+        ? `R${n(out.result.rOuter)}`
+        : out.shape === "eccentric"
+          ? `e${n(out.result.offset)}`
+          : `L${n(out.result.blankLength)}`;
     return slug(`${shape}_${m?.id.toUpperCase() ?? "custom"}_t${n(d.thickness ?? 0)}_${main}`);
   }
 
@@ -1142,6 +1172,8 @@ export class App {
     let bends: [number, number][] = [];
     if (out.shape === "cone") {
       contour = sectorContour(out.result.rInner, out.result.rOuter, out.result.angle);
+    } else if (out.shape === "eccentric") {
+      contour = out.result.outline.map(([x, y]) => ({ x, y, bulge: 0 }));
     } else {
       if (d.width === null) return;
       contour = rectangleContour(out.result.blankLength, d.width);

@@ -136,19 +136,21 @@ export function derive(
             },
           };
   } else if (inputs.shape === "cone") {
-    calc = {
-      ...common,
-      shape: "cone",
-      cone: {
-        thickness,
-        dLarge: num("dLarge") ?? NaN,
-        dSmall: num("dSmall") ?? NaN,
-        height: num("height") ?? NaN,
-        surface: inputs.surface,
-        flatEnds: flatEnd,
-        kOverride,
-      },
+    const cone = {
+      thickness,
+      dLarge: num("dLarge") ?? NaN,
+      dSmall: num("dSmall") ?? NaN,
+      height: num("height") ?? NaN,
+      surface: inputs.surface,
+      flatEnds: flatEnd,
+      kOverride,
     };
+    const offset = num("offset") ?? 0;
+    // A zero offset is the ordinary cone, which has a closed-form development.
+    calc =
+      offset !== 0
+        ? { ...common, shape: "eccentric", eccentric: { ...cone, offset } }
+        : { ...common, shape: "cone", cone };
   } else {
     const shape = inputs.shape;
     // The half round is sized like the cylinder: diameter or radius in the main field.

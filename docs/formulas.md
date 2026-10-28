@@ -184,3 +184,12 @@ curvature changes continuously.
 A list of straights `L` and arcs `R` with angle `φ` (negative turns the other way), in plate order,
 stored as `L300_R400a90_L300`. Radii are on the chosen surface of each bend. The shape is closed when
 it turns ±360° and its ends meet within 0.5 mm.
+
+## Eccentric cone
+
+Circular ends `D1 > D2` in parallel planes `H` apart, centres offset by `e` (flat side:
+`e = (D1 − D2) / 2`). Points at the same angle `φ` on both ends lie on one generator; all meet in the
+apex `A = (0, e·s, H·s)`, `s = R1 / (R1 − R2)`. The development is the cone unrolled about `A`:
+`ρ(φ) = |P1(φ) − A|`, `dθ = |(P1 − A) × P1′| / ρ² · dφ` (Simpson, 1440 steps), the small end at
+`ρ·R2/R1`. Diameters move to the neutral surface with the mean slope `t / cos α`. Seam at the
+shortest generator. Machine checks use the longest generator and the small end.

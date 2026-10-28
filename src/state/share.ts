@@ -40,6 +40,7 @@ const LINK_DEFAULTS: Inputs = {
   sizeR: "",
   angle: "",
   freeSegs: "",
+  offset: "",
 };
 
 const KEYS: Record<keyof Inputs, string> = {
@@ -68,6 +69,7 @@ const KEYS: Record<keyof Inputs, string> = {
   sizeR: "r",
   angle: "an",
   freeSegs: "fs",
+  offset: "e",
 };
 
 // One-letter codes for enumerated values.

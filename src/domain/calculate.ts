@@ -1,4 +1,10 @@
 import { capacity, coneThicknessShare, type CapacityChart } from "./capacity";
+import {
+  solveEccentric,
+  type EccentricError,
+  type EccentricInput,
+  type EccentricResult,
+} from "./eccentric";
 import { solveCone, type ConeError, type ConeInput, type ConeResult } from "./cone";
 import {
   solveCylinder,
@@ -55,7 +61,8 @@ interface Common {
 export type CalcInput =
   | (Common & { shape: "cylinder"; cylinder: CylinderInput; width: number | null })
   | (Common & { shape: "cone"; cone: ConeInput })
-  | (Common & { shape: "profile"; profile: ShapeInput; width: number | null });
+  | (Common & { shape: "profile"; profile: ShapeInput; width: number | null })
+  | (Common & { shape: "eccentric"; eccentric: EccentricInput });
 
 /** Machine setting that compensates springback, expressed on the inner surface. */
 export interface SetPoint {
@@ -80,6 +87,14 @@ export type CalcOutput =
       warnings: Warning[];
     }
   | {
+      shape: "eccentric";
+      result: EccentricResult;
+      setLarge: SetPoint | null;
+      setSmall: SetPoint | null;
+      massKg: number;
+      warnings: Warning[];
+    }
+  | {
       shape: "profile";
       result: ShapeResult;
       /** Springback compensation for every distinct bend radius, tightest first. */
@@ -94,7 +109,7 @@ export interface RadiusSet {
   set: SetPoint | null;
 }
 
-export type CalcError = { error: CylinderError | ConeError | ShapeError };
+export type CalcError = { error: CylinderError | ConeError | ShapeError | EccentricError };
 
 const DEFAULT_SPRINGBACK_WARN = 0.3;
 
@@ -103,7 +118,9 @@ export function calculate(input: CalcInput): CalcOutput | CalcError {
     ? calcCylinder(input)
     : input.shape === "cone"
       ? calcCone(input)
-      : calcProfile(input);
+      : input.shape === "eccentric"
+        ? calcEccentric(input)
+        : calcProfile(input);
 }
 
 function setPoint(
@@ -281,6 +298,39 @@ function calcCone(input: Extract<CalcInput, { shape: "cone" }>): CalcOutput | Ca
 
   const massKg = result.area * t * 1e-9 * input.material.density;
   return { shape: "cone", result, setLarge, setSmall, massKg, warnings: w };
+}
+
+/**
+ * Eccentric cone: the wall leans differently around the circumference, so springback is estimated
+ * with the mean slope, and the machine is checked with the longest generator (it lies along the
+ * rolls) and the small end.
+ */
+function calcEccentric(input: Extract<CalcInput, { shape: "eccentric" }>): CalcOutput | CalcError {
+  const result = solveEccentric(input.eccentric);
+  if (typeof result === "string") return { error: result };
+  const t = input.eccentric.thickness;
+  const cos = Math.cos(
+    Math.atan((result.large.dNeutral - result.small.dNeutral) / 2 / result.height),
+  );
+  const setLarge = setPoint(input, result.large.dNeutral / 2 / cos, t, result.k, cos);
+  const setSmall =
+    result.small.dNeutral > 0
+      ? setPoint(input, result.small.dNeutral / 2 / cos, t, result.k, cos)
+      : null;
+  const w: Warning[] = [];
+  if (input.eccentric.dSmall === 0) w.push({ code: "coneApex", severity: "warn" });
+  commonWarnings(input, t, result.rtMin, result.outerStrainMax, w);
+  springbackWarnings(setLarge, input.springbackWarn ?? DEFAULT_SPRINGBACK_WARN, w);
+  const mc = input.machine;
+  if (mc.maxWidth !== null && result.slantMax > mc.maxWidth)
+    w.push({ code: "machineWidth", severity: "warn", values: { max: mc.maxWidth } });
+  const dSetSmall = rollingDiameter(result.small.dInner, setSmall);
+  machineDiameterWarnings(mc, dSetSmall, w);
+  diameterRatioWarning(dSetSmall, t, w);
+  coneCapacityWarning(input, t, result.slantMax, dSetSmall, w);
+
+  const massKg = result.area * t * 1e-9 * input.material.density;
+  return { shape: "eccentric", result, setLarge, setSmall, massKg, warnings: w };
 }
 
 function calcProfile(input: Extract<CalcInput, { shape: "profile" }>): CalcOutput | CalcError {

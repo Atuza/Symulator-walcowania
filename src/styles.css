@@ -2289,3 +2289,14 @@ textarea:focus {
 .free .chips {
   margin-top: 4px;
 }
+
+.field-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.field-action > .field {
+  align-self: stretch;
+}

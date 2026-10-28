@@ -57,6 +57,13 @@ export function heroes(d: Derived): Hero[] {
       },
     ];
   }
+  if (out.shape === "eccentric") {
+    const r = out.result;
+    return [
+      { label: t("result.slantMin"), value: mm(r.slantMin), unit: t("unit.mm"), raw: r.slantMin },
+      { label: t("result.slantMax"), value: mm(r.slantMax), unit: t("unit.mm"), raw: r.slantMax },
+    ];
+  }
   const r = out.result;
   return [
     { label: "R1", value: mm(r.rOuter), unit: t("unit.mm"), raw: r.rOuter },
@@ -128,6 +135,7 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
     ];
   }
   if (out.shape === "profile") return profileGroups(d, out, mass);
+  if (out.shape === "eccentric") return eccentricGroups(d, out, mass);
   const r = out.result;
   return [
     {
@@ -152,6 +160,7 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
           label: t("result.box"),
           value: `${mm(r.box.width)} × ${mm(r.box.height)}`,
           unit: t("unit.mm"),
+          list: true,
         },
         { label: t("result.alpha"), value: deg(r.alpha), unit: t("unit.deg") },
         ...mass,
@@ -189,6 +198,99 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
         { label: `${t("result.rt")} min`, value: num(r.rtMin, 1) },
         { label: t("result.strain"), value: percent(r.outerStrainMax) },
         { label: t("result.re"), value: num(d.props.re, 0), unit: t("unit.mpa") },
+        calibrationRow(d),
+        ...springRows(out.setLarge, "result.setLarge"),
+        ...(out.setSmall && out.setSmall.dInner > 0
+          ? [
+              {
+                label: t("result.setSmall"),
+                value: mm(out.setSmall.dInner),
+                unit: t("unit.mm"),
+                estimate: true,
+              },
+            ]
+          : []),
+      ],
+    },
+  ];
+}
+
+function eccentricGroups(
+  d: Derived,
+  out: Extract<NonNullable<Derived["output"]>, { shape: "eccentric" }>,
+  mass: Row[],
+): { title: string; rows: Row[] }[] {
+  const r = out.result;
+  const flat: Row[] =
+    r.flatEnd > 0
+      ? [
+          {
+            label: t("result.flatEnds"),
+            value: `2 × ${mm(r.flatEnd)}`,
+            unit: t("unit.mm"),
+            neon: true,
+          },
+        ]
+      : [];
+  return [
+    {
+      title: t("result.development"),
+      rows: [
+        { label: t("result.arcLarge"), value: mm(r.arcLarge), unit: t("unit.mm") },
+        { label: t("result.arcSmall"), value: mm(r.arcSmall), unit: t("unit.mm") },
+        {
+          label: t("result.generators"),
+          value: r.generators
+            .slice(0, -1)
+            .map((g) => mm(g.length))
+            .join(" · "),
+          unit: t("unit.mm"),
+          list: true,
+        },
+        ...flat,
+        {
+          label: t("result.box"),
+          value: `${mm(r.box.width)} × ${mm(r.box.height)}`,
+          unit: t("unit.mm"),
+          list: true,
+        },
+        { label: t("result.offset"), value: mm(r.offset), unit: t("unit.mm") },
+        { label: t("result.alphaMax"), value: deg(r.alphaMax), unit: t("unit.deg") },
+        ...mass,
+      ],
+    },
+    {
+      title: t("result.diameters"),
+      rows: [
+        {
+          label: `${t("result.dInner")} · ${t("field.dLarge")}`,
+          value: mm(r.large.dInner),
+          unit: t("unit.mm"),
+        },
+        {
+          label: `${t("result.dOuter")} · ${t("field.dLarge")}`,
+          value: mm(r.large.dOuter),
+          unit: t("unit.mm"),
+        },
+        {
+          label: `${t("result.dInner")} · ${t("field.dSmall")}`,
+          value: mm(r.small.dInner),
+          unit: t("unit.mm"),
+        },
+        {
+          label: `${t("result.dOuter")} · ${t("field.dSmall")}`,
+          value: mm(r.small.dOuter),
+          unit: t("unit.mm"),
+        },
+      ],
+    },
+    {
+      title: t("result.process"),
+      rows: [
+        { label: t("result.k"), value: num(r.k, 3) },
+        { label: `${t("result.rt")} min`, value: num(r.rtMin, 1) },
+        { label: t("result.strain"), value: percent(r.outerStrainMax) },
+        { label: t("result.re"), value: num(d.props!.re, 0), unit: t("unit.mpa") },
         calibrationRow(d),
         ...springRows(out.setLarge, "result.setLarge"),
         ...(out.setSmall && out.setSmall.dInner > 0
@@ -339,6 +441,9 @@ export function inputRows(d: Derived, materialName: string): Row[] {
       },
       { label: t("field.height"), value: v(i.height), unit: t("unit.mm") },
     );
+    const e = parseNumber(i.offset);
+    if (e !== null && e !== 0)
+      rows.push({ label: t("field.offset"), value: mm(e), unit: t("unit.mm") });
   }
   if (d.flatEnd > 0)
     rows.push({ label: t("field.flatLength"), value: mm(d.flatEnd), unit: t("unit.mm") });
