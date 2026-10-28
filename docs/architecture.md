@@ -42,9 +42,19 @@ and free segment lists. `domain/eccentric.ts` develops eccentric cones independe
 engine. `CalcOutput` distinguishes cylinders, concentric cones, eccentric cones and generic profiles;
 result rows, drawing views and exports consume that union rather than duplicating calculations.
 
+The eccentric cone has its own shape code (`eccentric`, `ec` in calculation links). Legacy cone
+inputs with a non-zero offset migrate to it without changing dimensions. Its geometric reference is
+the circular-ended surface selected by the user. Inner, neutral and outer walls are constant normal
+offsets trimmed by the same end planes. The solver integrates an isometric tangent frame with
+adaptive refinement; the same wall construction feeds the side drawing and the solid 3D preview.
+See [the geometric contract](adr/0005-eccentric-normal-offset.md) and [formulas](formulas.md).
+
 Drawing notes wrap inside each view's cell. PDF uses its actual font metrics; SVG uses a conservative
 monospace estimate. The PDF QR caption occupies its own area above the code, reserved separately from
 the drawing and results column.
+PDF tables measure wrapped labels and values before choosing row spacing. Sections and warnings
+continue on another numbered page when they cannot fit above the footer; the drawing and QR stay
+on the first page.
 
 Calculation links (`state/share.ts`, ADR 0004) put the inputs that differ from frozen link defaults into
 the URL fragment (`#c=1;key=value;…`). The fragment never reaches the server; the PDF prints it as a

@@ -2230,6 +2230,10 @@ textarea:focus {
     color 0.15s;
 }
 
+.shape-option-wide {
+  grid-column: span 2;
+}
+
 .shape-option svg {
   width: 26px;
   height: 26px;

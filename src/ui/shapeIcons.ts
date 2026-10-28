@@ -4,6 +4,7 @@ import type { Inputs } from "../state/inputs";
 export const SHAPE_ICONS: Record<Inputs["shape"], string> = {
   cylinder: "M16 5a11 11 0 1 0 0.01 0Z",
   cone: "M5 8h22l-6 17H11Z",
+  eccentric: "M5 7h22v18L5 20Z",
   halfround: "M5 12a11 11 0 0 0 22 0",
   ushape: "M8 5v11a8 8 0 0 0 16 0V5",
   obround: "M11 8h10a8 8 0 0 1 0 16H11a8 8 0 0 1 0-16Z",

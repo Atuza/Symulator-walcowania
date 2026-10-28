@@ -3,7 +3,7 @@ import { SHAPE_FIELDS } from "../domain/shapes";
 import { parseFreeRows } from "../state/freeShape";
 import { num, percent, t, type Key } from "../i18n";
 import type { Derived } from "../state/derive";
-import { parseNumber } from "../state/inputs";
+import { isConeShape, parseNumber } from "../state/inputs";
 
 export interface Row {
   label: string;
@@ -255,12 +255,18 @@ function eccentricGroups(
           list: true,
         },
         { label: t("result.offset"), value: mm(r.offset), unit: t("unit.mm") },
+        {
+          label: t("result.endPlaneThickness"),
+          value: `${mm(r.endPlaneThickness.min)}–${mm(r.endPlaneThickness.max)}`,
+          unit: t("unit.mm"),
+          list: true,
+        },
         { label: t("result.alphaMax"), value: deg(r.alphaMax), unit: t("unit.deg") },
         ...mass,
       ],
     },
     {
-      title: t("result.diameters"),
+      title: t("result.equivalentDiameters"),
       rows: [
         {
           label: `${t("result.dInner")} · ${t("field.dLarge")}`,
@@ -395,7 +401,7 @@ export function inputRows(d: Derived, materialName: string): Row[] {
     } else rows.push({ label: t("field.length"), value: v(i.length), unit: t("unit.mm") });
     if (d.width !== null)
       rows.push({ label: t("field.width"), value: mm(d.width), unit: t("unit.mm") });
-  } else if (i.shape !== "cone") {
+  } else if (!isConeShape(i.shape)) {
     const shape = i.shape;
     for (const f of SHAPE_FIELDS[shape]) {
       if (shape === "halfround" && f === "r") {

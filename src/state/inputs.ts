@@ -2,39 +2,52 @@ import { z } from "zod";
 import { PROFILE_SHAPES, type ProfileShape } from "../domain/shapes";
 
 // Numeric fields are kept as typed text so that "12,5" and partial input survive re-renders.
-export const inputsSchema = z.object({
-  shape: z.enum(["cylinder", "cone", ...PROFILE_SHAPES]),
-  mode: z.enum(["fromDiameter", "fromLength"]),
-  materialId: z.string(),
-  thickness: z.string(),
-  dimension: z.enum(["diameter", "radius"]),
-  surface: z.enum(["inner", "mid", "outer"]),
-  value: z.string(),
-  length: z.string(),
-  width: z.string(),
-  dLarge: z.string(),
-  dSmall: z.string(),
-  height: z.string(),
-  flatEnds: z.boolean(),
-  flatLength: z.string(),
-  k: z.string(),
-  reActual: z.string(),
-  calibration: z.string(),
-  customRe: z.string(),
-  customE: z.string(),
-  customDensity: z.string(),
-  // Profile shapes (1.1); inputs saved before them lack these fields.
-  sizeA: z.string().default(""),
-  sizeB: z.string().default(""),
-  sizeR: z.string().default(""),
-  angle: z.string().default(""),
-  freeSegs: z.string().max(600).default(""),
-  /** Offset between the cone end centres; empty or 0 is a concentric cone. */
-  offset: z.string().default(""),
-});
+export const inputsSchema = z
+  .object({
+    shape: z.enum(["cylinder", "cone", "eccentric", ...PROFILE_SHAPES]),
+    mode: z.enum(["fromDiameter", "fromLength"]),
+    materialId: z.string(),
+    thickness: z.string(),
+    dimension: z.enum(["diameter", "radius"]),
+    surface: z.enum(["inner", "mid", "outer"]),
+    value: z.string(),
+    length: z.string(),
+    width: z.string(),
+    dLarge: z.string(),
+    dSmall: z.string(),
+    height: z.string(),
+    flatEnds: z.boolean(),
+    flatLength: z.string(),
+    k: z.string(),
+    reActual: z.string(),
+    calibration: z.string(),
+    customRe: z.string(),
+    customE: z.string(),
+    customDensity: z.string(),
+    // Profile shapes (1.1); inputs saved before them lack these fields.
+    sizeA: z.string().default(""),
+    sizeB: z.string().default(""),
+    sizeR: z.string().default(""),
+    angle: z.string().default(""),
+    freeSegs: z.string().max(600).default(""),
+    /** Offset between the cone end centres; empty or 0 is a concentric cone. */
+    offset: z.string().default(""),
+  })
+  .transform((inputs) => ({
+    ...inputs,
+    // Old templates and printed links selected an eccentric cone through its offset field.
+    shape:
+      inputs.shape === "cone" && inputs.offset.trim() && parseNumber(inputs.offset) !== 0
+        ? ("eccentric" as const)
+        : inputs.shape,
+  }));
 
 export type Inputs = z.infer<typeof inputsSchema>;
 export type TextField = { [K in keyof Inputs]: Inputs[K] extends string ? K : never }[keyof Inputs];
+
+export function isConeShape(shape: Inputs["shape"]): shape is "cone" | "eccentric" {
+  return shape === "cone" || shape === "eccentric";
+}
 
 export const defaultInputs: Inputs = {
   shape: "cylinder",

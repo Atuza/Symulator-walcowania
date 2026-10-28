@@ -34,7 +34,7 @@ describe("eccentric cone", () => {
 
   it("develops the large end to its full circumference", () => {
     const r = solve({});
-    const outer = r.outline.slice(0, 1441);
+    const outer = r.net.large;
     expect(polyLength(outer)).toBeCloseTo(Math.PI * r.large.dNeutral, 2);
   });
 

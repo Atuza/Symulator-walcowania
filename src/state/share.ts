@@ -77,6 +77,7 @@ const CODES: Partial<Record<keyof Inputs, Record<string, string>>> = {
   shape: {
     cylinder: "c",
     cone: "k",
+    eccentric: "ec",
     halfround: "hr",
     ushape: "u",
     obround: "ob",

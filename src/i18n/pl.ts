@@ -6,6 +6,10 @@ export const pl: Dict = {
 
   "shape.cylinder": "Walec",
   "shape.cone": "Stożek",
+  "shape.eccentric": "Stożek mimośrodowy",
+  "result.equivalentDiameters": "Średnice zastępcze (obwód / π)",
+  "result.endPlaneThickness": "Rozstaw ścian w rzucie czołowym",
+  "error.resolution": "Nie udało się wyznaczyć stabilnego rozwinięcia dla tych wymiarów.",
   "result.slantMin": "Tworząca najkrótsza",
   "result.slantMax": "Tworząca najdłuższa",
   "result.arcLarge": "Obwód Ø większej",

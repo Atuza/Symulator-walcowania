@@ -286,7 +286,7 @@ function scaleOf(m: SceneModel): number {
 
 /**
  * Eccentric cone formed up to the share `progress` of its circumference, starting at the shortest
- * generator. The wall is drawn on the neutral surface, centred on the part.
+ * generator. Both constant-normal-thickness walls are trimmed by the end planes.
  */
 function eccentricPlate(
   m: Extract<SceneModel, { shape: "eccentric" }>,
@@ -296,22 +296,39 @@ function eccentricPlate(
   const nU = 6,
     nPhi = Math.max(2, Math.round(160 * Math.max(0.02, progress)));
   const end = 2 * Math.PI * Math.max(0.02, Math.min(1, progress));
-  const pos = new Float32Array((nU + 1) * (nPhi + 1) * 3);
+  const layerSize = (nU + 1) * (nPhi + 1);
+  const pos = new Float32Array(2 * layerSize * 3);
   let o = 0;
-  for (let j = 0; j <= nPhi; j++) {
-    for (let i = 0; i <= nU; i++) {
-      const [x, y, z] = eccentricPoint(r, (end * j) / nPhi, i / nU);
-      pos[o++] = x * MM;
-      pos[o++] = (y - r.offset / 2) * MM;
-      pos[o++] = (z - r.height / 2) * MM;
+  for (const surface of ["inner", "outer"] as const)
+    for (let j = 0; j <= nPhi; j++) {
+      for (let i = 0; i <= nU; i++) {
+        const [x, y, z] = eccentricPoint(r, (end * j) / nPhi, i / nU, surface);
+        pos[o++] = x * MM;
+        pos[o++] = (y - r.offset / 2) * MM;
+        pos[o++] = (z - r.height / 2) * MM;
+      }
     }
-  }
   const index: number[] = [];
+  const quad = (a: number, b: number, c: number, d: number) => index.push(a, b, c, b, d, c);
   for (let j = 0; j < nPhi; j++)
     for (let i = 0; i < nU; i++) {
       const a = j * (nU + 1) + i,
         b = a + nU + 1;
-      index.push(a, b, a + 1, b, b + 1, a + 1);
+      quad(a, b, a + 1, b + 1);
+      quad(a + layerSize, a + 1 + layerSize, b + layerSize, b + 1 + layerSize);
+    }
+  // Flat end faces and the exposed seam edges of a partly formed shell.
+  for (let j = 0; j < nPhi; j++) {
+    const a = j * (nU + 1),
+      b = a + nU + 1;
+    quad(a, a + layerSize, b, b + layerSize);
+    quad(a + nU, b + nU, a + nU + layerSize, b + nU + layerSize);
+  }
+  if (progress < 0.9999)
+    for (let i = 0; i < nU; i++) {
+      const last = nPhi * (nU + 1) + i;
+      quad(i, i + 1, i + layerSize, i + 1 + layerSize);
+      quad(last, last + layerSize, last + 1, last + 1 + layerSize);
     }
   const geo = new BufferGeometry();
   geo.setAttribute("position", new BufferAttribute(pos, 3));

@@ -4,6 +4,10 @@ export const en = {
 
   "shape.cylinder": "Cylinder",
   "shape.cone": "Cone",
+  "shape.eccentric": "Eccentric cone",
+  "result.equivalentDiameters": "Equivalent diameters (perimeter / π)",
+  "result.endPlaneThickness": "Wall separation in the end plane",
+  "error.resolution": "A stable development could not be calculated for these dimensions.",
   "result.slantMin": "Shortest generator",
   "result.slantMax": "Longest generator",
   "result.arcLarge": "Large end circumference",

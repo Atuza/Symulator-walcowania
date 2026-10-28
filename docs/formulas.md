@@ -128,7 +128,8 @@ Maker's charts give the maximum thickness `t(B, D)` for plate width `B` (rows) a
 ## Reference surface
 
 The given diameter can be on the inner, mid or outer surface: `D_in = D − 2·c·t` with
-`c = 0, ½, 1`; for a cone `t` is replaced by the radial thickness `t / cos α`.
+`c = 0, ½, 1`; for a concentric cone `t` is replaced by the radial thickness `t / cos α`.
+An eccentric cone instead offsets the complete surface along its local normal, as defined below.
 
 ## Profiles
 
@@ -187,18 +188,74 @@ it turns ±360° and its ends meet within 0.5 mm.
 
 ## Eccentric cone
 
-Circular ends `D1 > D2` in parallel planes `H` apart, centres offset by `e` (flat side:
-`e = (D1 − D2) / 2`). Points at the same angle `φ` on both ends lie on one generator; all meet in the
-apex `A = (0, e·s, H·s)`, `s = R1 / (R1 − R2)`. The development is the cone unrolled about `A`:
-`ρ(φ) = |P1(φ) − A|`, `dθ = |(P1 − A) × P1′| / ρ² · dφ` (Simpson, 1440 steps), the small end at
-`ρ·R2/R1`. Diameters move to the neutral surface with the mean slope `t / cos α`. Seam at the
-shortest generator. Machine checks use the longest generator and the small end.
+Circular ends `D1 > D2 ≥ 0` lie in parallel planes `H > 0` apart, centres offset by `e ≥ 0`.
+The dedicated tile also accepts `e = 0` as the concentric limit. Flat side sets `e = (D1 − D2)/2`.
+The input diameters define circles on the **selected reference surface**, not on all three walls.
 
-The axis offset is a distance (`e ≥ 0`); invalid or negative inputs are rejected. For `d = (D1-D2)/2`,
-the extreme generator lengths are `sqrt(H² + (d-e)²)` and `sqrt(H² + (d+e)²)`. Thus a flat-side
-reducer with D1 = 2400, D2 = 2200, H = 1250 and e = 100 mm has generators 1250.00 and 1265.90 mm.
+### Constant normal offsets
 
-The sampled outline is a numerical development of the model's neutral surface. The constant radial
-thickness conversion uses the mean concentric slope, not the varying local normal of the eccentric
-wall. It is therefore an approximation for a finite-thickness eccentric part, not an exact offset
-surface construction. Validate a trial part before using the contour for production cutting.
+With `R1 = D1/2`, `R2 = D2/2`, `a = (R1−R2)/H`, `b = e/H`, the reference cone and outward normal are
+
+```
+S(φ,z) = ((R1−a z) sin φ, b z + (R1−a z) cos φ, z)
+q = a − b cos φ
+w = sqrt(1 + q²)
+N(φ) = (sin φ, cos φ, q) / w
+```
+
+The normal is constant along each generator. Let `c = 0, ½, 1` for the chosen inner, mid or outer
+reference, and `d = 0, k, 1` for the desired inner, neutral or outer wall. Its signed normal offset is
+`δ = (d−c)t`. Trim every wall by the physical end planes `Z = 0, H`:
+
+```
+z_ref = Z − δ N_z
+P_d(φ,Z) = S(φ,z_ref) + δ N(φ)
+```
+
+This preserves perpendicular thickness `t` exactly in the geometric model, including the short and
+steep sides. Its end curves generally are not circles. Reported derived diameters are explicitly
+`perimeter / π`; they must not be read as caliper diameters. In an end plane, the separation of
+corresponding support lines is `t·w`, with range
+`t·sqrt(1 + max(0,a−b)²)` to `t·sqrt(1 + (a+b)²)`.
+
+### Development
+
+Put `ell = sqrt(1 + a² + b² − 2ab cos φ)`. Integrate the rotation of the generator in the plane:
+
+```
+θ′ = a w / ell²
+g₂ = (−cos θ, −sin θ)       unit direction along a generator
+v₂ = (−sin θ,  cos θ)       transverse unit direction
+B′ = (−R1 b sin φ / ell) g₂ + (R1 w / ell) v₂
+J′ = (ell / w²) v₂
+F_d(φ,Z) = B(φ) + (Z − δ N_z) ell g₂ + δ J(φ)
+```
+
+`B(0) = J(0) = 0`, `θ(0) = 0`. This is an isometric development of the regular parallel surface;
+it preserves generator lengths and the surface metric. It avoids enormous apex radii in nearly
+cylindrical cases. Simpson integration starts at 720 intervals and doubles up to 46080.
+The accepted grid must satisfy: successive coordinates and all six edge perimeters within 0.001 mm;
+midpoint chord deviation and total developed-edge length error within 0.01 mm; area convergence
+within `max(0.0001 mm², area·1e−10)`. These are numerical refinement targets, not a certified machining
+tolerance. Inputs that cannot produce a regular, converged surface are rejected.
+
+The neutral area, integrated over `φ`, is
+
+```
+A = ∫ H [(R1+R2)/2 · w + δ_n (a q + ell²/w²)] dφ,  0 ≤ φ ≤ 2π
+```
+
+The seam follows the shortest generator. Optional flat strips of width `f` add area `2 f g_min`.
+The extreme generator lengths are `g_min = sqrt(H² + ((D1−D2)/2−e)²)` and
+`g_max = sqrt(H² + ((D1−D2)/2+e)²)`. Thus Ø 2400 / 2200, H 1250, e 100 mm gives 1250.00 and
+1265.90 mm.
+
+The reference principal curvature radius is `(R1−a z_ref) w³ / ell²`; its parallel-wall value adds
+`δ`. The automatic constant `k` uses the smallest inner value across both ends. Offsets through a
+curvature singularity are rejected. Machine checks use the longest generator and the smaller of
+the equivalent small-end setting diameter and twice the minimum small-end inner curvature radius.
+Springback still uses an equivalent circular-section estimate. Geometry does not solve material
+deformation, local springback or machine axis positions.
+
+The offset definition follows the [constant-normal surface construction](https://occt3d.com/dev/doc/refman/html/class_geom___offset_surface.html).
+See also [parallel-surface curvature and singularities](https://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/node224.html).

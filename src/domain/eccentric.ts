@@ -1,24 +1,12 @@
 import { neutralFactor } from "./neutralAxis";
 import { surfaceDepth, type Surface } from "./types";
 
-/*
- * Eccentric (oblique) cone: two circular ends in parallel planes a height H apart, their centres
- * offset by e across the axis. With e = (D1 − D2) / 2 one generator runs straight across (flat side),
- * as in an eccentric reducer. Points at the same angle φ on both circles lie on one generator, and all
- * generators meet in the apex, so the surface is a cone and develops without stretching.
- *
- * Model frame: large end in z = 0 centred on the origin, small end in z = H centred on (0, e).
- * φ is measured from the +y direction (the offset side), where the generator is shortest.
- */
-
 export interface EccentricInput {
   thickness: number;
-  /** End diameters on the chosen surface [mm]. */
+  /** Circular ends on the selected reference surface, in parallel planes [mm]. */
   dLarge: number;
   dSmall: number;
-  /** Distance between the end planes [mm]. */
   height: number;
-  /** Offset between the end centres [mm]. */
   offset: number;
   surface: Surface;
   flatEnds: number;
@@ -26,192 +14,376 @@ export interface EccentricInput {
 }
 
 export type DevPt = [number, number];
+type Point3 = [number, number, number];
+
+export interface EccentricEnd {
+  /** Perimeter-equivalent diameters (C / pi). Offset end curves need not be circles. */
+  dInner: number;
+  dOuter: number;
+  dNeutral: number;
+  innerCurvatureMin: number;
+}
 
 export interface EccentricResult {
+  reference: EccentricInput;
+  thickness: number;
   k: number;
-  large: { dInner: number; dOuter: number; dNeutral: number };
-  small: { dInner: number; dOuter: number; dNeutral: number };
+  large: EccentricEnd;
+  small: EccentricEnd;
   height: number;
   offset: number;
-  /** Development outline, closed, with the bounding box starting at (0, 0) [mm]. */
   outline: DevPt[];
-  /** Generator lines on the development every 30°, for marking out; each from large to small end. */
+  /** Neutral edges before adding flat-end strips, in the same frame as the outline. */
+  net: { large: DevPt[]; small: DevPt[] };
   generators: { phi: number; a: DevPt; b: DevPt; length: number }[];
-  /** Shortest and longest generator between the ends, on the neutral surface [mm]. */
   slantMin: number;
   slantMax: number;
-  /** Developed edge lengths: large and small end, allowance excluded [mm]. */
   arcLarge: number;
   arcSmall: number;
   box: { width: number; height: number };
   area: number;
   flatEnd: number;
-  /** Largest angle between a generator and the axis [rad]. */
   alphaMax: number;
   rtMin: number;
   outerStrainMax: number;
+  /** Separation of end-plane support lines, not the normal wall thickness. */
+  endPlaneThickness: { min: number; max: number };
+  /** Numerical target for chord deviation and total developed-edge length error [mm]. */
+  tolerance: number;
 }
 
 export type EccentricError =
-  "thickness" | "dLarge" | "dSmall" | "height" | "offset" | "order" | "tooSmall";
+  "thickness" | "dLarge" | "dSmall" | "height" | "offset" | "order" | "tooSmall" | "resolution";
 
-// φ steps around the circles; the development is accurate far below 0.01 mm at this density.
-const STEPS = 1440;
+const TAU = 2 * Math.PI;
+const TOLERANCE = 0.01;
+const INITIAL_STEPS = 720;
+const MAX_STEPS = 46080;
+
+interface Geometry {
+  r1: number;
+  r2: number;
+  h: number;
+  a: number;
+  b: number;
+}
+
+function geometry(i: EccentricInput): Geometry {
+  return {
+    r1: i.dLarge / 2,
+    r2: i.dSmall / 2,
+    h: i.height,
+    a: (i.dLarge - i.dSmall) / (2 * i.height),
+    b: i.offset / i.height,
+  };
+}
+
+/** The outward normal is (sin(phi), cos(phi), q) / w and is constant on each ruling. */
+function frame(g: Geometry, phi: number) {
+  const sin = Math.sin(phi),
+    cos = Math.cos(phi);
+  const q = g.a - g.b * cos;
+  const w = Math.hypot(1, q);
+  const ell = Math.hypot(1, g.a * sin, g.b - g.a * cos);
+  return {
+    sin,
+    cos,
+    q,
+    w,
+    ell,
+    nz: q / w,
+    nzPrime: (g.b * sin) / w ** 3,
+    turn: (g.a * w) / ell ** 2,
+    normalTurn: ell / w ** 2,
+  };
+}
+
+function innerCurvature(g: Geometry, z: number, delta: number, phi: number): number {
+  const f = frame(g, phi);
+  const radius = g.r1 - g.a * (z - delta * f.nz);
+  return (radius * f.w ** 3) / f.ell ** 2 + delta;
+}
+
+/** Refine every sampled local minimum, including the limiting generators. */
+function minimumCurvature(g: Geometry, z: number, delta: number): number {
+  const count = 256,
+    step = Math.PI / count;
+  const value = (phi: number) => innerCurvature(g, z, delta, phi);
+  const values = Array.from({ length: count + 1 }, (_, i) => value(i * step));
+  let min = Math.min(...values);
+  for (let i = 1; i < count; i++) {
+    if (values[i]! > values[i - 1]! || values[i]! > values[i + 1]!) continue;
+    let left = (i - 1) * step,
+      right = (i + 1) * step;
+    for (let j = 0; j < 45; j++) {
+      const x = left + (right - left) / 3,
+        y = right - (right - left) / 3;
+      if (value(x) < value(y)) right = y;
+      else left = x;
+    }
+    min = Math.min(min, value((left + right) / 2));
+  }
+  return min;
+}
+
+interface Sweep {
+  large: DevPt[];
+  small: DevPt[];
+  angles: number[];
+  perimeters: number[][];
+  area: number;
+  valid: boolean;
+}
+
+/**
+ * Isometric development of the parallel neutral surface. The two end planes stay at z=0 and z=H.
+ * theta' rotates the ruling in the plane; base' develops the reference end; shift' develops n'.
+ * No apex radius is used, which also keeps nearly cylindrical cones numerically stable.
+ */
+function sweep(g: Geometry, deltas: number[], steps: number): Sweep {
+  const neutral = deltas[1]!;
+  const result: Sweep = {
+    large: [],
+    small: [],
+    angles: [],
+    perimeters: deltas.map(() => [0, 0]),
+    area: 0,
+    valid: true,
+  };
+  let theta = 0;
+  const base: DevPt = [0, 0],
+    shift: DevPt = [0, 0];
+  const evaluate = (phi: number) => {
+    const f = frame(g, phi);
+    const speeds = deltas.map((delta) =>
+      [0, g.h].map((z) => {
+        const radius = g.r1 - g.a * (z - delta * f.nz);
+        const principal = (radius * f.w ** 3) / f.ell ** 2 + delta;
+        if (radius < -1e-8 || principal < -1e-8) result.valid = false;
+        const along = (-radius * g.b * f.sin) / f.ell - delta * f.nzPrime * f.ell;
+        const across = (radius * f.w) / f.ell + delta * f.normalTurn;
+        return Math.hypot(along, across);
+      }),
+    );
+    const area = g.h * (((g.r1 + g.r2) / 2) * f.w + neutral * (g.a * f.q + f.ell ** 2 / f.w ** 2));
+    return { ...f, speeds, area };
+  };
+  const derivative = (f: ReturnType<typeof evaluate>, angle: number) => {
+    const cos = Math.cos(angle),
+      sin = Math.sin(angle);
+    const along = (-g.r1 * g.b * f.sin) / f.ell,
+      across = (g.r1 * f.w) / f.ell;
+    return [
+      -along * cos - across * sin,
+      -along * sin + across * cos,
+      -f.normalTurn * sin,
+      f.normalTurn * cos,
+    ];
+  };
+  const push = (f: ReturnType<typeof evaluate>) => {
+    const at = (z: number): DevPt => {
+      const along = (z - neutral * f.nz) * f.ell;
+      return [
+        base[0] - along * Math.cos(theta) + neutral * shift[0],
+        base[1] - along * Math.sin(theta) + neutral * shift[1],
+      ];
+    };
+    result.large.push(at(0));
+    result.small.push(at(g.h));
+    result.angles.push(theta);
+  };
+  const h = TAU / steps;
+  let start = evaluate(0);
+  push(start);
+  for (let i = 0; i < steps; i++) {
+    const mid = evaluate((i + 0.5) * h),
+      end = evaluate((i + 1) * h);
+    const quarter = frame(g, (i + 0.25) * h);
+    const middleAngle = theta + (h / 12) * (start.turn + 4 * quarter.turn + mid.turn);
+    const endAngle = theta + (h / 6) * (start.turn + 4 * mid.turn + end.turn);
+    const a = derivative(start, theta),
+      b = derivative(mid, middleAngle),
+      c = derivative(end, endAngle);
+    base[0] += (h / 6) * (a[0]! + 4 * b[0]! + c[0]!);
+    base[1] += (h / 6) * (a[1]! + 4 * b[1]! + c[1]!);
+    shift[0] += (h / 6) * (a[2]! + 4 * b[2]! + c[2]!);
+    shift[1] += (h / 6) * (a[3]! + 4 * b[3]! + c[3]!);
+    result.area += (h / 6) * (start.area + 4 * mid.area + end.area);
+    deltas.forEach((_, j) =>
+      [0, 1].forEach((k) => {
+        result.perimeters[j]![k]! +=
+          (h / 6) * (start.speeds[j]![k]! + 4 * mid.speeds[j]![k]! + end.speeds[j]![k]!);
+      }),
+    );
+    theta = endAngle;
+    push(end);
+    start = end;
+  }
+  return result;
+}
+
+function edgeLength(points: DevPt[]): number {
+  return points
+    .slice(1)
+    .reduce((sum, p, i) => sum + Math.hypot(p[0] - points[i]![0], p[1] - points[i]![1]), 0);
+}
+
+function converged(previous: Sweep, next: Sweep): boolean {
+  if (!next.valid || !Number.isFinite(next.area)) return false;
+  if (Math.abs(next.area - previous.area) > Math.max(1e-4, Math.abs(next.area) * 1e-10))
+    return false;
+  for (let j = 0; j < next.perimeters.length; j++)
+    for (let i = 0; i < 2; i++)
+      if (Math.abs(next.perimeters[j]![i]! - previous.perimeters[j]![i]!) > TOLERANCE / 10)
+        return false;
+  for (const key of ["large", "small"] as const) {
+    const points = next[key];
+    for (let i = 0; i < previous[key].length; i++) {
+      const old = previous[key][i]!,
+        current = points[2 * i]!;
+      if (Math.hypot(old[0] - current[0], old[1] - current[1]) > TOLERANCE / 10) return false;
+      if (i + 1 < previous[key].length) {
+        const mid = points[2 * i + 1]!,
+          end = points[2 * i + 2]!;
+        if (
+          Math.hypot(mid[0] - (current[0] + end[0]) / 2, mid[1] - (current[1] + end[1]) / 2) >
+          TOLERANCE
+        )
+          return false;
+      }
+    }
+  }
+  return (
+    Math.abs(edgeLength(next.large) - next.perimeters[1]![0]!) <= TOLERANCE &&
+    Math.abs(edgeLength(next.small) - next.perimeters[1]![1]!) <= TOLERANCE
+  );
+}
 
 export function solveEccentric(input: EccentricInput): EccentricResult | EccentricError {
   const { thickness: t, dLarge, dSmall, height: H, offset: e } = input;
-  if (!(t > 0)) return "thickness";
-  if (!(dLarge > 0)) return "dLarge";
-  if (!(dSmall >= 0)) return "dSmall";
-  if (!(H > 0)) return "height";
+  if (!Number.isFinite(t) || !(t > 0)) return "thickness";
+  if (!Number.isFinite(dLarge) || !(dLarge > 0)) return "dLarge";
+  if (!Number.isFinite(dSmall) || !(dSmall >= 0)) return "dSmall";
+  if (!Number.isFinite(H) || !(H > 0)) return "height";
   if (!Number.isFinite(e) || e < 0) return "offset";
   if (!(dLarge > dSmall)) return "order";
-
-  // Thickness is normal to the wall; across an end plane it spans about t / cos α of the mean slope.
-  const alphaMean = Math.atan((dLarge - dSmall) / 2 / H);
-  const radialT = t / Math.cos(alphaMean);
-  const depth = surfaceDepth[input.surface];
-  const largeIn = dLarge - 2 * depth * radialT;
-  const smallIn = dSmall - 2 * depth * radialT;
-  if (!(largeIn > 0) || smallIn < -1e-9) return "tooSmall";
-  const k = input.kOverride ?? neutralFactor((largeIn + smallIn) / 4 / Math.cos(alphaMean), t);
-  const end = (dIn: number) => ({
-    dInner: Math.max(0, dIn),
-    dOuter: dIn + 2 * radialT,
-    dNeutral: Math.max(0, dIn + 2 * k * radialT),
-  });
-  const large = end(largeIn),
-    small = end(smallIn);
-  const R1 = large.dNeutral / 2,
-    R2 = small.dNeutral / 2;
-
-  // Apex: the homothety centre that maps the large circle onto the small one.
-  const s = R1 / (R1 - R2);
-  const apex = [0, e * s, H * s] as const;
-  const rel = (phi: number) => {
-    const x = R1 * Math.sin(phi) - apex[0],
-      y = R1 * Math.cos(phi) - apex[1],
-      z = -apex[2];
-    return [x, y, z] as const;
-  };
-  const rho = (phi: number) => Math.hypot(...rel(phi));
-  // Developed angle grows with the part of the base tangent that is square to the generator.
-  const dTheta = (phi: number) => {
-    const [x, y, z] = rel(phi);
-    const tx = R1 * Math.cos(phi),
-      ty = -R1 * Math.sin(phi);
-    const cx = -z * ty,
-      cy = z * tx,
-      cz = x * ty - y * tx;
-    return Math.hypot(cx, cy, cz) / (x * x + y * y + z * z);
-  };
-
-  const h = (2 * Math.PI) / STEPS;
-  const ratio = R2 / R1;
-  const outer: DevPt[] = [],
-    inner: DevPt[] = [];
-  const thetas: number[] = [];
-  let theta = 0,
-    area = 0,
-    prevF = dTheta(0);
-  for (let i = 0; i <= STEPS; i++) {
-    const phi = i * h;
-    if (i > 0) {
-      // Simpson on each step, with the midpoint.
-      const fm = dTheta(phi - h / 2),
-        f1 = dTheta(phi);
-      const dth = (h / 6) * (prevF + 4 * fm + f1);
-      const rm = rho(phi - h / 2);
-      area += 0.5 * rm * rm * (1 - ratio * ratio) * dth;
-      theta += dth;
-      prevF = f1;
+  const g = geometry(input),
+    depth = surfaceDepth[input.surface];
+  const innerDelta = -depth * t;
+  const largeMin = minimumCurvature(g, 0, innerDelta),
+    smallMin = minimumCurvature(g, H, innerDelta);
+  const minRadius = Math.min(largeMin, smallMin);
+  if (minRadius < -1e-8) return "tooSmall";
+  const k = input.kOverride ?? neutralFactor(Math.max(0, minRadius), t);
+  if (!(k > 0 && k <= 1)) return "thickness";
+  const deltas = [innerDelta, (k - depth) * t, (1 - depth) * t];
+  let steps = INITIAL_STEPS,
+    current = sweep(g, deltas, steps);
+  if (!current.valid) return "tooSmall";
+  while (true) {
+    const next = sweep(g, deltas, steps * 2);
+    if (!next.valid) return "tooSmall";
+    steps *= 2;
+    if (converged(current, next)) {
+      current = next;
+      break;
     }
-    thetas.push(theta);
-    const r = rho(phi);
-    outer.push([r * Math.cos(theta), r * Math.sin(theta)]);
-    inner.push([r * ratio * Math.cos(theta), r * ratio * Math.sin(theta)]);
+    if (steps >= MAX_STEPS) return "resolution";
+    current = next;
   }
-  const total = theta;
-  if (!(total < 2 * Math.PI)) return "tooSmall";
-
-  // Flat-end allowance: a strip of width f beyond each seam generator.
-  const f = Math.max(0, input.flatEnds);
-  const shift = (p: DevPt, th: number, sign: number): DevPt => [
-    p[0] - sign * f * Math.sin(th),
-    p[1] + sign * f * Math.cos(th),
+  const total = current.angles[steps]!;
+  if (!(total > 0 && total < TAU)) return "tooSmall";
+  const f = Math.max(0, input.flatEnds),
+    outer = current.large,
+    inner = current.small;
+  const shift = (p: DevPt, angle: number, sign: number): DevPt => [
+    p[0] - sign * f * Math.sin(angle),
+    p[1] + sign * f * Math.cos(angle),
   ];
   const ring: DevPt[] = [];
   if (f > 0) ring.push(shift(inner[0]!, 0, -1), shift(outer[0]!, 0, -1));
   ring.push(...outer);
-  if (f > 0) ring.push(shift(outer[STEPS]!, total, 1), shift(inner[STEPS]!, total, 1));
+  if (f > 0) ring.push(shift(outer[steps]!, total, 1), shift(inner[steps]!, total, 1));
   ring.push(...inner.slice().reverse());
-
-  // Turn the development to open upwards, symmetric about the vertical, then move it to (0, 0).
-  const turn = Math.PI / 2 - total / 2;
-  const c = Math.cos(turn),
+  const turn = Math.PI / 2 - total / 2,
+    c = Math.cos(turn),
     sn = Math.sin(turn);
-  const rot = ([x, y]: DevPt): DevPt => [x * c - y * sn, x * sn + y * c];
-  const turned = ring.map(rot);
-  const minX = Math.min(...turned.map((p) => p[0])),
-    minY = Math.min(...turned.map((p) => p[1]));
+  const rotate = ([x, y]: DevPt): DevPt => [x * c - y * sn, x * sn + y * c];
+  const rotated = ring.map(rotate);
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const [x, y] of rotated) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
   const place = (p: DevPt): DevPt => {
-    const [x, y] = rot(p);
+    const [x, y] = rotate(p);
     return [x - minX, y - minY];
   };
-  const outline = turned.map(([x, y]): DevPt => [x - minX, y - minY]);
-
-  const generators: EccentricResult["generators"] = [];
-  for (let deg = 0; deg <= 360; deg += 30) {
-    const i = Math.round((deg / 360) * STEPS);
-    const r = rho(i * h);
-    generators.push({
-      phi: (deg * Math.PI) / 180,
-      a: place(outer[i]!),
-      b: place(inner[i]!),
-      length: r * (1 - ratio),
-    });
-  }
-  let slantMin = Infinity,
-    slantMax = 0;
-  for (let i = 0; i < STEPS; i++) {
-    const g = rho(i * h) * (1 - ratio);
-    slantMin = Math.min(slantMin, g);
-    slantMax = Math.max(slantMax, g);
-  }
-  const xs = outline.map((p) => p[0]),
-    ys = outline.map((p) => p[1]);
-  // Generators meet the axis direction at most where they lean the furthest.
-  const alphaMax = Math.acos(H / slantMax);
-  const smallPrincipal = Math.max(0, small.dInner) / 2;
+  const net = { large: outer.map(place), small: inner.map(place) };
+  const generators = Array.from({ length: 13 }, (_, j) => {
+    const i = (j * steps) / 12,
+      phi = (j * TAU) / 12;
+    return { phi, a: net.large[i]!, b: net.small[i]!, length: H * frame(g, phi).ell };
+  });
+  const slantMin = Math.hypot(H, (dLarge - dSmall) / 2 - e);
+  const slantMax = Math.hypot(H, (dLarge - dSmall) / 2 + e);
+  const end = (j: number, radius: number): EccentricEnd => ({
+    dInner: current.perimeters[0]![j]! / Math.PI,
+    dNeutral: current.perimeters[1]![j]! / Math.PI,
+    dOuter: current.perimeters[2]![j]! / Math.PI,
+    innerCurvatureMin: radius,
+  });
   return {
+    reference: { ...input },
+    thickness: t,
     k,
-    large,
-    small,
+    large: end(0, largeMin),
+    small: end(1, smallMin),
     height: H,
     offset: e,
-    outline,
+    outline: rotated.map(([x, y]) => [x - minX, y - minY]),
+    net,
     generators,
     slantMin,
     slantMax,
-    arcLarge: Math.PI * large.dNeutral,
-    arcSmall: Math.PI * small.dNeutral,
-    box: { width: Math.max(...xs), height: Math.max(...ys) },
-    area: area + f * (generators[0]!.length + generators[generators.length - 1]!.length),
+    arcLarge: current.perimeters[1]![0]!,
+    arcSmall: current.perimeters[1]![1]!,
+    box: { width: maxX - minX, height: maxY - minY },
+    area: current.area + 2 * f * slantMin,
     flatEnd: f,
-    alphaMax,
-    rtMin: smallPrincipal / t,
-    outerStrainMax: t / (2 * smallPrincipal + t),
+    alphaMax: Math.acos(H / slantMax),
+    rtMin: Math.max(0, minRadius) / t,
+    outerStrainMax: t / (2 * Math.max(0, minRadius) + t),
+    endPlaneThickness: {
+      min: t * Math.hypot(1, Math.max(0, g.a - g.b)),
+      max: t * Math.hypot(1, g.a + g.b),
+    },
+    tolerance: TOLERANCE,
   };
 }
 
-/** Point of the neutral surface at angle φ and share u of the way from the large to the small end. */
+/** Parallel wall surface, trimmed by the physical end planes (u=0 and u=1). */
 export function eccentricPoint(
   r: EccentricResult,
   phi: number,
   u: number,
-): [number, number, number] {
-  const R1 = r.large.dNeutral / 2,
-    R2 = r.small.dNeutral / 2;
-  const R = R1 + (R2 - R1) * u;
-  return [R * Math.sin(phi), r.offset * u + R * Math.cos(phi), r.height * u];
+  surface: Surface | "neutral" = "neutral",
+): Point3 {
+  const g = geometry(r.reference),
+    f = frame(g, phi);
+  const depth = surface === "neutral" ? r.k : surfaceDepth[surface];
+  const delta = (depth - surfaceDepth[r.reference.surface]) * r.thickness;
+  const z = u * r.height,
+    referenceZ = z - delta * f.nz;
+  const radius = g.r1 - g.a * referenceZ;
+  return [
+    radius * f.sin + (delta * f.sin) / f.w,
+    g.b * referenceZ + radius * f.cos + (delta * f.cos) / f.w,
+    z,
+  ];
 }

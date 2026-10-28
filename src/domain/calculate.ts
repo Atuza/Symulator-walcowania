@@ -309,8 +309,9 @@ function calcEccentric(input: Extract<CalcInput, { shape: "eccentric" }>): CalcO
   const result = solveEccentric(input.eccentric);
   if (typeof result === "string") return { error: result };
   const t = input.eccentric.thickness;
+  // Springback remains an indicative circular-section estimate, separate from exact wall geometry.
   const cos = Math.cos(
-    Math.atan((result.large.dNeutral - result.small.dNeutral) / 2 / result.height),
+    Math.atan((input.eccentric.dLarge - input.eccentric.dSmall) / 2 / result.height),
   );
   const setLarge = setPoint(input, result.large.dNeutral / 2 / cos, t, result.k, cos);
   const setSmall =
@@ -324,7 +325,10 @@ function calcEccentric(input: Extract<CalcInput, { shape: "eccentric" }>): CalcO
   const mc = input.machine;
   if (mc.maxWidth !== null && result.slantMax > mc.maxWidth)
     w.push({ code: "machineWidth", severity: "warn", values: { max: mc.maxWidth } });
-  const dSetSmall = rollingDiameter(result.small.dInner, setSmall);
+  const dSetSmall = Math.min(
+    rollingDiameter(result.small.dInner, setSmall),
+    2 * result.small.innerCurvatureMin,
+  );
   machineDiameterWarnings(mc, dSetSmall, w);
   diameterRatioWarning(dSetSmall, t, w);
   coneCapacityWarning(input, t, result.slantMax, dSetSmall, w);

@@ -7,7 +7,7 @@ import { getLang, num, percent, t, type Key } from "../i18n";
 import { paramDoc, type DocId, type ParamDoc } from "../i18n/docs";
 import { geometryDoc, referenceShapes } from "../i18n/geometry";
 import { SHAPE_FIELDS } from "../domain/shapes";
-import type { Inputs } from "../state/inputs";
+import { isConeShape, type Inputs } from "../state/inputs";
 import { shapeIcon } from "./shapeIcons";
 import { mathElement } from "./math";
 import {
@@ -210,7 +210,7 @@ export class Editor {
         h("h3", { class: "editor-subtitle" }, t("field.surface")),
         referenceBlock(geometryDoc("surface")),
       ),
-      ...(shape === "cone"
+      ...(isConeShape(shape)
         ? []
         : [
             h(
@@ -1523,22 +1523,21 @@ function withDoc(field: HTMLElement, doc?: DocId): HTMLElement {
 function describeTemplate(tpl: Template): string {
   const i = tpl.inputs;
   const shape = t(`shape.${i.shape}` as Key);
-  const main =
-    i.shape === "cone"
-      ? `Ø ${i.dLarge} / ${i.dSmall} · H ${i.height}${i.offset ? ` · e ${i.offset}` : ""}`
-      : i.shape === "cylinder"
-        ? i.mode === "fromDiameter"
-          ? `${i.dimension === "radius" ? "R" : "Ø"} ${i.value}`
-          : `L ${i.length}`
-        : i.shape === "free"
-          ? i.freeSegs.replace(/_/g, " · ")
-          : SHAPE_FIELDS[i.shape]
-              .map((f) => {
-                if (i.shape === "halfround" && f === "r")
-                  return `${i.dimension === "radius" ? "R" : "Ø"} ${i.value}`;
-                return `${f === "angle" ? "θ" : f.toUpperCase()} ${{ a: i.sizeA, b: i.sizeB, r: i.sizeR, angle: i.angle }[f]}${f === "angle" ? "°" : ""}`;
-              })
-              .join(" · ");
+  const main = isConeShape(i.shape)
+    ? `Ø ${i.dLarge} / ${i.dSmall} · H ${i.height}${i.offset ? ` · e ${i.offset}` : ""}`
+    : i.shape === "cylinder"
+      ? i.mode === "fromDiameter"
+        ? `${i.dimension === "radius" ? "R" : "Ø"} ${i.value}`
+        : `L ${i.length}`
+      : i.shape === "free"
+        ? i.freeSegs.replace(/_/g, " · ")
+        : SHAPE_FIELDS[i.shape]
+            .map((f) => {
+              if (i.shape === "halfround" && f === "r")
+                return `${i.dimension === "radius" ? "R" : "Ø"} ${i.value}`;
+              return `${f === "angle" ? "θ" : f.toUpperCase()} ${{ a: i.sizeA, b: i.sizeB, r: i.sizeR, angle: i.angle }[f]}${f === "angle" ? "°" : ""}`;
+            })
+            .join(" · ");
   return `${shape} · t ${i.thickness} · ${main}`;
 }
 

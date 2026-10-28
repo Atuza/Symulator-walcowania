@@ -4,7 +4,7 @@ Plate rolling calculator for 4-roll plate bending machines: blank length, diamet
 3D rolling preview, 2D drawing, PDF report and DXF cut contour. Runs entirely in the browser, works
 offline once loaded, stores nothing outside the device.
 
-**Version:** 1.1.0
+**Version:** 1.1.1
 
 **App:** https://atuza.github.io/Symulator-walcowania/
 
@@ -14,19 +14,19 @@ Sizes use the selected inner, mid or outer surface. Mid means half the thickness
 fibre only when `k = 0.5`. Plate width is the length along the rolls, not the developed blank length.
 Dimensions are in mm and angles in degrees.
 
-| Shape          | Dimensions                                                                |
-| -------------- | ------------------------------------------------------------------------- |
-| Cylinder       | Inner/mid/outer Ø or R to blank length; reverse blank-length-to-Ø mode    |
-| Cone           | Large and small end Ø, axial height H; offset e = 0 for a concentric cone |
-| Eccentric cone | The same cone inputs with e > 0; Flat side sets e = (D1 - D2)/2           |
-| Half round     | Ø or R and arc angle strictly between 0° and 360°                         |
-| U shape        | Overall width A and straight length B of each leg                         |
-| Obround        | Overall length A and width B, A ≥ B                                       |
-| Rectangle      | Overall sides A and B, corner radius R                                    |
-| Tank           | Four-tangent-arc oval: overall width A, height B, side radius R           |
-| Bucket         | Straight back A, bend radius R, turning angle, straight bottom B          |
-| Ellipse        | Full horizontal and vertical axes A and B                                 |
-| Free           | Ordered list of straight lengths and arcs with signed turning angles      |
+| Shape          | Dimensions                                                                          |
+| -------------- | ----------------------------------------------------------------------------------- |
+| Cylinder       | Inner/mid/outer Ø or R to blank length; reverse blank-length-to-Ø mode              |
+| Cone           | Large and small end Ø, axial height H; concentric circular ends                     |
+| Eccentric cone | Separate tile: both Ø, height H and centre offset e; Flat side sets e = (D1 - D2)/2 |
+| Half round     | Ø or R and arc angle strictly between 0° and 360°                                   |
+| U shape        | Overall width A and straight length B of each leg                                   |
+| Obround        | Overall length A and width B, A ≥ B                                                 |
+| Rectangle      | Overall sides A and B, corner radius R                                              |
+| Tank           | Four-tangent-arc oval: overall width A, height B, side radius R                     |
+| Bucket         | Straight back A, bend radius R, turning angle, straight bottom B                    |
+| Ellipse        | Full horizontal and vertical axes A and B                                           |
+| Free           | Ordered list of straight lengths and arcs with signed turning angles                |
 
 Concentric cones develop to an annular sector. Eccentric cones use a numerical contour and list
 generator lengths every 30° from the shortest. Other shapes share a straight-and-arc profile engine,
@@ -37,6 +37,8 @@ close only when their ends meet and the total turn is ±360°.
 
 - Cylinder: target Ø or R on the inner or outer surface → blank length, or blank length → Ø.
 - Cone: large Ø, small Ø and axial height → annular sector development (R1, R2, angle, plate size).
+- Eccentric cone: constant normal wall thickness, parallel neutral-surface development and
+  generator table; numerical refinement targets 0.01 mm for contour and edge lengths.
 - Neutral axis from R/t (DIN 6935), optional flat-end allowance, mass.
 - Springback estimate with the machine set diameter; certificate Re and a calibration factor improve it.
 - Material database: structural, high-strength, pressure vessel, stainless and aluminium grades (EN standards).
@@ -89,7 +91,7 @@ docs/         formulas, architecture, decisions
 ```
 
 See [formulas](docs/formulas.md), [architecture](docs/architecture.md) and the
-[1.1.0 release record](docs/releases/1.1.0.md).
+[1.1.1 release record](docs/releases/1.1.1.md).
 
 ## Accuracy
 
@@ -101,10 +103,13 @@ The 3D preview illustrates geometry and rolling progress. It does not calculate 
 tool collisions or material deformation. Tight profiles can intersect the illustrated rolls even
 when warnings are present. Cones show the plate without the machine or tilted rolls.
 
-Eccentric-cone thickness conversion uses the mean wall slope and is an approximation. Ellipses are
-drawn as 256 short arcs while their inner perimeter is integrated numerically. Free-profile closure
-does not detect self-intersections. Oblique end cuts, splitting a blank into several pieces and a
-machine-program editor are outside this release.
+Eccentric-cone geometry offsets each wall along its local normal. Circular end diameters belong to
+the selected reference surface; other offset surfaces generally have non-circular end curves, reported
+as equivalent diameters (perimeter / π). The numerical development has a 0.01 mm refinement target;
+the material neutral factor and circular-section springback estimate still require process calibration.
+Ellipses are drawn as 256 short arcs while their inner perimeter is integrated numerically.
+Free-profile closure does not detect self-intersections. Oblique end cuts, splitting a blank into
+several pieces and the v1.2 machine-program editor remain outside this release.
 
 ## Licence
 

@@ -4,7 +4,7 @@ import { getLang, type Lang } from ".";
 import type { ParamDoc } from "./docs";
 
 type Shape = Inputs["shape"];
-export const referenceShapes: Shape[] = ["cylinder", "cone", ...PROFILE_SHAPES];
+export const referenceShapes: Shape[] = ["cylinder", "cone", "eccentric", ...PROFILE_SHAPES];
 
 const pl: Record<Shape | "surface" | "width", ParamDoc> = {
   surface: {
@@ -12,7 +12,7 @@ const pl: Record<Shape | "surface" | "width", ParamDoc> = {
     effect:
       "Zmienia przeliczenie podanych wymiarów na powierzchnię wewnętrzną. Rozwinięcie jest zawsze liczone po osi obojętnej. Długości prostych odcinków i kąty pozostają bez zmian.",
     range:
-      "Wszystkie wymiary w mm, kąty w stopniach. Po odjęciu grubości promień wewnętrzny musi pozostać dodatni. Dla stożka przeliczenie uwzględnia pochylenie ścianki.",
+      "Wszystkie wymiary w mm, kąty w stopniach. Po odjęciu grubości promień wewnętrzny musi pozostać dodatni. Poniższe wzory dotyczą przekrojów płaskich. Stożki uwzględniają pochylenie ścianki; stożek mimośrodowy używa lokalnej normalnej, opisanej przy jego kształcie.",
     formula: ["r_i = r - c \\cdot t", "A_i = A - 2 c \\cdot t", "r_n = r_i + k \\cdot t"],
     symbols: [
       ["c", "0 dla strony wewnętrznej, 0,5 dla środkowej, 1 dla zewnętrznej"],
@@ -56,16 +56,32 @@ const pl: Record<Shape | "surface" | "width", ParamDoc> = {
     example: "Wewnętrzne Ø 1000, t = 10, k = 0,5, bez naddatku: L = π · 1010 = 3173,01 mm.",
   },
   cone: {
+    what: "Stożek współosiowy ma środki obu okrągłych końców na jednej osi. D1 i D2 to średnice na wybranej powierzchni; H jest wysokością osiową, a nie długością tworzącej.",
+    effect:
+      "Rozwinięcie jest wycinkiem pierścienia. Aplikacja podaje jego promienie R1/R2, kąt, długości łuków, tworzącą i potrzebny arkusz. Dla przesuniętych osi wybierz osobny kafelek „Stożek mimośrodowy”.",
+    range:
+      "D1 > D2 ≥ 0, H > 0, t > 0. Wymiary po przeliczeniu na stronę wewnętrzną muszą pozostać poprawne. D2 = 0 oznacza wierzchołek.",
+    formula: ["g = \\sqrt{H^2 + ((D_1-D_2)/2)^2}"],
+    symbols: [
+      ["D_1", "większa średnica"],
+      ["D_2", "mniejsza średnica"],
+      ["H", "wysokość osiowa"],
+      ["g", "długość tworzącej"],
+    ],
+    tip: "Grubość jest mierzona prostopadle do ścianki, więc przy przeliczaniu średnic uwzględniamy jej pochylenie. Sprężynowanie jest szacunkiem modelu materiałowego.",
+  },
+  eccentric: {
     what: "Ø większa D1 i Ø mniejsza D2 są mierzone w równoległych płaszczyznach końców. H to odległość tych płaszczyzn wzdłuż osi, nie długość tworzącej. Przesunięcie e jest odległością środków okręgów: 0 daje stożek współosiowy, wartość dodatnia stożek mimośrodowy.",
     effect:
-      "Współosiowy rozwija się w wycinek pierścienia. Mimośrodowy ma obrys liczony numerycznie i różne długości tworzących; podane są co 30°, od najkrótszej. Przycisk „Płaski bok” ustawia e = (D1 − D2)/2. Szerokość roboczą maszyny sprawdzamy według najdłuższej tworzącej.",
+      "Każda powierzchnia jest odsunięta wzdłuż lokalnej normalnej, więc grubość prostopadła do ścianki jest stała na całym obwodzie. Rozwijana jest powierzchnia obojętna na głębokości k·t. Tworzące są podane co 30°, od najkrótszej. „Płaski bok” ustawia e = (D1 − D2)/2.",
     range:
-      "D1 > D2 ≥ 0, H > 0, t > 0, e ≥ 0. Po przeliczeniu wybranej strony średnice wewnętrzne nie mogą być ujemne. D2 = 0 oznacza wierzchołek i wymaga szczególnej kontroli wykonalności.",
+      "D1 > D2 ≥ 0, H > 0, t > 0, e ≥ 0. Odsunięcie do wewnątrz nie może przekroczyć lokalnego promienia krzywizny. D2 = 0 oznacza wierzchołek i wymaga szczególnej kontroli wykonalności.",
     formula: [
       "d = \\frac{D_1 - D_2}{2}",
       "g_{min} = \\sqrt{H^2 + (d - e)^2}",
       "g_{max} = \\sqrt{H^2 + (d + e)^2}",
       "e_{flat} = d",
+      "P_n = P + (k-c) t N",
     ],
     symbols: [
       ["D_1", "większa średnica na wybranej powierzchni"],
@@ -74,10 +90,19 @@ const pl: Record<Shape | "surface" | "width", ParamDoc> = {
       ["e", "przesunięcie środków"],
       ["g_{min}", "najkrótsza tworząca"],
       ["g_{max}", "najdłuższa tworząca"],
+      ["P", "punkt powierzchni, na której podajesz średnice"],
+      ["P_n", "punkt powierzchni obojętnej"],
+      ["N", "lokalny jednostkowy wektor prostopadły do ścianki"],
+      [
+        "k",
+        "położenie osi obojętnej; automatycznie z najmniejszego wewnętrznego promienia krzywizny lub ręcznie",
+      ],
+      ["c", "głębokość wybranej strony: 0 wewnętrzna, 0,5 środkowa, 1 zewnętrzna"],
+      ["t", "stała grubość normalna"],
     ],
     example:
       "Ø 2400 / 2200, H = 1250, e = 100 mm: płaski bok 1250,00 mm, najdłuższa tworząca 1265,90 mm.",
-    tip: "Dla stożka mimośrodowego przeliczenie grubości na średnice używa średniego pochylenia ścianki. Jest przybliżeniem; rozwinięcie trzeba sprawdzić na detalu próbnym. 3D pokazuje blachę, bez nastaw i pochylenia walców. Nie ma tu skośnego ścięcia końców ani podziału na kilka arkuszy.",
+    tip: "Okrągłe końce definiujesz na wybranej powierzchni. Końce pozostałych odsuniętych powierzchni mogą być krzywymi; ich średnice zastępcze w wynikach oznaczają obwód/π. Rozstaw ścian w rzucie czołowym może się zmieniać, mimo stałej grubości normalnej t. Rozwinięcie jest zagęszczane do celu 0,01 mm dla obrysu i długości krawędzi. Sprężynowanie pozostaje szacunkiem zastępczego przekroju kołowego; nie są to nastawy osi CNC.",
   },
   halfround: {
     what: "Otwarty łuk: Ø lub R określa krzywiznę po wybranej stronie, a kąt określa, jaka część obwodu ma zostać zwinięta. 180° daje półokrąg.",
@@ -216,7 +241,7 @@ const en: Record<keyof typeof pl, ParamDoc> = {
     effect:
       "Changes conversion of the entered dimensions to the inner surface. Development always follows the neutral fibre. Straight lengths and angles do not change.",
     range:
-      "Sizes in mm, angles in degrees. The inner radius must remain positive after thickness conversion. Cone conversion accounts for the wall slope.",
+      "Sizes in mm, angles in degrees. The inner radius must remain positive after thickness conversion. The formulas below apply to planar profiles. Cones account for wall slope; the eccentric cone uses local normals as described in its shape reference.",
     formula: pl.surface.formula,
     symbols: [
       ["c", "0 for inner, 0.5 for mid, 1 for outer"],
@@ -259,12 +284,27 @@ const en: Record<keyof typeof pl, ParamDoc> = {
     example: "Inner Ø 1000, t = 10, k = 0.5, no allowance: L = π · 1010 = 3173.01 mm.",
   },
   cone: {
+    what: "A concentric cone has the centres of both circular ends on one axis. D1 and D2 are diameters on the selected surface; H is axial height, not generator length.",
+    effect:
+      "The development is an annular sector. Results include radii R1/R2, sector angle, arc lengths, generator length and blank size. For offset centres use the separate Eccentric cone tile.",
+    range:
+      "D1 > D2 ≥ 0, H > 0, t > 0. Dimensions must remain valid after conversion to the inner surface. D2 = 0 is an apex.",
+    formula: pl.cone.formula,
+    symbols: [
+      ["D_1", "large diameter"],
+      ["D_2", "small diameter"],
+      ["H", "axial height"],
+      ["g", "generator length"],
+    ],
+    tip: "Thickness is normal to the wall, so diameter conversion accounts for its slope. Springback is a material-model estimate.",
+  },
+  eccentric: {
     what: "Large diameter D1 and small diameter D2 are measured in parallel end planes. H is their axial separation, not the generator length. Offset e is the distance between the end centres: 0 gives a concentric cone, a positive value an eccentric cone.",
     effect:
-      "A concentric cone develops to an annular sector. An eccentric cone has a numerical contour and varying generators, listed every 30° from the shortest. Flat side sets e = (D1 − D2)/2. Machine working width is checked against the longest generator.",
+      "Each surface is offset along its local normal, keeping perpendicular wall thickness constant around the entire circumference. The neutral surface at depth k·t is developed. Generators are listed every 30° from the shortest. Flat side sets e = (D1 − D2)/2.",
     range:
-      "D1 > D2 ≥ 0, H > 0, t > 0, e ≥ 0. Inner diameters must remain non-negative after surface conversion. D2 = 0 is an apex and needs special feasibility checks.",
-    formula: pl.cone.formula,
+      "D1 > D2 ≥ 0, H > 0, t > 0, e ≥ 0. An inward offset must not pass the local curvature radius. D2 = 0 is an apex and needs special feasibility checks.",
+    formula: pl.eccentric.formula,
     symbols: [
       ["D_1", "large diameter on the selected surface"],
       ["D_2", "small diameter on the same surface"],
@@ -272,10 +312,19 @@ const en: Record<keyof typeof pl, ParamDoc> = {
       ["e", "centre offset"],
       ["g_{min}", "shortest generator"],
       ["g_{max}", "longest generator"],
+      ["P", "point on the surface whose diameters are entered"],
+      ["P_n", "point on the neutral surface"],
+      ["N", "local outward unit normal to the wall"],
+      [
+        "k",
+        "neutral depth factor; automatic from the smallest inner curvature radius or entered manually",
+      ],
+      ["c", "selected depth: 0 inner, 0.5 mid, 1 outer"],
+      ["t", "constant normal thickness"],
     ],
     example:
       "Ø 2400 / 2200, H = 1250, e = 100 mm: flat side 1250.00 mm, longest generator 1265.90 mm.",
-    tip: "For eccentric cones, thickness-to-diameter conversion uses the mean wall slope. This is an approximation; check the development on a trial part. 3D shows the plate without roll settings or tilt. Oblique end cuts and splitting across several blanks are not included.",
+    tip: "Circular ends are defined on the selected surface. Ends of other offset surfaces may be curves; their equivalent diameters in the results mean perimeter/π. End-plane wall separation can vary while normal thickness t stays constant. Development is refined to a 0.01 mm target for contour and edge lengths. Springback remains an equivalent circular-section estimate, not CNC axis settings.",
   },
   halfround: {
     what: "An open arc: Ø or R sets curvature on the selected surface and the angle sets the rolled fraction of a circumference. 180° gives a half circle.",

@@ -10,7 +10,7 @@ import { yieldAt, type Material } from "../domain/materials/schema";
 import type { Key } from "../i18n";
 import type { ProcessConfig } from "./config";
 import { freeSegments } from "./freeShape";
-import { parseNumber, type Inputs, type TextField } from "./inputs";
+import { isConeShape, parseNumber, type Inputs, type TextField } from "./inputs";
 
 export interface Derived {
   inputs: Inputs;
@@ -35,6 +35,7 @@ const errorFields: Record<string, TextField> = {
   dSmall: "dSmall",
   height: "height",
   offset: "offset",
+  resolution: "height",
   order: "dSmall",
   tooFlat: "height",
   a: "sizeA",
@@ -136,7 +137,7 @@ export function derive(
               kOverride,
             },
           };
-  } else if (inputs.shape === "cone") {
+  } else if (isConeShape(inputs.shape)) {
     const cone = {
       thickness,
       dLarge: num("dLarge") ?? NaN,
@@ -156,9 +157,9 @@ export function derive(
         error: { key: "error.offset", field: "offset" },
       };
     const offset = parsedOffset ?? 0;
-    // A zero offset is the ordinary cone, which has a closed-form development.
+    // The concentric tile uses the closed form; the eccentric tile also supports its zero-offset limit.
     calc =
-      offset !== 0
+      inputs.shape === "eccentric" || offset !== 0
         ? { ...common, shape: "eccentric", eccentric: { ...cone, offset } }
         : { ...common, shape: "cone", cone };
   } else {

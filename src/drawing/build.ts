@@ -1,5 +1,6 @@
 import type { CalcOutput } from "../domain/calculate";
 import { num, t } from "../i18n";
+import { eccentricPoint } from "../domain/eccentric";
 import { surfaceDepth, type Surface } from "../domain/types";
 import { traceProfile } from "../domain/profile";
 import type { ProfileShape } from "../domain/shapes";
@@ -17,42 +18,42 @@ export function buildViews(out: CalcOutput, width: number | null, surface: Surfa
     : out.shape === "cone"
       ? coneViews(out, surface)
       : out.shape === "eccentric"
-        ? eccentricViews(out, surface)
+        ? eccentricViews(out)
         : profileViews(out, width, surface);
 }
 
 /** Side view as the part is usually drawn (offset shown by the slanted edge) and the development. */
-function eccentricViews(
-  out: Extract<CalcOutput, { shape: "eccentric" }>,
-  surface: Surface,
-): View[] {
+function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[] {
   const r = out.result;
   const e = r.offset,
     H = r.height;
-  const onSurface = (x: { dInner: number; dOuter: number }) =>
-    x.dInner + (x.dOuter - x.dInner) * surfaceDepth[surface];
-  const D1 = onSurface(r.large),
-    D2 = onSurface(r.small);
-  const R1o = r.large.dOuter / 2,
-    R2o = r.small.dOuter / 2;
+  const D1 = r.reference.dLarge,
+    D2 = r.reference.dSmall;
+  const sidePoints = (wall: "inner" | "outer") =>
+    [
+      [0, 1],
+      [0, 0],
+      [Math.PI, 0],
+      [Math.PI, 1],
+    ].map(([phi, u]) => {
+      const [, y, z] = eccentricPoint(r, phi!, u!, wall);
+      return [H - z, y] as const;
+    });
+  const top = Math.max(...sidePoints("outer").map((p) => p[1]));
 
   // Small end on the left, large end on the right; y up, offset towards +y.
   const side: Prim[] = [
     {
       kind: "path",
-      pts: [
-        [0, e + R2o],
-        [H, R1o],
-        [H, -R1o],
-        [0, e - R2o],
-      ],
+      pts: sidePoints("outer"),
       closed: true,
       stroke: "part",
     },
+    { kind: "path", pts: sidePoints("inner"), closed: true, stroke: "thin" },
     {
       kind: "dim",
-      a: [0, e + R2o],
-      b: [H, e + R2o],
+      a: [0, top],
+      b: [H, top],
       offsetModel: 0,
       offsetScreen: GAP,
       label: mm(H),
@@ -107,9 +108,7 @@ function eccentricViews(
     {
       title: t("result.sideView"),
       prims: side,
-      notes: [
-        `t = ${mm(((r.large.dOuter - r.large.dInner) / 2) * Math.cos(Math.atan((r.large.dNeutral - r.small.dNeutral) / 2 / H)))} ${t("unit.mm")} · e = ${mm(e)} ${t("unit.mm")}`,
-      ],
+      notes: [`t = ${mm(r.thickness)} ${t("unit.mm")} · e = ${mm(e)} ${t("unit.mm")}`],
     },
     { title: t("result.development"), prims: dev, notes: devNotes },
   ];

@@ -139,7 +139,21 @@ export class App {
    */
   private fitShapeSizes() {
     const shape = this.inputs.shape;
-    if (shape === "cylinder" || shape === "cone") return;
+    if (shape === "cylinder") return;
+    if (shape === "cone") {
+      this.inputs = { ...this.inputs, offset: "" };
+      return;
+    }
+    if (shape === "eccentric") {
+      if ((parseNumber(this.inputs.offset) ?? 0) <= 0) {
+        const large = parseNumber(this.inputs.dLarge),
+          small = parseNumber(this.inputs.dSmall);
+        const offset =
+          large !== null && small !== null && large > small ? (large - small) / 2 : 100;
+        this.inputs = { ...this.inputs, offset: String(offset) };
+      }
+      return;
+    }
     this.inputs = { ...this.inputs, ...shapeDefaults[shape] };
   }
 
@@ -391,7 +405,7 @@ export class App {
       );
     } else if (i.shape === "cylinder") {
       geo.append(this.numberField("length", t("field.length"), t("unit.mm"), undefined, true));
-    } else if (i.shape === "cone") {
+    } else if (i.shape === "cone" || i.shape === "eccentric") {
       geo.append(
         labelled(t("field.surface"), this.surfaceControl()),
         h(
@@ -401,36 +415,48 @@ export class App {
           this.numberField("dSmall", t("field.dSmall"), t("unit.mm")),
         ),
         this.numberField("height", t("field.height"), t("unit.mm")),
-        h(
-          "div",
-          { class: "field-action" },
-          this.numberField("offset", t("field.offset"), t("unit.mm"), "0", false, t("hint.offset")),
-          h(
-            "button",
-            {
-              type: "button",
-              class: "chip",
-              onClick: () => {
-                // Flat side: the end circles touch one common line, e = (D1 − D2) / 2.
-                const d1 = parseNumber(this.inputs.dLarge),
-                  d2 = parseNumber(this.inputs.dSmall);
-                if (d1 === null || d2 === null) return;
-                const e = Math.round(((d1 - d2) / 2) * 100) / 100;
-                this.set(
+        ...(i.shape === "eccentric"
+          ? [
+              h(
+                "div",
+                { class: "field-action" },
+                this.numberField(
                   "offset",
-                  getLang() === "pl" ? String(e).replace(".", ",") : String(e),
-                  true,
-                );
-              },
-            },
-            t("action.flatSide"),
-          ),
-        ),
+                  t("field.offset"),
+                  t("unit.mm"),
+                  "0",
+                  false,
+                  t("hint.offset"),
+                ),
+                h(
+                  "button",
+                  {
+                    type: "button",
+                    class: "chip",
+                    onClick: () => {
+                      // Flat side: the end circles touch one common line, e = (D1 − D2) / 2.
+                      const d1 = parseNumber(this.inputs.dLarge),
+                        d2 = parseNumber(this.inputs.dSmall);
+                      if (d1 === null || d2 === null) return;
+                      const e = Math.round(((d1 - d2) / 2) * 100) / 100;
+                      this.set(
+                        "offset",
+                        getLang() === "pl" ? String(e).replace(".", ",") : String(e),
+                        true,
+                      );
+                    },
+                  },
+                  t("action.flatSide"),
+                ),
+              ),
+            ]
+          : []),
       );
     } else {
       geo.append(...this.profileFields(i.shape));
     }
-    if (i.shape !== "cone") geo.append(this.numberField("width", t("field.width"), t("unit.mm")));
+    if (i.shape !== "cone" && i.shape !== "eccentric")
+      geo.append(this.numberField("width", t("field.width"), t("unit.mm")));
     panel.append(geo);
 
     // Advanced
@@ -497,6 +523,7 @@ export class App {
     const shapes: Inputs["shape"][] = [
       "cylinder",
       "cone",
+      "eccentric",
       "halfround",
       "ushape",
       "obround",
@@ -516,7 +543,7 @@ export class App {
           {
             type: "button",
             role: "radio",
-            class: `shape-option${on ? " is-on" : ""}`,
+            class: `shape-option${s === "eccentric" ? " shape-option-wide" : ""}${on ? " is-on" : ""}`,
             "aria-checked": String(on),
             onClick: () => {
               if (s !== this.inputs.shape) this.set("shape", s, true);

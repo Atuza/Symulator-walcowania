@@ -88,22 +88,44 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
 
   // Left column: tables
   const colW = PAGE.colW;
+  const footerTop = PAGE.h - m - 4;
   let y = top + 7;
-  // Shrink the row pitch when the tables would otherwise run into the footer.
-  const rowCount =
-    data.inputs.length +
-    data.groups.reduce((n, g) => n + g.rows.reduce((k, r) => k + (r.list ? 3 : 1), 0), 0);
-  const fixed =
-    (data.groups.length + 1) * 9 +
-    22 +
-    (data.warnings.length ? 6.5 + data.warnings.length * 8.2 : 0);
-  const available = PAGE.h - m - 8 - y;
-  const pitch = Math.min(4.4, Math.max(3.3, (available - fixed) / rowCount));
+  doc.setFontSize(7.8);
+  const warnings = data.warnings.map((w) => doc.splitTextToSize(w, colW - 4) as string[]);
+  const warningHeight = warnings.length
+    ? 6.5 + warnings.reduce((n, lines) => n + lines.length * 3.6 + 1, 0)
+    : 0;
+  // Measure actual wrapped text, including lists and labels, before choosing the row spacing.
+  let pitch = 4.4;
+  for (; pitch > 3.1; pitch = Math.max(3.1, pitch - 0.1)) {
+    const font = pitch < 4 ? 7.2 : 8;
+    const height =
+      sectionHeight(doc, data.inputs, colW, pitch, font) +
+      (data.heroes.length ? 22 : 2) +
+      data.groups.reduce((n, g) => n + 1 + sectionHeight(doc, g.rows, colW, pitch, font), 0) +
+      warningHeight;
+    if (y + height <= footerTop - 2) break;
+  }
   const rowFont = pitch < 4 ? 7.2 : 8;
+  const room = (height: number) => {
+    if (y + height <= footerTop - 2) return;
+    doc.addPage();
+    doc.setFont("Poppins", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...INK);
+    doc.text(t("pdf.heading"), m, m + 4);
+    doc.setDrawColor(...LINE);
+    doc.line(m, top, PAGE.w - m, top);
+    y = top + 7;
+  };
   y = section(doc, t("pdf.inputs"), data.inputs, m, y, colW, pitch, rowFont);
   y = heroBlock(doc, data.heroes, m, y + 2, colW);
-  for (const g of data.groups) y = section(doc, g.title, g.rows, m, y + 1, colW, pitch, rowFont);
-  if (data.warnings.length) {
+  for (const g of data.groups) {
+    room(1 + sectionHeight(doc, g.rows, colW, pitch, rowFont));
+    y = section(doc, g.title, g.rows, m, y + 1, colW, pitch, rowFont);
+  }
+  if (warnings.length) {
+    room(warningHeight);
     y += 2;
     doc.setFont("Poppins", "bold");
     doc.setFontSize(9);
@@ -112,8 +134,11 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
     y += 4.5;
     doc.setFont("Poppins", "normal");
     doc.setFontSize(7.8);
-    for (const w of data.warnings) {
-      const lines = doc.splitTextToSize(w, colW - 4) as string[];
+    for (const lines of warnings) {
+      room(lines.length * 3.6 + 1);
+      doc.setFont("Poppins", "normal");
+      doc.setFontSize(7.8);
+      doc.setTextColor(...INK);
       doc.setFillColor(...ACCENT);
       doc.circle(m + 0.8, y - 1, 0.6, "F");
       doc.text(lines, m + 3, y);
@@ -122,8 +147,8 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   }
 
   // Right column: drawing at standard scales, then QR code and title block along the bottom.
+  doc.setPage(1);
   const dx = m + colW + 10;
-  const footerTop = PAGE.h - m - 4;
   const blockTop = footerTop - 3 - BLOCK_H;
   const qrTop = footerTop - 3 - QR_SIZE;
   const captionTop = data.qr
@@ -145,14 +170,19 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   titleBlock(doc, data, scales, blockX, blockTop);
   if (data.qr) drawQr(doc, data.qr, blockX - 8 - QR_SIZE, qrTop);
 
-  doc.setFontSize(7);
-  doc.setTextColor(...MUTED);
-  doc.setDrawColor(...LINE);
-  doc.setLineWidth(0.2);
-  doc.setLineDashPattern([], 0);
-  doc.line(m, PAGE.h - m - 4, PAGE.w - m, PAGE.h - m - 4);
-  doc.text(t("pdf.disclaimer"), m, PAGE.h - m);
-  doc.text(`v${data.version} · 1 / 1`, PAGE.w - m, PAGE.h - m, { align: "right" });
+  const pages = doc.getNumberOfPages();
+  for (let page = 1; page <= pages; page++) {
+    doc.setPage(page);
+    doc.setFont("Poppins", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...MUTED);
+    doc.setDrawColor(...LINE);
+    doc.setLineWidth(0.2);
+    doc.setLineDashPattern([], 0);
+    doc.line(m, footerTop, PAGE.w - m, footerTop);
+    doc.text(t("pdf.disclaimer"), m, PAGE.h - m);
+    doc.text(`v${data.version} · ${page} / ${pages}`, PAGE.w - m, PAGE.h - m, { align: "right" });
+  }
 
   return doc.output("blob");
 }
@@ -233,6 +263,29 @@ function qrCaptionLines(doc: JsPdf, caption: string): string[] {
   return doc.splitTextToSize(caption, QR_SIZE + 3) as string[];
 }
 
+function rowLines(doc: JsPdf, r: Row, w: number) {
+  const label = r.label + (r.estimate ? ` (${t("result.estimate")})` : "");
+  const value = r.unit ? `${r.value} ${r.unit}` : r.value;
+  return {
+    labels: doc.splitTextToSize(label, r.list ? w : w * 0.62) as string[],
+    values: r.list ? (doc.splitTextToSize(value, w) as string[]) : [value],
+  };
+}
+
+function sectionHeight(doc: JsPdf, rows: Row[], w: number, pitch: number, font: number) {
+  doc.setFont("Poppins", "normal");
+  doc.setFontSize(font);
+  return (
+    3.6 +
+    pitch *
+      (1 +
+        rows.reduce((n, r) => {
+          const { labels, values } = rowLines(doc, r, w);
+          return n + (r.list ? labels.length + values.length : Math.max(labels.length, 1));
+        }, 0))
+  );
+}
+
 function section(
   doc: JsPdf,
   title: string,
@@ -251,21 +304,23 @@ function section(
   doc.setFont("Poppins", "normal");
   doc.setFontSize(fontSize);
   for (const r of rows) {
+    const { labels, values } = rowLines(doc, r, w);
     y += pitch;
     doc.setTextColor(...MUTED);
-    doc.text(r.label + (r.estimate ? ` (${t("result.estimate")})` : ""), x, y, {
-      maxWidth: w * 0.62,
-    });
+    labels.forEach((line, i) => doc.text(line, x, y + i * pitch));
     const c = r.neon ? FLAT : INK;
     doc.setTextColor(c[0], c[1], c[2]);
-    const value = r.unit ? `${r.value} ${r.unit}` : r.value;
     if (r.list) {
       // Lists go under their label, wrapped to the column.
-      for (const line of doc.splitTextToSize(value, w) as string[]) {
+      y += (labels.length - 1) * pitch;
+      for (const line of values) {
         y += pitch;
         doc.text(line, x, y);
       }
-    } else doc.text(value, x + w, y, { align: "right" });
+    } else {
+      doc.text(values[0]!, x + w, y, { align: "right" });
+      y += (labels.length - 1) * pitch;
+    }
     doc.setDrawColor(...LINE);
     doc.line(x, y + pitch * 0.32, x + w, y + pitch * 0.32);
   }
