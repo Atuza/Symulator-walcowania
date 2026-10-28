@@ -28,21 +28,36 @@ export interface LayoutStyle {
   /** Space reserved around the part for dimensions. */
   pad: number;
   gap: number;
+  /** Round each view down to a standard scale (1:5, 1:10, 1:20…) so the sheet states a true scale. */
+  snapScale?: boolean;
 }
 
-/** Places the views side by side (or stacked when the box is tall) and draws them. */
-export function drawViews(views: View[], box: Box, sink: Sink, style: LayoutStyle) {
+// Preferred scales for technical drawings (ISO 5455), as the denominator of 1:n.
+const STANDARD_SCALES = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+
+/**
+ * Places the views side by side (or stacked when the box is tall) and draws them.
+ * Returns each view's scale as output units per model mm (for a PDF in mm: 1 / n of 1:n).
+ */
+export function drawViews(views: View[], box: Box, sink: Sink, style: LayoutStyle): number[] {
   const stacked = box.h > box.w * 0.9;
-  views.forEach((view, i) => {
+  return views.map((view, i) => {
     const n = views.length;
     const cell: Box = stacked
       ? { x: box.x, y: box.y + (box.h / n) * i, w: box.w, h: box.h / n }
       : { x: box.x + (box.w / n) * i, y: box.y, w: box.w / n, h: box.h };
-    drawView(view, cell, sink, style);
+    return drawView(view, cell, sink, style);
   });
 }
 
-function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle) {
+/** Largest standard scale that still fits: the denominator is rounded up. */
+export function standardScale(fit: number): number {
+  const n = 1 / fit;
+  const std = STANDARD_SCALES.find((d) => d >= n - 1e-9);
+  return std ? 1 / std : fit;
+}
+
+function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
   const titleH = s.fontSize * 1.8;
   const notesH = view.notes.length * s.fontSize * 1.5;
   const area: Box = {
@@ -63,12 +78,13 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle) {
       role: "note",
     }),
   );
-  if (area.w <= 0 || area.h <= 0) return;
+  if (area.w <= 0 || area.h <= 0) return 0;
 
   const b = bounds(view);
   const bw = Math.max(b.maxX - b.minX, 1e-6),
     bh = Math.max(b.maxY - b.minY, 1e-6);
-  const scale = Math.min(area.w / bw, area.h / bh);
+  const fit = Math.min(area.w / bw, area.h / bh);
+  const scale = s.snapScale ? standardScale(fit) : fit;
   const ox = area.x + (area.w - bw * scale) / 2;
   const oy = area.y + (area.h - bh * scale) / 2;
   const map = ([x, y]: Pt): Pt => [ox + (x - b.minX) * scale, oy + (b.maxY - y) * scale];
@@ -117,6 +133,7 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle) {
       p.label,
     );
   }
+  return scale;
 }
 
 function drawArcDim(

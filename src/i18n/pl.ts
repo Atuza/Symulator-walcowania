@@ -310,6 +310,8 @@ export const pl: Dict = {
   "doc.example": "Przykład",
   "doc.tip": "Wskazówka",
   "doc.source": "Źródło",
+  "pdf.scale": "Skala",
+  "pdf.paper": "Format",
   "unit.mm": "mm",
   "unit.mpa": "MPa",
   "unit.gpa": "GPa",

@@ -413,13 +413,14 @@ export class App {
       h("span", { class: "switch-track", "aria-hidden": "true" }),
       h("span", {}, t("field.flatEnds")),
     );
+    // Always open: these fields change the result, so they must never hide behind a toggle.
     const adv = h(
-      "details",
-      { class: "advanced", open: this.advancedOpen },
+      "div",
+      { class: "group" },
       h(
-        "summary",
-        {},
-        h("span", {}, t("section.advanced")),
+        "h2",
+        { class: "group-title" },
+        t("section.advanced"),
         i.flatEnds ? h("span", { class: "neon-chip" }, t("flat.on")) : null,
       ),
       h(
@@ -455,12 +456,9 @@ export class App {
         ),
       ),
     );
-    adv.addEventListener("toggle", () => (this.advancedOpen = adv.open));
     panel.append(adv);
     this.updateMaterialInfo();
   }
-
-  private advancedOpen = false;
 
   private templateBar() {
     const saveBtn = h(
@@ -974,10 +972,33 @@ export class App {
         ),
       ),
     );
-    const notes = h("textarea", { name: "notes", rows: "3", maxlength: "400" });
+    const notes = h("textarea", { name: "notes", rows: "3", maxlength: "200" });
+    let paper: "a4" | "a3" = "a4";
+    const paperControl = segmented<"a4" | "a3">(
+      t("pdf.paper"),
+      [
+        { value: "a4", label: "A4" },
+        { value: "a3", label: "A3" },
+      ],
+      paper,
+      (v) => {
+        paper = v;
+        paperControl.querySelectorAll("button").forEach((b, i) => {
+          const on = (i === 0 ? "a4" : "a3") === v;
+          b.classList.toggle("is-on", on);
+          b.setAttribute("aria-checked", String(on));
+        });
+      },
+    );
     const form = h(
       "form",
       { method: "dialog", class: "dialog-body" },
+      h(
+        "div",
+        { class: "field" },
+        h("span", { class: "field-label" }, t("pdf.paper")),
+        paperControl,
+      ),
       h("p", { class: "muted" }, t("pdf.optional")),
       ...inputs,
       h("label", { class: "field" }, h("span", { class: "field-label" }, t("pdf.notes")), notes),
@@ -1000,6 +1021,7 @@ export class App {
             { label: t("pdf.operator"), value: value("operator") },
             { label: t("pdf.notes"), value: value("notes") },
           ].filter((f) => f.value),
+          paper,
         );
         dialog.close();
       } finally {
@@ -1008,7 +1030,7 @@ export class App {
     });
   }
 
-  private async exportPdf(fields: { label: string; value: string }[]) {
+  private async exportPdf(fields: { label: string; value: string }[], paper: "a4" | "a3") {
     const d = this.derived;
     if (!d.output) return;
     const [{ buildPdf }, { qrMatrix }] = await Promise.all([
@@ -1036,6 +1058,12 @@ export class App {
       views: buildViews(d.output, d.width, this.inputs.surface),
       qr,
       version: __APP_VERSION__,
+      paper,
+      part: {
+        material: this.materialName(),
+        thickness: `${num(d.thickness ?? 0)} ${t("unit.mm")}`,
+        mass: d.output.massKg !== null ? `${num(d.output.massKg, 1)} ${t("unit.kg")}` : "—",
+      },
     });
     this.saveToHistory();
     await saveFile(blob, `${this.fileBase()}.pdf`);

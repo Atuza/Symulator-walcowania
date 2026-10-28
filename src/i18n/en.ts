@@ -299,6 +299,8 @@ export const en = {
   "doc.example": "Example",
   "doc.tip": "Tip",
   "doc.source": "Source",
+  "pdf.scale": "Scale",
+  "pdf.paper": "Paper",
   "unit.mm": "mm",
   "unit.mpa": "MPa",
   "unit.gpa": "GPa",

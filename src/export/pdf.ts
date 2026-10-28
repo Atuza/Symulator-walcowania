@@ -18,9 +18,18 @@ export interface ReportData {
   /** Link back to this calculation, printed as a QR code. */
   qr: { matrix: boolean[][]; caption: string } | null;
   version: string;
+  paper: Paper;
+  /** Part identity for the title block. */
+  part: { material: string; thickness: string; mass: string };
 }
 
-const PAGE = { w: 297, h: 210, m: 12 };
+export type Paper = "a4" | "a3";
+
+const PAPER: Record<Paper, { w: number; h: number; colW: number }> = {
+  a4: { w: 297, h: 210, colW: 112 },
+  a3: { w: 420, h: 297, colW: 130 },
+};
+const MARGIN = 12;
 const INK = [20, 20, 22] as const;
 const MUTED = [110, 108, 104] as const;
 const LINE = [205, 202, 195] as const;
@@ -36,14 +45,20 @@ async function fontBase64(url: string): Promise<string> {
   return btoa(bin);
 }
 
-/** A4 landscape rolling sheet. jsPDF is loaded only when a report is requested. */
+/** Landscape rolling sheet (A4 or A3) with a title block. jsPDF is loaded only on request. */
 export async function buildPdf(data: ReportData): Promise<Blob> {
   const [{ jsPDF }, regular, medium] = await Promise.all([
     import("jspdf"),
     fontBase64(regularUrl),
     fontBase64(mediumUrl),
   ]);
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
+  const PAGE = { ...PAPER[data.paper], m: MARGIN };
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "mm",
+    format: data.paper,
+    compress: true,
+  });
   // The built-in PDF fonts lack Polish glyphs, so an embedded TrueType font is required.
   doc.addFileToVFS("Poppins-Regular.ttf", regular);
   doc.addFont("Poppins-Regular.ttf", "Poppins", "normal");
@@ -64,20 +79,15 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   doc.setFontSize(8.5);
   doc.setTextColor(...MUTED);
   doc.text(data.appName, m + 4.5, m + 8.5);
-  const textRight = PAGE.w - m;
-  doc.text(`${t("pdf.date")}: ${data.date}`, textRight, m + 4, { align: "right" });
-  let fy = m + 8.5;
-  for (const f of data.fields) {
-    doc.text(`${f.label}: ${f.value}`, textRight, fy, { align: "right", maxWidth: 100 });
-    fy += 4.2;
-  }
-  const top = Math.max(m + 14, fy + 2);
+  doc.text(`${t("pdf.date")}: ${data.date}`, PAGE.w - m, m + 4, { align: "right" });
+  // Order, operator and notes live in the title block, not in the header.
+  const top = m + 14;
   doc.setDrawColor(...LINE);
   doc.setLineWidth(0.2);
   doc.line(m, top, PAGE.w - m, top);
 
   // Left column: tables
-  const colW = 112;
+  const colW = PAGE.colW;
   let y = top + 7;
   // Shrink the row pitch when the tables would otherwise run into the footer.
   const rowCount = data.inputs.length + data.groups.reduce((n, g) => n + g.rows.length, 0);
@@ -109,13 +119,21 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
     }
   }
 
-  // Right column: drawing, with the QR code below it.
+  // Right column: drawing at standard scales, then QR code and title block along the bottom.
   const dx = m + colW + 10;
   const footerTop = PAGE.h - m - 4;
-  const qrBlock = data.qr ? QR_SIZE + 6 : 0;
-  const box = { x: dx, y: top + 4, w: PAGE.w - m - dx, h: footerTop - 6 - qrBlock - (top + 4) };
-  drawViews(data.views, box, pdfSink(doc), { fontSize: 3, arrow: 2.2, pad: 9, gap: 4 });
-  if (data.qr) drawQr(doc, data.qr, PAGE.w - m - QR_SIZE, footerTop - 3 - QR_SIZE);
+  const blockTop = footerTop - 3 - BLOCK_H;
+  const box = { x: dx, y: top + 4, w: PAGE.w - m - dx, h: blockTop - 4 - (top + 4) };
+  const scales = drawViews(data.views, box, pdfSink(doc), {
+    fontSize: 3,
+    arrow: 2.2,
+    pad: 9,
+    gap: 4,
+    snapScale: true,
+  });
+  const blockX = PAGE.w - m - BLOCK_W;
+  titleBlock(doc, data, scales, blockX, blockTop);
+  if (data.qr) drawQr(doc, data.qr, blockX - 8 - QR_SIZE, footerTop - 3 - QR_SIZE);
 
   doc.setFontSize(7);
   doc.setTextColor(...MUTED);
@@ -131,6 +149,53 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
 
 // About 0.8 mm per module for typical links: large enough for phone cameras on paper and on screen.
 const QR_SIZE = 32;
+const BLOCK_W = 116;
+const BLOCK_H = 32;
+
+/** Title block: who, what, which scale. Two columns of label/value cells plus a notes row. */
+function titleBlock(doc: JsPdf, data: ReportData, scales: number[], x: number, y: number) {
+  const field = (label: string) => data.fields.find((f) => f.label === label)?.value ?? "";
+  const scaleText =
+    scales
+      .filter((s) => s > 0)
+      .map((s) => `1:${Math.round((1 / s) * 10) / 10}`.replace(".", ","))
+      .join(" · ") || "—";
+  const cells: [string, string][] = [
+    [t("pdf.order"), field(t("pdf.order")) || "—"],
+    [t("pdf.date"), data.date],
+    [t("result.material"), data.part.material],
+    [t("field.thickness"), data.part.thickness],
+    [t("result.mass"), data.part.mass],
+    [t("pdf.scale"), scaleText],
+    [t("pdf.operator"), field(t("pdf.operator")) || "—"],
+    [t("pdf.paper"), data.paper.toUpperCase()],
+  ];
+  const rowH = 5.6;
+  const colW = BLOCK_W / 2;
+  doc.setDrawColor(...INK);
+  doc.setLineWidth(0.35);
+  doc.rect(x, y, BLOCK_W, BLOCK_H);
+  doc.setLineWidth(0.15);
+  cells.forEach(([label, value], i) => {
+    const cx = x + (i % 2) * colW;
+    const cy = y + Math.floor(i / 2) * rowH;
+    doc.rect(cx, cy, colW, rowH);
+    doc.setFontSize(5.5);
+    doc.setTextColor(...MUTED);
+    doc.text(label, cx + 1.2, cy + 2);
+    doc.setFontSize(7.5);
+    doc.setTextColor(...INK);
+    doc.text(value, cx + 1.2, cy + 4.8, { maxWidth: colW - 2.4 });
+  });
+  const notesY = y + 4 * rowH;
+  doc.setFontSize(5.5);
+  doc.setTextColor(...MUTED);
+  doc.text(t("pdf.notes"), x + 1.2, notesY + 2);
+  doc.setFontSize(7);
+  doc.setTextColor(...INK);
+  const notes = doc.splitTextToSize(field(t("pdf.notes")) || "—", BLOCK_W - 2.4) as string[];
+  doc.text(notes.slice(0, 2), x + 1.2, notesY + 4.8);
+}
 
 function drawQr(doc: JsPdf, qr: { matrix: boolean[][]; caption: string }, x: number, y: number) {
   const n = qr.matrix.length;

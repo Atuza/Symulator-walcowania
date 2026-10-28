@@ -110,15 +110,31 @@ function cylinderViews(
         stroke: "flat",
       },
     );
+    // Chain dimension under the blank: flat end | ring | flat end, so the cut lines can be marked.
+    dev.push(
+      { kind: "dim", a: [0, 0], b: [f, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(f) },
+      {
+        kind: "dim",
+        a: [f, 0],
+        b: [L - f, 0],
+        offsetModel: 0,
+        offsetScreen: -GAP,
+        label: mm(r.ringLength),
+      },
+      { kind: "dim", a: [L - f, 0], b: [L, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(f) },
+    );
   }
   const notes = [`${t("result.ringLength")}: ${mm(r.ringLength)} ${t("unit.mm")}`];
   if (r.flatEnd > 0) notes.push(`${t("result.flatEnds")}: 2 × ${mm(r.flatEnd)} ${t("unit.mm")}`);
+  const thickness = (r.dOuter - r.dInner) / 2;
 
   return [
     {
       title: t("result.diameters"),
       prims: section,
-      notes: [`${t("result.dNeutral")}: ${mm(r.dNeutral)} ${t("unit.mm")}`],
+      notes: [
+        `t = ${mm(thickness)} ${t("unit.mm")} · ${t("result.dNeutral")}: ${mm(r.dNeutral)} ${t("unit.mm")}`,
+      ],
     },
     { title: t("result.development"), prims: dev, notes },
   ];
@@ -239,6 +255,43 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       offsetScreen: GAP,
       label: mm(r.arcInner),
     });
+  // Smallest plate the development fits in, dimensioned below and on the left.
+  const pts = [...outer, ...inner];
+  const xs = pts.map((p) => p[0]),
+    ys = pts.map((p) => p[1]);
+  const x0 = Math.min(...xs),
+    x1 = Math.max(...xs),
+    y0 = Math.min(...ys),
+    y1 = Math.max(...ys);
+  dev.push(
+    {
+      kind: "path",
+      pts: [
+        [x0, y0],
+        [x1, y0],
+        [x1, y1],
+        [x0, y1],
+      ],
+      closed: true,
+      stroke: "thin",
+    },
+    {
+      kind: "dim",
+      a: [x0, y0],
+      b: [x1, y0],
+      offsetModel: 0,
+      offsetScreen: -GAP,
+      label: mm(x1 - x0),
+    },
+    {
+      kind: "dim",
+      a: [x0, y1],
+      b: [x0, y0],
+      offsetModel: 0,
+      offsetScreen: -GAP,
+      label: mm(y1 - y0),
+    },
+  );
   if (r.flatEnd > 0) {
     // Allowance is the extra angle beyond the closed cone, split between both seams.
     const d = (r.angle - r.angleNet) / 2;
@@ -254,7 +307,9 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
     {
       title: t("section.geometry"),
       prims: side,
-      notes: [`${t("result.alpha")}: ${num((r.alpha * 180) / Math.PI)}°`],
+      notes: [
+        `t = ${mm(((L.dOuter - L.dInner) / 2) * Math.cos(r.alpha))} ${t("unit.mm")} · ${t("result.alpha")}: ${num((r.alpha * 180) / Math.PI)}°`,
+      ],
     },
     {
       title: t("result.development"),
