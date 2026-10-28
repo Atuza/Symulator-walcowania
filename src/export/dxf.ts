@@ -1,6 +1,7 @@
 /*
  * Minimal DXF R12 (AC1009) writer. R12 is used on purpose: every CAD/CAM package reads it and it needs
  * no object handles. The cut contour is one closed POLYLINE on layer "cut", colour 1 (red), units mm 1:1.
+ * Bend lines, when there are any, go to layer "bend" (colour 5, blue) so cutting can ignore them.
  */
 
 export interface Vertex {
@@ -11,14 +12,23 @@ export interface Vertex {
 }
 
 export const CUT_LAYER = "cut";
+export const BEND_LAYER = "bend";
 const RED = 1;
+const BLUE = 5;
+
+export interface Line {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
 
 const n = (v: number) => {
   const s = v.toFixed(6).replace(/\.?0+$/, "");
   return s === "-0" ? "0" : s;
 };
 
-export function dxfDocument(contour: Vertex[]): string {
+export function dxfDocument(contour: Vertex[], bends: Line[] = []): string {
   const out: string[] = [];
   const g = (code: number, value: string | number) =>
     out.push(String(code), typeof value === "number" ? n(value) : value);
@@ -62,12 +72,19 @@ export function dxfDocument(contour: Vertex[]): string {
   g(0, "ENDTAB");
   g(0, "TABLE");
   g(2, "LAYER");
-  g(70, "1");
+  g(70, bends.length ? "2" : "1");
   g(0, "LAYER");
   g(2, CUT_LAYER);
   g(70, "0");
   g(62, String(RED));
   g(6, "CONTINUOUS");
+  if (bends.length) {
+    g(0, "LAYER");
+    g(2, BEND_LAYER);
+    g(70, "0");
+    g(62, String(BLUE));
+    g(6, "CONTINUOUS");
+  }
   g(0, "ENDTAB");
   g(0, "ENDSEC");
 
@@ -92,6 +109,17 @@ export function dxfDocument(contour: Vertex[]): string {
   }
   g(0, "SEQEND");
   g(8, CUT_LAYER);
+  for (const l of bends) {
+    g(0, "LINE");
+    g(8, BEND_LAYER);
+    g(62, String(BLUE));
+    g(10, l.x1);
+    g(20, l.y1);
+    g(30, 0);
+    g(11, l.x2);
+    g(21, l.y2);
+    g(31, 0);
+  }
   g(0, "ENDSEC");
   g(0, "EOF");
   return out.join("\r\n") + "\r\n";

@@ -90,7 +90,9 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
   const colW = PAGE.colW;
   let y = top + 7;
   // Shrink the row pitch when the tables would otherwise run into the footer.
-  const rowCount = data.inputs.length + data.groups.reduce((n, g) => n + g.rows.length, 0);
+  const rowCount =
+    data.inputs.length +
+    data.groups.reduce((n, g) => n + g.rows.reduce((k, r) => k + (r.list ? 3 : 1), 0), 0);
   const fixed =
     (data.groups.length + 1) * 9 +
     22 +
@@ -242,7 +244,14 @@ function section(
     });
     const c = r.neon ? FLAT : INK;
     doc.setTextColor(c[0], c[1], c[2]);
-    doc.text(r.unit ? `${r.value} ${r.unit}` : r.value, x + w, y, { align: "right" });
+    const value = r.unit ? `${r.value} ${r.unit}` : r.value;
+    if (r.list) {
+      // Lists go under their label, wrapped to the column.
+      for (const line of doc.splitTextToSize(value, w) as string[]) {
+        y += pitch;
+        doc.text(line, x, y);
+      }
+    } else doc.text(value, x + w, y, { align: "right" });
     doc.setDrawColor(...LINE);
     doc.line(x, y + pitch * 0.32, x + w, y + pitch * 0.32);
   }

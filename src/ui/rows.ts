@@ -1,4 +1,5 @@
 import type { SetPoint } from "../domain/calculate";
+import { SHAPE_FIELDS } from "../domain/shapes";
 import { num, percent, t, type Key } from "../i18n";
 import type { Derived } from "../state/derive";
 import { parseNumber } from "../state/inputs";
@@ -10,6 +11,8 @@ export interface Row {
   estimate?: boolean;
   /** Highlights values that include the flat-end allowance. */
   neon?: boolean;
+  /** A list of values: label on its own line, values below, wrapping. */
+  list?: boolean;
 }
 
 export interface Hero {
@@ -41,6 +44,17 @@ export function heroes(d: Derived): Hero[] {
           { label: t("result.dInner"), value: mm(r.dInner), unit: t("unit.mm"), raw: r.dInner },
           { label: t("result.dOuter"), value: mm(r.dOuter), unit: t("unit.mm"), raw: r.dOuter },
         ];
+  }
+  if (out.shape === "profile") {
+    const r = out.result;
+    return [
+      {
+        label: t("result.blankLength"),
+        value: mm(r.blankLength),
+        unit: t("unit.mm"),
+        raw: r.blankLength,
+      },
+    ];
   }
   const r = out.result;
   return [
@@ -112,6 +126,7 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
       },
     ];
   }
+  if (out.shape === "profile") return profileGroups(d, out, mass);
   const r = out.result;
   return [
     {
@@ -190,18 +205,73 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
   ];
 }
 
+function profileGroups(
+  d: Derived,
+  out: Extract<NonNullable<Derived["output"]>, { shape: "profile" }>,
+  mass: Row[],
+): { title: string; rows: Row[] }[] {
+  const r = out.result;
+  const radii = r.radii.map((x) => mm(x)).join(" · ");
+  const geometry: Row[] = [
+    { label: t("result.bendRadii"), value: radii, unit: t("unit.mm"), list: r.radii.length > 1 },
+  ];
+  if (r.derivedR !== null)
+    geometry.push({ label: t("result.tankR"), value: mm(r.derivedR), unit: t("unit.mm") });
+  if (r.dev.bendLines.length)
+    geometry.push({
+      label: t("result.bendLines"),
+      value: r.dev.bendLines.map((x) => mm(x)).join(" · "),
+      unit: t("unit.mm"),
+      list: true,
+    });
+  if (r.flatEnd > 0)
+    geometry.push({
+      label: t("result.flatEnds"),
+      value: `2 × ${mm(r.flatEnd)}`,
+      unit: t("unit.mm"),
+      neon: true,
+    });
+  const sets: Row[] = out.sets.flatMap((x) =>
+    x.set && x.set.dInner > 0
+      ? [
+          {
+            label: t("result.setRadius", { r: mm(x.rInner) }),
+            value: mm(x.set.dInner / 2),
+            unit: t("unit.mm"),
+            estimate: true,
+          },
+        ]
+      : [],
+  );
+  const tight = out.sets[0]?.set;
+  return [
+    { title: t("section.geometry"), rows: [...geometry, ...mass] },
+    {
+      title: t("result.process"),
+      rows: [
+        { label: t("result.k"), value: num(r.k, 3) },
+        { label: `${t("result.rt")} min`, value: num(r.rtMin, 1) },
+        { label: t("result.strain"), value: percent(r.outerStrainMax) },
+        { label: t("result.re"), value: num(d.props!.re, 0), unit: t("unit.mpa") },
+        calibrationRow(d),
+        ...sets,
+        ...(tight && tight.dInner > 0
+          ? [{ label: t("result.springback"), value: percent(tight.ratio), estimate: true }]
+          : []),
+      ],
+    },
+  ];
+}
+
 /** Echo of the inputs for the report. */
 export function inputRows(d: Derived, materialName: string): Row[] {
   const i = d.inputs;
   const rows: Row[] = [
-    {
-      label: t("section.shape"),
-      value: t(i.shape === "cylinder" ? "shape.cylinder" : "shape.cone"),
-    },
+    { label: t("section.shape"), value: t(`shape.${i.shape}` as Key) },
     { label: t("result.material"), value: materialName },
     { label: t("field.thickness"), value: mm(d.thickness ?? 0), unit: t("unit.mm") },
   ];
-  const surface = t(i.surface === "inner" ? "surface.inner" : "surface.outer");
+  const surface = t(`surface.${i.surface}` as Key);
   const v = (text: string) => {
     const n = parseNumber(text);
     return n === null ? text : mm(n);
@@ -215,6 +285,30 @@ export function inputRows(d: Derived, materialName: string): Row[] {
         unit: t("unit.mm"),
       });
     } else rows.push({ label: t("field.length"), value: v(i.length), unit: t("unit.mm") });
+    if (d.width !== null)
+      rows.push({ label: t("field.width"), value: mm(d.width), unit: t("unit.mm") });
+  } else if (i.shape !== "cone") {
+    const shape = i.shape;
+    for (const f of SHAPE_FIELDS[shape]) {
+      if (shape === "halfround" && f === "r") {
+        const label = t(i.dimension === "radius" ? "field.value.radius" : "field.value.diameter");
+        rows.push({
+          label: `${label} (${surface.toLowerCase()})`,
+          value: v(i.value),
+          unit: t("unit.mm"),
+        });
+        continue;
+      }
+      const text = { a: i.sizeA, b: i.sizeB, r: i.sizeR, angle: i.angle }[f];
+      rows.push({
+        label:
+          f === "angle"
+            ? t(`size.${shape}.${f}` as Key)
+            : `${t(`size.${shape}.${f}` as Key)} (${surface.toLowerCase()})`,
+        value: v(text),
+        unit: t(f === "angle" ? "unit.deg" : "unit.mm"),
+      });
+    }
     if (d.width !== null)
       rows.push({ label: t("field.width"), value: mm(d.width), unit: t("unit.mm") });
   } else {

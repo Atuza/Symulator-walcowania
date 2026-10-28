@@ -142,3 +142,25 @@ with `k_j` taken per arc from its own `r_j / t` (DIN 6935, above), unless `k` is
 lines on the blank sit where each arc starts and ends; lines on the blank edges are dropped and
 touching arcs share one line. A cylinder is a single arc of `2π` with a flat at each end, which gives
 exactly `L = π · (D_in + 2 k t) + 2 f` as before.
+
+## Shapes
+
+All sizes are on the chosen surface (inner, mid, outer). A size across the part is reduced by
+`2·c·t` and a radius by `c·t` to reach the inner surface (`c = 0, ½, 1`). Each shape becomes a profile:
+
+| Shape      | Sizes                               | Profile (from the seam or first edge)                            |
+| ---------- | ----------------------------------- | ---------------------------------------------------------------- |
+| Half round | Ø or R, angle φ                     | arc R, φ                                                         |
+| U shape    | width A, leg B                      | line B, arc A/2 by 180°, line B                                  |
+| Obround    | length A, width B                   | ½(A−B), arc B/2 by 180°, A−B, arc, ½(A−B)                        |
+| Rectangle  | sides A, B, corner R                | ½ straight of A, then four 90° corners with straights A−2R, B−2R |
+| Tank       | width A, height B, side R           | four-arc oval, seam mid-bottom                                   |
+| Bucket     | back A, radius R, angle φ, bottom B | line A, arc R by φ, line B                                       |
+
+Tank: the top and bottom radius `R_b` follows from tangency of the arcs,
+`(A/2 − r)² + (R_b − B/2)² = (R_b − r)²`, so `R_b = ((A/2 − r)² + B²/4 − r²) / (B − 2r)`; each side
+arc turns `2β` with `β = atan2(R_b − B/2, A/2 − r)` and the top and bottom arcs `π − 2β`.
+
+Springback is estimated for every distinct bend radius. Machine limits and capacity charts are made
+for cylinders; for other shapes they are checked at the tightest bend as a warning, not a guarantee.
+The DXF carries the bend lines as LINE entities on layer `bend` (colour 5).

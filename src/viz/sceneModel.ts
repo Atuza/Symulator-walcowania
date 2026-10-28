@@ -1,4 +1,5 @@
 import type { CalcOutput, MachineLimits } from "../domain/calculate";
+import type { Development, Profile } from "../domain/profile";
 
 export interface RollSizes {
   top: number;
@@ -27,6 +28,12 @@ export type SceneModel =
       angle: number;
       alpha: number;
       thickness: number;
+    }
+  | {
+      shape: "profile";
+      profile: Profile;
+      dev: Development;
+      width: number;
     };
 
 export function sceneModel(
@@ -44,6 +51,15 @@ export function sceneModel(
       angle: r.angle,
       alpha: r.alpha,
       thickness,
+    };
+  }
+  if (out.shape === "profile") {
+    const r = out.result;
+    return {
+      shape: "profile",
+      profile: r.profile,
+      dev: r.dev,
+      width: width ?? Math.max(r.blankLength * 0.2, 200),
     };
   }
   const r = out.result;

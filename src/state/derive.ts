@@ -35,6 +35,10 @@ const errorFields: Record<string, TextField> = {
   height: "height",
   order: "dSmall",
   tooFlat: "height",
+  a: "sizeA",
+  b: "sizeB",
+  r: "sizeR",
+  angle: "angle",
 };
 
 export function derive(
@@ -129,7 +133,7 @@ export function derive(
               kOverride,
             },
           };
-  } else {
+  } else if (inputs.shape === "cone") {
     calc = {
       ...common,
       shape: "cone",
@@ -143,11 +147,42 @@ export function derive(
         kOverride,
       },
     };
+  } else {
+    const shape = inputs.shape;
+    // The half round is sized like the cylinder: diameter or radius in the main field.
+    const main = num("value");
+    const r =
+      shape === "halfround"
+        ? main === null
+          ? NaN
+          : inputs.dimension === "radius"
+            ? main
+            : main / 2
+        : (num("sizeR") ?? NaN);
+    calc = {
+      ...common,
+      shape: "profile",
+      width: base.width,
+      profile: {
+        shape,
+        thickness,
+        surface: inputs.surface,
+        a: num("sizeA") ?? NaN,
+        b: num("sizeB") ?? NaN,
+        r,
+        angle: ((num("angle") ?? NaN) * Math.PI) / 180,
+        flatEnds: flatEnd,
+        kOverride,
+      },
+    };
   }
 
   const out = calculate(calc);
   if ("error" in out) {
-    const field = errorFields[out.error] ?? "thickness";
+    const field =
+      inputs.shape === "halfround" && out.error === "r"
+        ? "value"
+        : (errorFields[out.error] ?? "thickness");
     return {
       ...base,
       flatEnd,

@@ -1,7 +1,9 @@
 import type { CalcOutput } from "../domain/calculate";
 import { num, t } from "../i18n";
 import { surfaceDepth, type Surface } from "../domain/types";
-import { arc, circle, type Prim, type View } from "./model";
+import { traceProfile } from "../domain/profile";
+import type { ProfileShape } from "../domain/shapes";
+import { arc, circle, type Prim, type Pt, type View } from "./model";
 
 // Dimension offset from the part, in multiples of the renderer font size.
 const GAP = 1.8;
@@ -10,7 +12,161 @@ const mm = (v: number) => num(v);
 
 /** Section and development views for the current result. */
 export function buildViews(out: CalcOutput, width: number | null, surface: Surface): View[] {
-  return out.shape === "cylinder" ? cylinderViews(out, width) : coneViews(out, surface);
+  return out.shape === "cylinder"
+    ? cylinderViews(out, width)
+    : out.shape === "cone"
+      ? coneViews(out, surface)
+      : profileViews(out, width, surface);
+}
+
+// Turns the traced section so open shapes stand the way they are usually drawn (opening upwards).
+const SECTION_TURN: Record<ProfileShape, number> = {
+  halfround: -Math.PI / 2,
+  ushape: -Math.PI / 2,
+  obround: 0,
+  rect: 0,
+  tank: 0,
+  bucket: Math.PI / 2,
+};
+
+function profileViews(
+  out: Extract<CalcOutput, { shape: "profile" }>,
+  width: number | null,
+  surface: Surface,
+): View[] {
+  const r = out.result;
+  const turn = SECTION_TURN[r.shape];
+  const c = Math.cos(turn),
+    sn = Math.sin(turn);
+  const rot = (pts: Pt[]): Pt[] => pts.map(([x, y]) => [x * c - y * sn, x * sn + y * c] as const);
+  const inner = rot(traceProfile(r.profile, 0));
+  const outer = rot(traceProfile(r.profile, 1));
+  const ring = r.closed && r.flatEnd === 0;
+  const section: Prim[] = ring
+    ? [
+        { kind: "path", pts: outer, closed: true, stroke: "part" },
+        { kind: "path", pts: inner, closed: true, stroke: "part" },
+      ]
+    : [{ kind: "path", pts: [...outer, ...inner.slice().reverse()], closed: true, stroke: "part" }];
+  // Overall sizes measured on the surface the dimensions were given on.
+  // Fine step: the trace is a chord polyline, and the sizes are read from its extremes.
+  const ref = rot(traceProfile(r.profile, surfaceDepth[surface], Math.PI / 3600));
+  const xs = ref.map((p) => p[0]),
+    ys = ref.map((p) => p[1]);
+  const x0 = Math.min(...xs),
+    x1 = Math.max(...xs),
+    y0 = Math.min(...ys),
+    y1 = Math.max(...ys);
+  const all = [...inner, ...outer];
+  const bx0 = Math.min(...all.map((p) => p[0])),
+    by0 = Math.min(...all.map((p) => p[1]));
+  section.push(
+    {
+      kind: "dim",
+      a: [x0, by0],
+      b: [x1, by0],
+      offsetModel: 0,
+      offsetScreen: -GAP,
+      label: mm(x1 - x0),
+    },
+    {
+      kind: "dim",
+      a: [bx0, y1],
+      b: [bx0, y0],
+      offsetModel: 0,
+      offsetScreen: -GAP,
+      label: mm(y1 - y0),
+    },
+  );
+
+  const L = r.blankLength;
+  const W = width ?? L * 0.12;
+  const dev: Prim[] = [
+    {
+      kind: "path",
+      pts: [
+        [0, 0],
+        [L, 0],
+        [L, W],
+        [0, W],
+      ],
+      closed: true,
+      stroke: "part",
+      fill: true,
+    },
+    { kind: "dim", a: [0, W], b: [L, W], offsetModel: 0, offsetScreen: GAP, label: mm(L) },
+  ];
+  if (width !== null)
+    dev.push({
+      kind: "dim",
+      a: [L, W],
+      b: [L, 0],
+      offsetModel: 0,
+      offsetScreen: GAP,
+      label: mm(W),
+    });
+  for (const x of r.dev.bendLines)
+    dev.push({
+      kind: "path",
+      pts: [
+        [x, 0],
+        [x, W],
+      ],
+      closed: false,
+      stroke: "center",
+    });
+  if (r.flatEnd > 0)
+    for (const x of [r.flatEnd, L - r.flatEnd])
+      dev.push({
+        kind: "path",
+        pts: [
+          [x, 0],
+          [x, W],
+        ],
+        closed: false,
+        stroke: "flat",
+      });
+  // Chain dimension under the blank between all marked lines, so they can be scribed from one edge.
+  const marks = [
+    0,
+    ...new Set([...(r.flatEnd > 0 ? [r.flatEnd, L - r.flatEnd] : []), ...r.dev.bendLines]),
+    L,
+  ].sort((a, b) => a - b);
+  // Short pieces would stack their labels on top of each other; then the notes list the positions.
+  const shortest = Math.min(...marks.slice(1).map((x, i) => x - marks[i]!));
+  if (marks.length > 2 && shortest >= L / 8)
+    for (let i = 0; i + 1 < marks.length; i++) {
+      const a = marks[i]!,
+        b = marks[i + 1]!;
+      if (b - a < 1e-6) continue;
+      dev.push({
+        kind: "dim",
+        a: [a, 0],
+        b: [b, 0],
+        offsetModel: 0,
+        offsetScreen: -GAP,
+        label: mm(b - a),
+      });
+    }
+
+  const radii = r.radii.map((x) => `R ${mm(x)}`).join(" · ");
+  const sectionNotes = [
+    `t = ${mm(r.profile.thickness)} ${t("unit.mm")} · ${radii} (${t("surface.inner").toLowerCase()})`,
+  ];
+  if (r.derivedR !== null)
+    sectionNotes.push(`${t("result.tankR")}: ${mm(r.derivedR)} ${t("unit.mm")}`);
+  // Three positions per line keep the notes inside the view.
+  const lines = r.dev.bendLines.map((x) => mm(x));
+  const devNotes: string[] = [];
+  for (let i = 0; i < Math.max(1, lines.length); i += 3)
+    devNotes.push(
+      `${i === 0 ? `${t("result.bendLines")}: ` : ""}${lines.slice(i, i + 3).join(" · ") || "—"}`,
+    );
+  if (r.flatEnd > 0) devNotes.push(`${t("result.flatEnds")}: 2 × ${mm(r.flatEnd)} ${t("unit.mm")}`);
+  return [
+    { title: t("result.section"), prims: section, notes: sectionNotes },
+    { title: t("result.development"), prims: dev, notes: devNotes },
+  ];
 }
 
 function cylinderViews(

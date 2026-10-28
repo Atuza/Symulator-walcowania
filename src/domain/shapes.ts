@@ -1,0 +1,209 @@
+import { develop, type Development, type Profile, type Segment } from "./profile";
+import { surfaceDepth, type Surface } from "./types";
+
+/*
+ * Shapes built from straight and circular segments. All dimensions are measured on the chosen surface
+ * (like the inner/mid/outer reference of the cylinder); radii in the profile are inner bend radii.
+ * Closed shapes start and end at the seam.
+ */
+
+export type ProfileShape = "halfround" | "ushape" | "obround" | "rect" | "tank" | "bucket";
+
+export const PROFILE_SHAPES: ProfileShape[] = [
+  "halfround",
+  "ushape",
+  "obround",
+  "rect",
+  "tank",
+  "bucket",
+];
+
+export interface ShapeInput {
+  shape: ProfileShape;
+  thickness: number;
+  surface: Surface;
+  /** Main size: width, length or overall size, depending on the shape [mm]. */
+  a: number;
+  /** Second size [mm]. */
+  b: number;
+  /** Radius on the chosen surface [mm]. */
+  r: number;
+  /** Bend angle [rad]. */
+  angle: number;
+  flatEnds: number;
+  kOverride: number | null;
+}
+
+/** Which inputs a shape uses, in display order. */
+export const SHAPE_FIELDS: Record<ProfileShape, ("a" | "b" | "r" | "angle")[]> = {
+  halfround: ["r", "angle"],
+  ushape: ["a", "b"],
+  obround: ["a", "b"],
+  rect: ["a", "b", "r"],
+  tank: ["a", "b", "r"],
+  bucket: ["a", "r", "angle", "b"],
+};
+
+export interface ShapeResult {
+  shape: ProfileShape;
+  profile: Profile;
+  closed: boolean;
+  dev: Development;
+  /** Blank length on the neutral fibre, flat ends included [mm]. */
+  blankLength: number;
+  /** Neutral-fibre factor of the tightest bend. */
+  k: number;
+  /** Inner radius / thickness of the tightest bend. */
+  rtMin: number;
+  /** Outer-fibre strain of the tightest bend. */
+  outerStrainMax: number;
+  /** Distinct inner bend radii, smallest first [mm]. */
+  radii: number[];
+  /** Unbent allowance at each end, included in the blank length [mm]. */
+  flatEnd: number;
+  /** Largest tank radius when the shape has one; reported because it is derived [mm]. */
+  derivedR: number | null;
+}
+
+export type ShapeError = "thickness" | "a" | "b" | "r" | "angle";
+
+export function buildShape(input: ShapeInput): ShapeResult | ShapeError {
+  const t = input.thickness;
+  if (!(t > 0)) return "thickness";
+  // A size across the part loses the thickness twice on the way to the inner surface, a radius once.
+  const depth = surfaceDepth[input.surface];
+  const across = (v: number) => v - 2 * depth * t;
+  const radius = (v: number) => v - depth * t;
+  const line = (length: number): Segment => ({ kind: "line", length });
+  const bend = (r: number, angle: number): Segment => ({ kind: "arc", radius: r, angle });
+  const positive = (v: number) => Number.isFinite(v) && v > 0;
+
+  let segments: Segment[];
+  let closed = true;
+  let derivedR: number | null = null;
+  switch (input.shape) {
+    case "halfround": {
+      if (!positive(input.r)) return "r";
+      if (!positive(input.angle) || input.angle >= 2 * Math.PI) return "angle";
+      const r = radius(input.r);
+      if (!(r > 0)) return "r";
+      segments = [bend(r, input.angle)];
+      closed = false;
+      break;
+    }
+    case "ushape": {
+      // a: width across the legs, b: straight leg length; the bottom is a half circle.
+      if (!positive(input.a)) return "a";
+      if (!(input.b >= 0)) return "b";
+      const r = across(input.a) / 2;
+      if (!(r > 0)) return "a";
+      segments = [line(input.b), bend(r, Math.PI), line(input.b)];
+      closed = false;
+      break;
+    }
+    case "obround": {
+      // a: overall length, b: width; two half circles joined by straights. Seam mid-straight.
+      if (!positive(input.b)) return "b";
+      if (!positive(input.a) || input.a < input.b) return "a";
+      const r = across(input.b) / 2;
+      if (!(r > 0)) return "b";
+      const s = input.a - input.b;
+      segments = [line(s / 2), bend(r, Math.PI), line(s), bend(r, Math.PI), line(s / 2)];
+      break;
+    }
+    case "rect": {
+      // a × b with corner radius r. Seam in the middle of an a side.
+      if (!positive(input.a)) return "a";
+      if (!positive(input.b)) return "b";
+      if (!positive(input.r)) return "r";
+      const r = radius(input.r);
+      let sa = across(input.a) - 2 * r;
+      let sb = across(input.b) - 2 * r;
+      if (!(r > 0)) return "r";
+      if (sa < -1e-9) return "a";
+      if (sb < -1e-9) return "b";
+      // A side exactly 2 r long has no straight left; rounding must not make it negative.
+      sa = Math.max(0, sa);
+      sb = Math.max(0, sb);
+      const q = Math.PI / 2;
+      segments = [
+        line(sa / 2),
+        bend(r, q),
+        line(sb),
+        bend(r, q),
+        line(sa),
+        bend(r, q),
+        line(sb),
+        bend(r, q),
+        line(sa / 2),
+      ];
+      break;
+    }
+    case "tank": {
+      // Four-arc oval: width a, height b, side radius r; top and bottom radius R follows from
+      // tangency, (a/2 − r)² + (R − b/2)² = (R − r)². Seam at the middle of the bottom.
+      if (!positive(input.a)) return "a";
+      if (!positive(input.b) || input.b >= input.a) return "b";
+      if (!positive(input.r)) return "r";
+      const A = across(input.a),
+        B = across(input.b),
+        r = radius(input.r);
+      if (!(r > 0) || 2 * r >= B) return "r";
+      const R = ((A / 2 - r) ** 2 + (B / 2) ** 2 - r ** 2) / (B - 2 * r);
+      if (!(R > B / 2)) return "r";
+      // Half-angle of each side arc, measured from the horizontal.
+      const beta = Math.atan2(R - B / 2, A / 2 - r);
+      const big = Math.PI - 2 * beta;
+      segments = [
+        bend(R, big / 2),
+        bend(r, 2 * beta),
+        bend(R, big),
+        bend(r, 2 * beta),
+        bend(R, big / 2),
+      ];
+      derivedR = R + depth * t;
+      break;
+    }
+    case "bucket": {
+      // Wrapper plate: straight back a, bend radius r through the angle, straight bottom b.
+      if (!(input.a >= 0)) return "a";
+      if (!(input.b >= 0)) return "b";
+      if (!positive(input.r)) return "r";
+      if (!positive(input.angle) || input.angle >= 2 * Math.PI) return "angle";
+      const r = radius(input.r);
+      if (!(r > 0)) return "r";
+      segments = [line(input.a), bend(r, input.angle), line(input.b)];
+      closed = false;
+      break;
+    }
+  }
+
+  const flat = Math.max(0, input.flatEnds);
+  if (flat > 0) segments = [line(flat), ...segments, line(flat)];
+  const profile: Profile = { segments, thickness: t, kOverride: input.kOverride };
+  const dev = develop(profile);
+  if (typeof dev === "string") return dev === "thickness" ? "thickness" : "r";
+  const arcs = dev.segments.filter((d) => d.segment.kind === "arc");
+  const tightest = arcs.reduce((m, d) => (radiusOf(d.segment) < radiusOf(m.segment) ? d : m));
+  const rMin = radiusOf(tightest.segment);
+  const radii = [...new Set(arcs.map((d) => Math.round(radiusOf(d.segment) * 1e6) / 1e6))].sort(
+    (x, y) => x - y,
+  );
+  return {
+    shape: input.shape,
+    profile,
+    closed,
+    dev,
+    blankLength: dev.length,
+    k: tightest.k!,
+    rtMin: rMin / t,
+    outerStrainMax: t / (2 * rMin + t),
+    radii,
+    flatEnd: flat,
+    derivedR,
+  };
+}
+
+function radiusOf(s: Segment): number {
+  return s.kind === "arc" ? s.radius : Infinity;
+}

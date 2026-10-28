@@ -6,6 +6,8 @@ import {
   type CylinderInput,
   type CylinderResult,
 } from "./cylinder";
+import { buildShape, type ShapeError, type ShapeInput, type ShapeResult } from "./shapes";
+import { neutralFactor } from "./neutralAxis";
 import { springback } from "./springback";
 import type { Warning } from "./types";
 
@@ -52,7 +54,8 @@ interface Common {
 
 export type CalcInput =
   | (Common & { shape: "cylinder"; cylinder: CylinderInput; width: number | null })
-  | (Common & { shape: "cone"; cone: ConeInput });
+  | (Common & { shape: "cone"; cone: ConeInput })
+  | (Common & { shape: "profile"; profile: ShapeInput; width: number | null });
 
 /** Machine setting that compensates springback, expressed on the inner surface. */
 export interface SetPoint {
@@ -75,14 +78,32 @@ export type CalcOutput =
       setSmall: SetPoint | null;
       massKg: number;
       warnings: Warning[];
+    }
+  | {
+      shape: "profile";
+      result: ShapeResult;
+      /** Springback compensation for every distinct bend radius, tightest first. */
+      sets: RadiusSet[];
+      massKg: number | null;
+      warnings: Warning[];
     };
 
-export type CalcError = { error: CylinderError | ConeError };
+export interface RadiusSet {
+  /** Inner bend radius of the finished part [mm]. */
+  rInner: number;
+  set: SetPoint | null;
+}
+
+export type CalcError = { error: CylinderError | ConeError | ShapeError };
 
 const DEFAULT_SPRINGBACK_WARN = 0.3;
 
 export function calculate(input: CalcInput): CalcOutput | CalcError {
-  return input.shape === "cylinder" ? calcCylinder(input) : calcCone(input);
+  return input.shape === "cylinder"
+    ? calcCylinder(input)
+    : input.shape === "cone"
+      ? calcCone(input)
+      : calcProfile(input);
 }
 
 function setPoint(
@@ -260,4 +281,33 @@ function calcCone(input: Extract<CalcInput, { shape: "cone" }>): CalcOutput | Ca
 
   const massKg = result.area * t * 1e-9 * input.material.density;
   return { shape: "cone", result, setLarge, setSmall, massKg, warnings: w };
+}
+
+function calcProfile(input: Extract<CalcInput, { shape: "profile" }>): CalcOutput | CalcError {
+  const result = buildShape(input.profile);
+  if (typeof result === "string") return { error: result };
+  const t = input.profile.thickness;
+  const sets: RadiusSet[] = result.radii.map((r) => {
+    const k = input.profile.kOverride ?? neutralFactor(r, t);
+    return { rInner: r, set: setPoint(input, r + k * t, t, k, 1) };
+  });
+  const w: Warning[] = [];
+  commonWarnings(input, t, result.rtMin, result.outerStrainMax, w);
+  const tightest = sets[0]!;
+  springbackWarnings(tightest.set, input.springbackWarn ?? DEFAULT_SPRINGBACK_WARN, w);
+  const mc = input.machine;
+  if (mc.maxWidth !== null && input.width !== null && input.width > mc.maxWidth)
+    w.push({ code: "machineWidth", severity: "warn", values: { max: mc.maxWidth } });
+  // Machine limits and capacity charts are stated for cylinders; the tightest bend is the closest match.
+  const dSet = rollingDiameter(2 * tightest.rInner, tightest.set);
+  machineDiameterWarnings(mc, dSet, w);
+  diameterRatioWarning(dSet, t, w);
+  if (input.width !== null && input.width > 0)
+    capacityWarnings(input, t, input.width, dSet, input.profile.flatEnds > 0, w);
+
+  const massKg =
+    input.width !== null && input.width > 0
+      ? result.blankLength * input.width * t * 1e-9 * input.material.density
+      : null;
+  return { shape: "profile", result, sets, massKg, warnings: w };
 }

@@ -35,6 +35,10 @@ const LINK_DEFAULTS: Inputs = {
   customRe: "",
   customE: "",
   customDensity: "",
+  sizeA: "",
+  sizeB: "",
+  sizeR: "",
+  angle: "",
 };
 
 const KEYS: Record<keyof Inputs, string> = {
@@ -58,11 +62,24 @@ const KEYS: Record<keyof Inputs, string> = {
   customRe: "cr",
   customE: "ce",
   customDensity: "cd",
+  sizeA: "a",
+  sizeB: "b",
+  sizeR: "r",
+  angle: "an",
 };
 
 // One-letter codes for enumerated values.
 const CODES: Partial<Record<keyof Inputs, Record<string, string>>> = {
-  shape: { cylinder: "c", cone: "k" },
+  shape: {
+    cylinder: "c",
+    cone: "k",
+    halfround: "hr",
+    ushape: "u",
+    obround: "ob",
+    rect: "re",
+    tank: "tk",
+    bucket: "bk",
+  },
   mode: { fromDiameter: "d", fromLength: "l" },
   dimension: { diameter: "d", radius: "r" },
   surface: { inner: "i", mid: "m", outer: "o" },

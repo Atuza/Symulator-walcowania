@@ -120,3 +120,30 @@ export function traceProfile(profile: Profile, depth: number, step = Math.PI / 9
 export function totalTurn(profile: Profile): number {
   return profile.segments.reduce((sum, s) => sum + (s.kind === "arc" ? s.angle : 0), 0);
 }
+
+/**
+ * The plate part-way through the rolls, walked from its free (not yet rolled) end: a straight tail
+ * up to the pinch, then the formed part in reverse order. The leading edge entered first, so the
+ * material next to the pinch is the latest formed. Walking backwards flips every turn's direction.
+ */
+export function partlyRolled(profile: Profile, dev: Development, rolled: number): Profile {
+  const done = Math.min(dev.length, Math.max(0, rolled));
+  const formed: Segment[] = [];
+  for (const d of dev.segments) {
+    if (d.start >= done) break;
+    const share = Math.min(1, (done - d.start) / (d.length || 1));
+    const s = d.segment;
+    formed.push(
+      s.kind === "line"
+        ? { kind: "line", length: s.length * share }
+        : { kind: "arc", radius: s.radius, angle: s.angle * share },
+    );
+  }
+  const reversed = formed
+    .reverse()
+    .map((s): Segment => (s.kind === "arc" ? { ...s, angle: -s.angle } : s));
+  return {
+    ...profile,
+    segments: [{ kind: "line", length: dev.length - done }, ...reversed],
+  };
+}

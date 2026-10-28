@@ -39,9 +39,12 @@ import {
   defaultInputs,
   inputsSchema,
   parseNumber,
+  shapeDefaults,
   type Inputs,
   type TextField,
 } from "../state/inputs";
+import { SHAPE_FIELDS, type ProfileShape } from "../domain/shapes";
+import { shapeIcon } from "./shapeIcons";
 import { settingsSchema, type Settings } from "../state/settings";
 import { load, save } from "../state/storage";
 import { sceneModel } from "../viz/sceneModel";
@@ -123,9 +126,20 @@ export class App {
 
   private set<K extends keyof Inputs>(key: K, value: Inputs[K], structural: boolean) {
     this.inputs = { ...this.inputs, [key]: value };
+    if (key === "shape") this.fitShapeSizes();
     this.schedulePersist();
     if (structural) this.renderAll();
     else this.scheduleCompute();
+  }
+
+  /**
+   * Loads a profile shape's starting sizes. The size fields are shared between shapes but mean
+   * different things in each (A is a width in one, a length in another), so they never carry over.
+   */
+  private fitShapeSizes() {
+    const shape = this.inputs.shape;
+    if (shape === "cylinder" || shape === "cone") return;
+    this.inputs = { ...this.inputs, ...shapeDefaults[shape] };
   }
 
   private schedulePersist() {
@@ -277,15 +291,7 @@ export class App {
     panel.append(
       group(
         t("section.shape"),
-        segmented(
-          t("section.shape"),
-          [
-            { value: "cylinder", label: t("shape.cylinder") },
-            { value: "cone", label: t("shape.cone") },
-          ],
-          i.shape,
-          (v) => this.set("shape", v, true),
-        ),
+        this.shapePicker(),
         i.shape === "cylinder"
           ? segmented(
               t("section.shape"),
@@ -384,7 +390,7 @@ export class App {
       );
     } else if (i.shape === "cylinder") {
       geo.append(this.numberField("length", t("field.length"), t("unit.mm"), undefined, true));
-    } else {
+    } else if (i.shape === "cone") {
       geo.append(
         labelled(t("field.surface"), this.surfaceControl()),
         h(
@@ -395,9 +401,10 @@ export class App {
         ),
         this.numberField("height", t("field.height"), t("unit.mm")),
       );
+    } else {
+      geo.append(...this.profileFields(i.shape));
     }
-    if (i.shape === "cylinder")
-      geo.append(this.numberField("width", t("field.width"), t("unit.mm")));
+    if (i.shape !== "cone") geo.append(this.numberField("width", t("field.width"), t("unit.mm")));
     panel.append(geo);
 
     // Advanced
@@ -458,6 +465,87 @@ export class App {
     );
     panel.append(adv);
     this.updateMaterialInfo();
+  }
+
+  private shapePicker() {
+    const shapes: Inputs["shape"][] = [
+      "cylinder",
+      "cone",
+      "halfround",
+      "ushape",
+      "obround",
+      "rect",
+      "tank",
+      "bucket",
+    ];
+    return h(
+      "div",
+      { class: "shape-grid", role: "radiogroup", "aria-label": t("section.shape") },
+      ...shapes.map((s) => {
+        const on = s === this.inputs.shape;
+        return h(
+          "button",
+          {
+            type: "button",
+            role: "radio",
+            class: `shape-option${on ? " is-on" : ""}`,
+            "aria-checked": String(on),
+            onClick: () => {
+              if (s !== this.inputs.shape) this.set("shape", s, true);
+            },
+          },
+          shapeIcon(s),
+          h("span", {}, t(`shape.${s}` as Key)),
+        );
+      }),
+    );
+  }
+
+  private profileFields(shape: ProfileShape): HTMLElement[] {
+    const out: HTMLElement[] = [labelled(t("field.surface"), this.surfaceControl())];
+    const fields: Record<"a" | "b" | "r" | "angle", TextField> = {
+      a: "sizeA",
+      b: "sizeB",
+      r: "sizeR",
+      angle: "angle",
+    };
+    SHAPE_FIELDS[shape].forEach((f, idx) => {
+      if (shape === "halfround" && f === "r") {
+        out.push(
+          labelled(
+            t("field.dimension"),
+            segmented(
+              t("field.dimension"),
+              [
+                { value: "diameter", label: t("dim.diameter") },
+                { value: "radius", label: t("dim.radius") },
+              ],
+              this.inputs.dimension,
+              (v) => this.set("dimension", v, true),
+            ),
+          ),
+          this.numberField(
+            "value",
+            t(this.inputs.dimension === "radius" ? "field.value.radius" : "field.value.diameter"),
+            t("unit.mm"),
+            undefined,
+            true,
+          ),
+        );
+        return;
+      }
+      out.push(
+        this.numberField(
+          fields[f],
+          t(`size.${shape}.${f}` as Key),
+          t(f === "angle" ? "unit.deg" : "unit.mm"),
+          undefined,
+          idx === 0,
+          t(`size.${shape}.${f}.hint` as Key),
+        ),
+      );
+    });
+    return out;
   }
 
   private templateBar() {
@@ -711,7 +799,7 @@ export class App {
 
   private actions(enabled: boolean) {
     const d = this.derived;
-    const canDxf = enabled && !(d.output?.shape === "cylinder" && d.width === null);
+    const canDxf = enabled && !(d.output?.shape !== "cone" && d.width === null);
     const saveBtn = h(
       "button",
       {
@@ -908,25 +996,17 @@ export class App {
   private fileBase(): string {
     const d = this.derived;
     const out = d.output!;
-    const shape =
-      out.shape === "cylinder"
-        ? getLang() === "pl"
-          ? "walec"
-          : "cylinder"
-        : getLang() === "pl"
-          ? "stozek"
-          : "cone";
+    const shape = t(`shape.${this.inputs.shape}` as Key);
     const m = this.materials.find((x) => x.id === this.inputs.materialId);
     const n = (v: number) => String(Math.round(v * 100) / 100).replace(".", "-");
     const main =
-      out.shape === "cylinder" ? `L${n(out.result.blankLength)}` : `R${n(out.result.rOuter)}`;
+      out.shape === "cone" ? `R${n(out.result.rOuter)}` : `L${n(out.result.blankLength)}`;
     return slug(`${shape}_${m?.id.toUpperCase() ?? "custom"}_t${n(d.thickness ?? 0)}_${main}`);
   }
 
   private summary(): string {
     const d = this.derived;
-    const out = d.output!;
-    const shape = t(out.shape === "cylinder" ? "shape.cylinder" : "shape.cone");
+    const shape = t(`shape.${this.inputs.shape}` as Key);
     const main = heroes(d)
       .map((x) => `${x.label} ${x.value}`)
       .join(" · ");
@@ -943,15 +1023,19 @@ export class App {
     const out = d.output;
     if (!out) return;
     let contour;
-    if (out.shape === "cylinder") {
+    let bends: [number, number][] = [];
+    if (out.shape === "cone") {
+      contour = sectorContour(out.result.rInner, out.result.rOuter, out.result.angle);
+    } else {
       if (d.width === null) return;
       contour = rectangleContour(out.result.blankLength, d.width);
-    } else {
-      contour = sectorContour(out.result.rInner, out.result.rOuter, out.result.angle);
+      const w = d.width;
+      if (out.shape === "profile") bends = out.result.dev.bendLines.map((x) => [x, w]);
     }
+    const lines = bends.map(([x, w]) => ({ x1: x, y1: 0, x2: x, y2: w }));
     this.saveToHistory();
     await saveFile(
-      new Blob([dxfDocument(contour)], { type: "application/dxf" }),
+      new Blob([dxfDocument(contour, lines)], { type: "application/dxf" }),
       `${this.fileBase()}.dxf`,
     );
   }
@@ -1286,13 +1370,13 @@ function rowEls(r: Row): HTMLElement[] {
   return [
     h(
       "dt",
-      { class: r.neon ? "is-neon" : "" },
+      { class: `${r.neon ? "is-neon" : ""}${r.list ? " is-list" : ""}` },
       r.label,
       r.estimate ? h("span", { class: "tag" }, t("result.estimate")) : null,
     ),
     h(
       "dd",
-      { class: r.neon ? "is-neon" : "" },
+      { class: `${r.neon ? "is-neon" : ""}${r.list ? " is-list" : ""}` },
       r.value,
       r.unit ? h("span", { class: "unit" }, ` ${r.unit}`) : null,
     ),

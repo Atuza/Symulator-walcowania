@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { PROFILE_SHAPES, type ProfileShape } from "../domain/shapes";
 
 // Numeric fields are kept as typed text so that "12,5" and partial input survive re-renders.
 export const inputsSchema = z.object({
-  shape: z.enum(["cylinder", "cone"]),
+  shape: z.enum(["cylinder", "cone", ...PROFILE_SHAPES]),
   mode: z.enum(["fromDiameter", "fromLength"]),
   materialId: z.string(),
   thickness: z.string(),
@@ -22,6 +23,11 @@ export const inputsSchema = z.object({
   customRe: z.string(),
   customE: z.string(),
   customDensity: z.string(),
+  // Profile shapes (1.1); inputs saved before them lack these fields.
+  sizeA: z.string().default(""),
+  sizeB: z.string().default(""),
+  sizeR: z.string().default(""),
+  angle: z.string().default(""),
 });
 
 export type Inputs = z.infer<typeof inputsSchema>;
@@ -48,6 +54,23 @@ export const defaultInputs: Inputs = {
   customRe: "",
   customE: "",
   customDensity: "",
+  sizeA: "",
+  sizeB: "",
+  sizeR: "",
+  angle: "",
+};
+
+/** Starting sizes when a profile shape is picked and the current ones do not fit it. */
+export const shapeDefaults: Record<
+  ProfileShape,
+  Partial<Pick<Inputs, "sizeA" | "sizeB" | "sizeR" | "angle" | "value" | "dimension">>
+> = {
+  halfround: { value: "1000", dimension: "diameter", angle: "180" },
+  ushape: { sizeA: "600", sizeB: "400" },
+  obround: { sizeA: "2000", sizeB: "800" },
+  rect: { sizeA: "1000", sizeB: "600", sizeR: "60" },
+  tank: { sizeA: "2400", sizeB: "1500", sizeR: "400" },
+  bucket: { sizeA: "400", sizeR: "500", angle: "120", sizeB: "500" },
 };
 
 /** Parses user text; accepts both decimal comma and dot. Empty or invalid → null. */

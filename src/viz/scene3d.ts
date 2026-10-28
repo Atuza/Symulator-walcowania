@@ -21,6 +21,7 @@ import {
   WebGLRenderer,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { partlyRolled, traceProfile } from "../domain/profile";
 import type { SceneModel } from "./sceneModel";
 
 // Model is built in metres to keep camera and depth precision comfortable.
@@ -213,7 +214,11 @@ export class RollingScene {
     const m = this.model;
     if (!m) return;
     const geo =
-      m.shape === "cylinder" ? cylinderPlate(m, this.progress) : conePlate(m, this.progress);
+      m.shape === "cylinder"
+        ? cylinderPlate(m, this.progress)
+        : m.shape === "cone"
+          ? conePlate(m, this.progress)
+          : profilePlate(m, this.progress);
     this.plate = new Mesh(geo, this.plateMat);
     this.root.add(this.plate);
   }
@@ -222,7 +227,34 @@ export class RollingScene {
 function scaleOf(m: SceneModel): number {
   return m.shape === "cylinder"
     ? Math.round(Math.log2(m.radius * m.width))
-    : Math.round(Math.log2(m.rOuter));
+    : m.shape === "cone"
+      ? Math.round(Math.log2(m.rOuter))
+      : Math.round(Math.log2(m.dev.length * m.width));
+}
+
+/**
+ * Any profile part-way through the rolls: straight tail on the entry side, formed part beyond the
+ * pinch at the origin, laid out like the cylinder (tail along +x, forming curls upwards).
+ */
+function profilePlate(
+  m: Extract<SceneModel, { shape: "profile" }>,
+  progress: number,
+): BufferGeometry {
+  const walk = partlyRolled(m.profile, m.dev, progress * m.dev.length);
+  const tail = m.dev.length * (1 - Math.min(1, Math.max(0, progress)));
+  // The walk starts at the free end heading +x; turning it half round puts the tail on +x.
+  const place = ([x, y]: [number, number]) => new Vector2((tail - x) * MM, -y * MM);
+  const a = traceProfile(walk, 0).map(place);
+  const b = traceProfile(walk, 1).map(place).reverse();
+  const geo = new ExtrudeGeometry(new Shape([...a, ...b]), {
+    depth: m.width * MM,
+    bevelEnabled: false,
+    curveSegments: 1,
+    steps: 1,
+  });
+  geo.translate(0, 0, (-m.width * MM) / 2);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 /** Plate profile through the pinch point: flat on the entry side, wrapped on radius R on the exit side. */
