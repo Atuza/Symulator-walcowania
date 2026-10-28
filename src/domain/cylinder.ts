@@ -1,4 +1,5 @@
 import { neutralFactor } from "./neutralAxis";
+import { develop, type Profile, type Segment } from "./profile";
 import { surfaceDepth, type Surface } from "./types";
 
 export interface CylinderFromDiameter {
@@ -36,6 +37,8 @@ export interface CylinderResult {
   blankLength: number;
   /** Inner radius / thickness. */
   rt: number;
+  /** Cross-section the blank is developed from. */
+  profile: Profile;
   /** Engineering strain of the outer fibre. */
   outerStrain: number;
 }
@@ -71,17 +74,31 @@ export function solveCylinder(input: CylinderInput): CylinderResult | CylinderEr
     if (!(dInner > 0)) return "tooSmall";
   }
 
-  const dNeutral = dInner + 2 * k * t;
-  const ringLength = Math.PI * dNeutral;
+  const profile = cylinderProfile(dInner, t, flat, k);
+  const dev = develop(profile);
+  if (typeof dev === "string") return dev === "thickness" ? "thickness" : "tooSmall";
+  const ring = dev.segments.find((s) => s.k !== null)!;
   return {
     k,
     dInner,
     dOuter: dInner + 2 * t,
-    dNeutral,
-    ringLength,
+    dNeutral: dInner + 2 * k * t,
+    ringLength: ring.length,
     flatEnd: flat,
-    blankLength: ringLength + 2 * flat,
+    blankLength: dev.length,
+    profile,
     rt: dInner / 2 / t,
     outerStrain: t / (dInner + t),
+  };
+}
+
+/** A full turn with an unbent flat at each end; the seam is where the two flats meet. */
+export function cylinderProfile(dInner: number, t: number, flat: number, k: number): Profile {
+  const ring: Segment = { kind: "arc", radius: dInner / 2, angle: 2 * Math.PI };
+  const flats: Segment = { kind: "line", length: flat };
+  return {
+    segments: flat > 0 ? [flats, ring, flats] : [ring],
+    thickness: t,
+    kOverride: k,
   };
 }

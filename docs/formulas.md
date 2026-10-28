@@ -129,3 +129,16 @@ Maker's charts give the maximum thickness `t(B, D)` for plate width `B` (rows) a
 
 The given diameter can be on the inner, mid or outer surface: `D_in = D − 2·c·t` with
 `c = 0, ½, 1`; for a cone `t` is replaced by the radial thickness `t / cos α`.
+
+## Profiles
+
+Every rolled cross-section is a chain of straight segments and circular arcs (`domain/profile.ts`).
+An arc is given by its inner-surface radius `r` and turning angle `φ` (positive left, negative
+right). The blank length is the sum along the neutral fibre:
+
+    L = Σ l_i + Σ (r_j + k_j · t) · |φ_j|
+
+with `k_j` taken per arc from its own `r_j / t` (DIN 6935, above), unless `k` is overridden. Bend
+lines on the blank sit where each arc starts and ends; lines on the blank edges are dropped and
+touching arcs share one line. A cylinder is a single arc of `2π` with a flat at each end, which gives
+exactly `L = π · (D_in + 2 k t) + 2 f` as before.
