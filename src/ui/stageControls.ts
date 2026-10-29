@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { num, t, type Key } from "../i18n";
 import { load, save } from "../state/storage";
-import type { MachinePart } from "../viz/scene3d";
+import type { MachinePart, ViewPreset } from "../viz/scene3d";
 import { h } from "./dom";
 
 /*
@@ -13,7 +13,10 @@ export interface StageTarget {
   setProgress(p: number): void;
   setHidden(parts: MachinePart[]): void;
   resetView(): void;
+  setViewPreset(preset: ViewPreset): void;
 }
+
+const VIEWS: ViewPreset[] = ["iso", "front", "side", "top"];
 
 const VIEW_KEY = "rolling.view.v1";
 const SPEEDS = [1, 2, 4, 0.5];
@@ -189,6 +192,23 @@ export class StageControls {
 
   private renderPanel() {
     this.panel.replaceChildren(
+      h("p", { class: "stage-parts-title" }, t("view.camera")),
+      h(
+        "div",
+        { class: "stage-views" },
+        ...VIEWS.map((v) =>
+          h(
+            "button",
+            {
+              type: "button",
+              class: "btn btn-small btn-ghost",
+              onClick: () => this.target()?.setViewPreset(v),
+            },
+            t(`view.preset.${v}` as Key),
+          ),
+        ),
+      ),
+      h("p", { class: "stage-parts-hint" }, t("view.cameraHint")),
       h("p", { class: "stage-parts-title" }, t("view.parts")),
       ...PARTS.map((part) =>
         h(

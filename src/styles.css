@@ -2470,3 +2470,17 @@ textarea:focus {
 .stage-controls .btn-small {
   padding-inline: 8px;
 }
+
+.stage-views {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.stage-parts-hint {
+  margin: 0 0 8px;
+  max-width: 240px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--muted);
+}

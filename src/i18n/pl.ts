@@ -45,6 +45,13 @@ export const pl: Dict = {
 
   "shape.cylinder": "Walec",
   "shape.cone": "Stożek",
+  "view.camera": "Ujęcie kamery",
+  "view.preset.iso": "3D",
+  "view.preset.front": "Przód",
+  "view.preset.side": "Bok",
+  "view.preset.top": "Góra",
+  "view.cameraHint":
+    "Kółko: przybliż do kursora · prawy przycisk lub dwa palce: przesuń · dwuklik: wycentruj",
   "result.limitRolling": "Maks. grubość wg karty zwijania",
   "result.limitPrebending": "Maks. grubość wg karty podginania",
   "result.limitCone": "Maks. grubość stożka ({share} karty)",

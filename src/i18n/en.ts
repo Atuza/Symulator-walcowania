@@ -43,6 +43,13 @@ export const en = {
 
   "shape.cylinder": "Cylinder",
   "shape.cone": "Cone",
+  "view.camera": "Camera view",
+  "view.preset.iso": "3D",
+  "view.preset.front": "Front",
+  "view.preset.side": "Side",
+  "view.preset.top": "Top",
+  "view.cameraHint":
+    "Wheel: zoom to cursor · right button or two fingers: pan · double-click: centre",
   "result.limitRolling": "Max thickness, rolling chart",
   "result.limitPrebending": "Max thickness, pre-bending chart",
   "result.limitCone": "Max cone thickness ({share} of chart)",

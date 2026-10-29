@@ -2,6 +2,7 @@ import {
   ACESFilmicToneMapping,
   AmbientLight,
   Box3,
+  Raycaster,
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
@@ -51,6 +52,17 @@ function loadMachineModel(): Promise<Group | null> {
 }
 
 /** Machine parts the viewer can hide when they block the view. */
+export type ViewPreset = "iso" | "front" | "side" | "top";
+
+// Camera directions for the preset views, from the part towards the camera.
+const PRESETS: Record<ViewPreset, Vector3> = {
+  iso: new Vector3(0.55, 0.38, 1.3),
+  front: new Vector3(0, 0.12, 1),
+  side: new Vector3(1, 0.12, 0),
+  // Slightly off vertical so the orbit controls keep a defined "up".
+  top: new Vector3(0.001, 1, 0.02),
+};
+
 export type MachinePart =
   "housings" | "tower" | "ejector" | "supports" | "posts" | "table" | "rolls";
 
@@ -155,7 +167,14 @@ export class RollingScene {
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.12;
+    // Zoom towards the point under the cursor, pan in the screen plane, never below the floor.
+    this.controls.zoomToCursor = true;
+    this.controls.screenSpacePanning = true;
+    this.controls.maxPolarAngle = Math.PI * 0.52;
     this.controls.addEventListener("change", () => this.requestRender());
+    // Double-click centres the view on the clicked part and moves closer to it.
+    this.renderer.domElement.addEventListener("dblclick", (e) => this.focusAt(e));
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(host);
     this.resize();
@@ -215,6 +234,29 @@ export class RollingScene {
     this.requestRender();
   }
 
+  /** Looks at the part from a fixed side: front = from the yoke end, side = from the feed table. */
+  setViewPreset(preset: ViewPreset) {
+    this.fit(false, PRESETS[preset]);
+    this.requestRender();
+  }
+
+  private focusAt(e: MouseEvent) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const ray = new Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    const hit = ray.intersectObject(this.root, true).find((h) => h.object.visible);
+    if (!hit) return;
+    const offset = this.camera.position.clone().sub(this.controls.target).multiplyScalar(0.6);
+    this.controls.target.copy(hit.point);
+    this.camera.position.copy(hit.point).add(offset);
+    this.controls.update();
+    this.requestRender();
+  }
+
   dispose() {
     cancelAnimationFrame(this.frame);
     this.resizeObserver.disconnect();
@@ -247,7 +289,7 @@ export class RollingScene {
    * Frames everything currently in the scene. While rolling, the flat tail shrinks, so the view follows
    * the part; an existing orbit direction is kept unless the view is reset.
    */
-  private fit(keepDirection = false) {
+  private fit(keepDirection = false, direction?: Vector3) {
     if (!this.model) return;
     // Frame the whole run, flat blank to finished part, with the rolls, so the camera can stay put
     // while rolling. The frame and feed table may run out of view.
@@ -265,10 +307,12 @@ export class RollingScene {
     // Default: mostly along the roll axis, so the bending profile reads clearly.
     const dir = keepDirection
       ? this.camera.position.clone().sub(this.controls.target).normalize()
-      : new Vector3(0.55, 0.38, 1.3).normalize();
+      : (direction ?? PRESETS.iso).clone().normalize();
     this.camera.position.copy(sphere.center).addScaledVector(dir, dist);
-    this.camera.near = dist / 100;
-    this.camera.far = dist * 10;
+    this.camera.near = dist / 200;
+    this.camera.far = dist * 20;
+    this.controls.minDistance = dist * 0.04;
+    this.controls.maxDistance = dist * 4;
     this.camera.updateProjectionMatrix();
     this.controls.target.copy(sphere.center);
     this.controls.update();
