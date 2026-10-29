@@ -4,7 +4,7 @@ Plate rolling calculator for 4-roll plate bending machines: blank length, diamet
 3D rolling preview, 2D drawing, PDF report and DXF cut contour. Runs entirely in the browser, works
 offline once loaded, stores nothing outside the device.
 
-**Version:** 1.1.8
+**Version:** 1.1.9
 
 **App:** https://atuza.github.io/Symulator-walcowania/
 

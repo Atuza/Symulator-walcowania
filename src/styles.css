@@ -1223,6 +1223,10 @@ textarea:focus {
   grid-template-columns: 1fr;
 }
 
+.heroes-stack .hero:last-child {
+  grid-column: auto;
+}
+
 .hero-value {
   white-space: nowrap;
 }
