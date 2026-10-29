@@ -1,5 +1,4 @@
 import { calibrationFactor, meanFactor } from "../domain/calibration";
-import type { CapacityChart } from "../domain/capacity";
 import type { MachineLimits } from "../domain/calculate";
 import { materialGroups, yieldAt, type Material } from "../domain/materials/schema";
 import { saveFile } from "../export/download";
@@ -23,16 +22,10 @@ import {
 import { z } from "zod";
 import { parseNumber } from "../state/inputs";
 import { load, save } from "../state/storage";
-import {
-  chartToText,
-  machineFileText,
-  parseChartText,
-  parseMachineFile,
-} from "../state/machineFile";
-import { chartSchema } from "../state/settings";
 import { fixedMachineGeometry } from "../state/fixedMachine";
 import { TRIALS_LIMIT, type Template, type Trial } from "../state/library";
 import { confirmDialog } from "./dialog";
+import { ChartsEditor } from "./editorCharts";
 import { h, segmented } from "./dom";
 
 export interface EditorState {
@@ -85,11 +78,20 @@ export class Editor {
   private draftIsNew = false;
   private filter = "";
   /** Index of the capacity chart open for editing. */
-  private chartEdit: number | null = null;
 
+  private charts: ChartsEditor;
   private showDocs = load(DOCS_KEY, z.boolean()) ?? true;
 
   constructor(private host: EditorHost) {
+    this.charts = new ChartsEditor({
+      root: this.host.root,
+      machine: () => this.host.state().machine,
+      setMachine: (m) => this.host.setMachine(m),
+      render: () => this.render(),
+      saveButton: (action) => this.saveButton(action),
+      withDoc: (el, doc) => withDoc(el, doc),
+      numInput: (label, value, unit, onValue) => numInput(label, value, unit, onValue),
+    });
     this.referenceShape = host.currentShape;
     this.render();
   }
@@ -255,238 +257,7 @@ export class Editor {
       ),
       h("div", { class: "editor-actions" }, save),
       h("hr", { class: "editor-rule" }),
-      this.chartsBlock(),
-    );
-  }
-
-  private chartsBlock() {
-    const charts = this.host.state().machine.charts;
-    const status = h("p", { class: "editor-status", role: "status" });
-    const setCharts = (next: CapacityChart[]) => {
-      this.host.setMachine({ ...this.host.state().machine, charts: next });
-      this.render();
-    };
-    const file = h("input", {
-      type: "file",
-      accept: "application/json,.json",
-      class: "visually-hidden",
-      onChange: async (e: Event) => {
-        const input = e.target as HTMLInputElement;
-        const f = input.files?.[0];
-        input.value = "";
-        if (!f) return;
-        const parsed = f.size < 2_000_000 ? parseMachineFile(await f.text()) : null;
-        if (!parsed) {
-          status.textContent = t("edit.machineFile.bad");
-          status.dataset.tone = "error";
-          return;
-        }
-        const ok = await confirmDialog(
-          this.host.root,
-          t("edit.machineFile.import"),
-          t("edit.machineFile.confirm"),
-          t("edit.machineFile.import"),
-        );
-        if (!ok) return;
-        this.host.setMachine(parsed.machine);
-        this.chartEdit = null;
-        this.render();
-      },
-    });
-    const exportBtn = h(
-      "button",
-      {
-        type: "button",
-        class: "btn",
-        onClick: () =>
-          void saveFile(
-            new Blob([machineFileText(this.host.state().machine)], { type: "application/json" }),
-            `rolling-machine_${new Date().toISOString().slice(0, 10)}.json`,
-          ),
-      },
-      t("edit.machineFile.export"),
-    );
-    const addBtn = h(
-      "button",
-      {
-        type: "button",
-        class: "btn btn-primary",
-        onClick: () => {
-          // Start from the last chart's grid: charts of one machine share their axes.
-          const last = charts[charts.length - 1];
-          const chart: CapacityChart = last
-            ? structuredClone(last)
-            : {
-                kind: "rolling",
-                re: 260,
-                widths: [1000, 2000],
-                diameters: [500, 1000],
-                thickness: [
-                  [10, 12],
-                  [8, 10],
-                ],
-              };
-          setCharts([...charts, chart]);
-          this.chartEdit = charts.length;
-          this.render();
-        },
-      },
-      t("edit.chart.add"),
-    );
-    return withDoc(
-      h(
-        "div",
-        { class: "charts" },
-        h("h3", { class: "editor-subtitle" }, t("edit.chart.title")),
-        h("p", { class: "muted" }, t("edit.chart.intro")),
-        ...charts.map((c, i) =>
-          this.chartEdit === i
-            ? this.chartForm(c, i, charts, setCharts)
-            : this.chartCard(c, i, charts, setCharts),
-        ),
-        h(
-          "div",
-          { class: "editor-actions editor-actions-start" },
-          addBtn,
-          h(
-            "button",
-            { type: "button", class: "btn", onClick: () => file.click() },
-            t("edit.machineFile.import"),
-          ),
-          exportBtn,
-          file,
-        ),
-        status,
-      ),
-      "machine.charts",
-    );
-  }
-
-  private chartTitle(c: CapacityChart) {
-    return `${t(c.kind === "rolling" ? "edit.chart.rolling" : "edit.chart.prebending")} · Re ${num(c.re, 0)} MPa`;
-  }
-
-  private chartCard(
-    c: CapacityChart,
-    i: number,
-    charts: CapacityChart[],
-    setCharts: (next: CapacityChart[]) => void,
-  ) {
-    return h(
-      "div",
-      { class: "chart-card" },
-      h(
-        "div",
-        { class: "chart-head" },
-        h("strong", {}, this.chartTitle(c)),
-        h(
-          "span",
-          { class: "chart-actions" },
-          h(
-            "button",
-            {
-              type: "button",
-              class: "btn btn-ghost btn-small",
-              onClick: () => {
-                this.chartEdit = i;
-                this.render();
-              },
-            },
-            t("edit.chart.edit"),
-          ),
-          h(
-            "button",
-            {
-              type: "button",
-              class: "btn btn-ghost btn-small btn-danger-text",
-              onClick: async () => {
-                const ok = await confirmDialog(
-                  this.host.root,
-                  t("edit.chart.delete"),
-                  this.chartTitle(c),
-                  t("edit.chart.delete"),
-                );
-                if (ok) setCharts(charts.filter((_, j) => j !== i));
-              },
-            },
-            t("edit.chart.delete"),
-          ),
-        ),
-      ),
-      chartTable(c),
-    );
-  }
-
-  private chartForm(
-    c: CapacityChart,
-    i: number,
-    charts: CapacityChart[],
-    setCharts: (next: CapacityChart[]) => void,
-  ) {
-    const draft = { kind: c.kind, re: c.re as number | null };
-    const error = h("p", { class: "editor-errors", role: "alert" });
-    const area = h("textarea", {
-      class: "chart-text",
-      rows: String(Math.min(16, c.widths.length + 2)),
-      spellcheck: false,
-      "aria-label": t("edit.chart.grid"),
-      value: chartToText(c, getLang() === "pl"),
-    }) as HTMLTextAreaElement;
-    const save = this.saveButton(() => {
-      const grid = parseChartText(area.value);
-      const chart: CapacityChart | null =
-        grid && draft.re !== null && draft.re > 0
-          ? { kind: draft.kind, re: draft.re, ...grid }
-          : null;
-      const ok = chart !== null && chartSchema.safeParse(chart).success;
-      error.textContent = ok ? "" : t("edit.chart.bad");
-      if (!ok || !chart) return false;
-      this.chartEdit = null;
-      setCharts(charts.map((x, j) => (j === i ? chart : x)));
-    });
-    const cancel = h(
-      "button",
-      {
-        type: "button",
-        class: "btn btn-ghost",
-        onClick: () => {
-          this.chartEdit = null;
-          this.render();
-        },
-      },
-      t("action.cancel"),
-    );
-    return h(
-      "div",
-      { class: "chart-card is-editing" },
-      h(
-        "div",
-        { class: "field-grid" },
-        h(
-          "div",
-          { class: "field" },
-          h("span", { class: "field-label" }, t("edit.chart.kind")),
-          segmented<CapacityChart["kind"]>(
-            t("edit.chart.kind"),
-            [
-              { value: "rolling", label: t("edit.chart.rolling") },
-              { value: "prebending", label: t("edit.chart.prebending") },
-            ],
-            draft.kind,
-            (v) => (draft.kind = v),
-          ),
-        ),
-        numInput(t("edit.chart.re"), draft.re, t("unit.mpa"), (n) => (draft.re = n)),
-      ),
-      h(
-        "label",
-        { class: "field" },
-        h("span", { class: "field-label" }, t("edit.chart.grid")),
-        area,
-        h("span", { class: "field-msg" }, t("edit.chart.gridHint")),
-      ),
-      error,
-      h("div", { class: "editor-actions" }, cancel, save),
+      this.charts.block(),
     );
   }
 
@@ -1417,39 +1188,6 @@ const fieldLabels: Record<string, string> = {
 };
 
 /** Read-only view of a capacity chart: widths down, diameters across. */
-function chartTable(c: CapacityChart) {
-  return h(
-    "div",
-    { class: "chart-scroll" },
-    h(
-      "table",
-      { class: "chart-table" },
-      h(
-        "thead",
-        {},
-        h(
-          "tr",
-          {},
-          h("th", { scope: "col" }, "B \\ Ø"),
-          ...c.diameters.map((d) => h("th", { scope: "col" }, num(d, 0))),
-        ),
-      ),
-      h(
-        "tbody",
-        {},
-        ...c.widths.map((w, i) =>
-          h(
-            "tr",
-            {},
-            h("th", { scope: "row" }, num(w, 0)),
-            ...(c.thickness[i] ?? []).map((v) => h("td", {}, num(v, Number.isInteger(v) ? 0 : 1))),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
 function section(title: string, ...children: HTMLElement[]) {
   return h(
     "section",

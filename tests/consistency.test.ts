@@ -315,3 +315,18 @@ describe("thickness beyond the material standard", () => {
     );
   });
 });
+
+describe("springback from the standard's minimum yield strength", () => {
+  const codes = (patch: Partial<Inputs>) =>
+    run({ thickness: "10", value: "1000", width: "2000", ...patch }).output?.warnings.map(
+      (w) => w.code,
+    ) ?? [];
+
+  it("asks for the certificate value when springback is noticeable", () => {
+    expect(codes({})).toContain("reMinimum");
+  });
+
+  it("is quiet once the certificate value is entered", () => {
+    expect(codes({ reActual: "380" })).not.toContain("reMinimum");
+  });
+});

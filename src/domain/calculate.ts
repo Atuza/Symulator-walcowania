@@ -114,6 +114,8 @@ export interface RadiusSet {
 export type CalcError = { error: CylinderError | ConeError | ShapeError | EccentricError };
 
 const DEFAULT_SPRINGBACK_WARN = 0.3;
+// Springback share above which a note asks for the certificate yield strength.
+const MINIMUM_RE_NOTE = 0.05;
 
 export function calculate(input: CalcInput): CalcOutput | CalcError {
   return input.shape === "cylinder"
@@ -173,11 +175,15 @@ function commonWarnings(
     w.push({ code: "reFromCertificate", severity: "info", values: { re: m.re } });
 }
 
-function springbackWarnings(set: SetPoint | null, limit: number, w: Warning[]) {
+function springbackWarnings(input: Common, set: SetPoint | null, w: Warning[]) {
   if (!set) return;
+  const limit = input.springbackWarn ?? DEFAULT_SPRINGBACK_WARN;
   if (set.dInner <= 0 || set.ratio >= 0.999) w.push({ code: "elasticOnly", severity: "warn" });
   else if (set.ratio > limit)
     w.push({ code: "springbackLarge", severity: "info", values: { ratio: set.ratio } });
+  // The standard's yield strength is a minimum; real plates are usually stronger and spring back more.
+  else if (!input.reFromCertificate && set.ratio > MINIMUM_RE_NOTE)
+    w.push({ code: "reMinimum", severity: "info", values: { re: input.material.re } });
 }
 
 /**
@@ -265,7 +271,7 @@ function calcCylinder(input: Extract<CalcInput, { shape: "cylinder" }>): CalcOut
   const set = setPoint(input, result.dNeutral / 2, t, result.k, 1);
   const w: Warning[] = [];
   commonWarnings(input, t, result.rt, result.outerStrain, w);
-  springbackWarnings(set, input.springbackWarn ?? DEFAULT_SPRINGBACK_WARN, w);
+  springbackWarnings(input, set, w);
   const mc = input.machine;
   if (mc.maxWidth !== null && input.width !== null && input.width > mc.maxWidth)
     w.push({ code: "machineWidth", severity: "warn", values: { max: mc.maxWidth } });
@@ -295,7 +301,7 @@ function calcCone(input: Extract<CalcInput, { shape: "cone" }>): CalcOutput | Ca
   const w: Warning[] = [];
   if (input.cone.dSmall === 0) w.push({ code: "coneApex", severity: "warn" });
   commonWarnings(input, t, result.rtMin, result.outerStrainMax, w);
-  springbackWarnings(setLarge, input.springbackWarn ?? DEFAULT_SPRINGBACK_WARN, w);
+  springbackWarnings(input, setLarge, w);
   const mc = input.machine;
   // The generator lies along the rolls, so the slant length is the working width.
   if (mc.maxWidth !== null && result.slant > mc.maxWidth)
@@ -330,7 +336,7 @@ function calcEccentric(input: Extract<CalcInput, { shape: "eccentric" }>): CalcO
   const w: Warning[] = [];
   if (input.eccentric.dSmall === 0) w.push({ code: "coneApex", severity: "warn" });
   commonWarnings(input, t, result.rtMin, result.outerStrainMax, w);
-  springbackWarnings(setLarge, input.springbackWarn ?? DEFAULT_SPRINGBACK_WARN, w);
+  springbackWarnings(input, setLarge, w);
   const mc = input.machine;
   if (mc.maxWidth !== null && result.slantMax > mc.maxWidth)
     w.push({ code: "machineWidth", severity: "warn", values: { max: mc.maxWidth } });
@@ -357,7 +363,7 @@ function calcProfile(input: Extract<CalcInput, { shape: "profile" }>): CalcOutpu
   const w: Warning[] = [];
   commonWarnings(input, t, result.rtMin, result.outerStrainMax, w);
   const tightest = sets[0]!;
-  springbackWarnings(tightest.set, input.springbackWarn ?? DEFAULT_SPRINGBACK_WARN, w);
+  springbackWarnings(input, tightest.set, w);
   const mc = input.machine;
   if (mc.maxWidth !== null && input.width !== null && input.width > mc.maxWidth)
     w.push({ code: "machineWidth", severity: "warn", values: { max: mc.maxWidth } });

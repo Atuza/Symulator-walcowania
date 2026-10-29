@@ -224,6 +224,8 @@ export const en = {
 
   "warn.thicknessBeyondStandard":
     "Thickness {thick} mm is beyond this grade's standard (yield strength stated up to {tmax} mm). Re {re} MPa taken from the last band; enter Re from the certificate.",
+  "warn.reMinimum":
+    "Springback uses the standard's minimum Re ({re} MPa). Real plates are usually stronger and spring back more; enter Re from the certificate.",
   "warn.rtBelowMin": "R/t = {rt} is below the indicative minimum {min} for this grade.",
   "warn.strainHigh":
     "Outer fibre strain {strain} exceeds {limit}. Check the heat treatment requirements of the applicable code.",

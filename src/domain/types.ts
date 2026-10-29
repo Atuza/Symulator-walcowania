@@ -16,6 +16,7 @@ export type WarningCode =
   | "thicknessBeyondStandard"
   | "strainHigh"
   | "springbackLarge"
+  | "reMinimum"
   | "elasticOnly"
   | "coneApex"
   | "machineThickness"

@@ -225,6 +225,8 @@ export const pl: Dict = {
 
   "warn.thicknessBeyondStandard":
     "Grubość {thick} mm jest poza zakresem normy tego gatunku (Re podane do {tmax} mm). Przyjęto Re {re} MPa z ostatniego pasma; wpisz Re z atestu.",
+  "warn.reMinimum":
+    "Sprężynowanie liczone z minimalnego Re z normy ({re} MPa). Rzeczywiste Re jest zwykle wyższe, a sprężynowanie większe; wpisz Re z atestu.",
   "warn.rtBelowMin": "R/t = {rt} poniżej orientacyjnego minimum {min} dla tego gatunku.",
   "warn.strainHigh":
     "Odkształcenie włókna zewn. {strain} przekracza {limit}. Sprawdź wymagania obróbki cieplnej w obowiązującej normie.",
