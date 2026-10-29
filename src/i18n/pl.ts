@@ -65,7 +65,7 @@ export const pl: Dict = {
   "part.ejector": "Wypychacz J",
   "part.supports": "Stoły boczne SL/SR",
   "part.table": "Stół podający",
-  "part.posts": "Słupki FL/RL/FR/RR",
+  "part.posts": "Podnośniki stołów FL/RL/FR/RR",
   "shape.eccentric": "Stożek mimośrodowy",
   "result.equivalentDiameters": "Średnice zastępcze (obwód / π)",
   "result.endPlaneThickness": "Rozstaw ścian w rzucie czołowym",

@@ -87,8 +87,8 @@ describe("cone along the rolls", () => {
   });
 });
 
-describe("vertical support clears the part", () => {
-  it.each(["600", "1500", "2380"])("arm rides above a Ø%s shell all through the run", (value) => {
+describe("vertical support V", () => {
+  const shell = (value: string, p: number) => {
     const d = derive(
       { ...defaultInputs, thickness: "10", value, width: "2480" },
       withFixedMachine(),
@@ -96,18 +96,27 @@ describe("vertical support clears the part", () => {
       materials,
     );
     const m = sceneModel(d.output!, d.thickness!, d.width, withFixedMachine());
+    const geometry = plateGeometry(m, p);
+    geometry.computeBoundingBox();
+    const top = geometry.boundingBox!.max.y;
+    geometry.dispose();
+    return top;
+  };
+
+  it("bears on a large shell from inside: pad top meets the inner top", () => {
+    const top = shell("2380", 1);
+    expect(1.158 + towerLift(top, 0.01)).toBeCloseTo(top - 0.01, 9);
+  });
+
+  it.each(["600", "1000"])("stays above a Ø%s shell too small for the arm", (value) => {
     for (const p of [0, 0.5, 1]) {
-      const geometry = plateGeometry(m, p);
-      geometry.computeBoundingBox();
-      const top = geometry.boundingBox!.max.y;
-      // Arm underside at rest is 0.823 m above the pinch; after the lift it stays above the part.
-      expect(0.823 + towerLift(top)).toBeGreaterThan(top);
-      geometry.dispose();
+      const top = shell(value, p);
+      expect(0.823 + towerLift(top, 0.01)).toBeGreaterThan(top);
     }
   });
 
   it("stays at rest for parts below the arm", () => {
-    expect(towerLift(0.5)).toBe(0);
+    expect(towerLift(0.5, 0.01)).toBe(0);
   });
 });
 

@@ -63,7 +63,7 @@ export const en = {
   "part.ejector": "Ejector J",
   "part.supports": "Side tables SL/SR",
   "part.table": "Feed table",
-  "part.posts": "Posts FL/RL/FR/RR",
+  "part.posts": "Table lifters FL/RL/FR/RR",
   "shape.eccentric": "Eccentric cone",
   "result.equivalentDiameters": "Equivalent diameters (perimeter / π)",
   "result.endPlaneThickness": "Wall separation in the end plane",

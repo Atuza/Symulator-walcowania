@@ -395,7 +395,6 @@ export class RollingScene {
       this.root.add(this.machineGroup);
       this.applyVisibility();
       this.liftTower();
-      this.dropPosts();
       return;
     }
     const blank = feedLength(m);
@@ -536,34 +535,17 @@ export class RollingScene {
     this.plate = new Mesh(plateGeometry(m, this.progress), this.plateMat);
     this.root.add(this.plate);
     this.liftTower();
-    this.dropPosts();
   }
 
   /**
-   * Guide posts FL/RL/FR/RR retract below their table wherever the plate would run into them, as the
-   * CNC lowers them; otherwise they stand up at the table corners.
-   */
-  private dropPosts() {
-    if (!this.plate) return;
-    const plate = new Box3().setFromObject(this.plate);
-    for (const node of this.machineGroup.children) {
-      if (!/^Post/.test(node.name)) continue;
-      node.userData.baseY ??= node.position.y;
-      node.position.y = node.userData.baseY as number;
-      const post = new Box3().setFromObject(node);
-      if (post.intersectsBox(plate)) node.position.y -= POST_TRAVEL;
-    }
-  }
-
-  /**
-   * The vertical support's carriage and arm ride up the column above the rolled part, as the V axis
-   * does on the machine, so a large shell never runs into the arm. The column itself stays put.
+   * The vertical support's carriage and arm ride up the column: inside a large shell the pad bears on
+   * its top from below, over a small part the arm stays clear above it. The column itself stays put.
    */
   private liftTower() {
     if (!this.plate) return;
     const geo = this.plate.geometry;
     geo.computeBoundingBox();
-    const shift = towerLift(geo.boundingBox?.max.y ?? 0);
+    const shift = towerLift(geo.boundingBox?.max.y ?? 0, (this.model?.thickness ?? 0) * MM);
     for (const node of this.machineGroup.children) {
       if (!/^Tower(Carriage|Arm|Pad)/.test(node.name)) continue;
       node.userData.baseY ??= node.position.y;
@@ -575,6 +557,8 @@ export class RollingScene {
 // Vertical support travel [m], from the machine model: arm underside above the pinch line at rest,
 // clearance kept above the part, and how far the carriage can climb the column.
 const TOWER_ARM_BOTTOM = 0.823;
+// Top of the support pad at rest [m], above the pinch line.
+const TOWER_PAD_TOP = 1.158;
 const TOWER_CLEARANCE = 0.03;
 const TOWER_TRAVEL = 2.5;
 // Journal lengths beyond the barrel with the machine model [m]: the top roll ends inside the yoke
@@ -587,11 +571,14 @@ const MODEL_JOURNAL_BACK = 0.5;
 const LEVER_Z = 0.25;
 const LEVER_PIVOT_X = 0.42;
 const LEVER_PIVOT_Y = -0.877 + 0.32;
-// How far a guide post drops to clear the plate [m]: its full height above the table.
-const POST_TRAVEL = 0.62;
 
 /** How far the vertical support's arm rises [m] to clear a part whose top is at `top` [m]. */
-export function towerLift(top: number): number {
+export function towerLift(top: number, thickness: number): number {
+  const inner = top - thickness;
+  // A shell large enough to take the arm: the pad rides up inside and bears on its top from below,
+  // as the V axis does on the machine (V ≈ the inner diameter).
+  if (inner >= TOWER_PAD_TOP) return Math.min(TOWER_TRAVEL, inner - TOWER_PAD_TOP);
+  // Too small for the arm inside: keep the arm above the part.
   return Math.min(TOWER_TRAVEL, Math.max(0, top + TOWER_CLEARANCE - TOWER_ARM_BOTTOM));
 }
 
