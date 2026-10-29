@@ -315,6 +315,7 @@ export class RollingScene {
       this.machineGroup.userData.shared = true;
       this.root.add(this.machineGroup);
       this.applyVisibility();
+      this.liftTower();
       return;
     }
     const blank = feedLength(m);
@@ -403,7 +404,35 @@ export class RollingScene {
     if (!m) return;
     this.plate = new Mesh(plateGeometry(m, this.progress), this.plateMat);
     this.root.add(this.plate);
+    this.liftTower();
   }
+
+  /**
+   * The vertical support's carriage and arm ride up the column above the rolled part, as the V axis
+   * does on the machine, so a large shell never runs into the arm. The column itself stays put.
+   */
+  private liftTower() {
+    if (!this.plate) return;
+    const geo = this.plate.geometry;
+    geo.computeBoundingBox();
+    const shift = towerLift(geo.boundingBox?.max.y ?? 0);
+    for (const node of this.machineGroup.children) {
+      if (!/^Tower(Carriage|Arm|Pad)/.test(node.name)) continue;
+      node.userData.baseY ??= node.position.y;
+      node.position.y = (node.userData.baseY as number) + shift;
+    }
+  }
+}
+
+// Vertical support travel [m], from the machine model: arm underside above the pinch line at rest,
+// clearance kept above the part, and how far the carriage can climb the column.
+const TOWER_ARM_BOTTOM = 0.823;
+const TOWER_CLEARANCE = 0.03;
+const TOWER_TRAVEL = 2.5;
+
+/** How far the vertical support's arm rises [m] to clear a part whose top is at `top` [m]. */
+export function towerLift(top: number): number {
+  return Math.min(TOWER_TRAVEL, Math.max(0, top + TOWER_CLEARANCE - TOWER_ARM_BOTTOM));
 }
 
 export function plateGeometry(m: SceneModel, progress: number): BufferGeometry {

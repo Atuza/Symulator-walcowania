@@ -38,24 +38,31 @@ export function coneContactFrame(m: ConeModel, progress: number) {
   return { origin, feed, inward, along };
 }
 
-// Gap between the drive-end housing face and the cone's large end [mm].
-const DRIVE_END_GAP = 100;
+// Gap between the yoke and the cone's small end [mm].
+const YOKE_GAP = 100;
 
 /**
- * Where the contact generator lies along the rolls [mm]: as on the machine, the large end sits at the
- * fixed drive-end housing (−z) and the small end towards the yoke (+z).
+ * Where the contact generator lies along the rolls [mm]. Cones are rolled next to the drop-end yoke,
+ * where the frame takes the largest force: small end towards the yoke (+z), large end further in,
+ * towards the drive housing (−z).
  */
 export function coneAlongRolls(m: ConeModel) {
   const slant = m.shape === "cone" ? m.rOuter - m.rInner : m.result.slantMax;
-  const large = -m.machine.rollLength / 2 + DRIVE_END_GAP;
-  return { large, small: large + slant, centre: large + slant / 2 };
+  // The end planes lean against the rolls by the cone angle, so the small end's far side reaches
+  // past the contact point towards the yoke by about its diameter · sin α; keep that clear too.
+  const overhang =
+    m.shape === "cone"
+      ? 2 * m.rInner * Math.sin(m.alpha) * Math.sin(m.alpha) + m.thickness
+      : m.result.small.dOuter * Math.sin(m.result.alphaMax);
+  const small = m.machine.rollLength / 2 - YOKE_GAP - overhang;
+  return { large: small - slant, small, centre: small - slant / 2 };
 }
 
 export function placeConeOnMachine(geometry: BufferGeometry, m: ConeModel, progress: number) {
   const { origin, feed, inward, along } = coneContactFrame(m, progress);
   origin.multiplyScalar(MM);
   // The frame's `along` points from the small end to the large end; reversing it puts the large end
-  // at the drive end. The mirror keeps feed and inner normal; the plate material is double-sided.
+  // towards the drive housing. The mirror keeps feed and inner normal; the plate material is double-sided.
   const shift = coneAlongRolls(m).centre * MM;
   const positions = geometry.getAttribute("position");
   for (let i = 0; i < positions.count; i++) {

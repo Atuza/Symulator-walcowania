@@ -7,7 +7,7 @@ import { defaultInputs } from "../src/state/inputs";
 import { withFixedMachine } from "../src/state/fixedMachine";
 import { sceneModel, feedLength } from "../src/viz/sceneModel";
 import { coneAlongRolls, coneContactFrame } from "../src/viz/conePlacement";
-import { plateGeometry } from "../src/viz/scene3d";
+import { plateGeometry, towerLift } from "../src/viz/scene3d";
 
 describe("cones at the installed machine", () => {
   it.each(["cone", "eccentric"] as const)(
@@ -56,7 +56,7 @@ describe("cones at the installed machine", () => {
 });
 
 describe("cone along the rolls", () => {
-  it("puts the large end at the drive-end housing and the small end towards the yoke", () => {
+  it("rolls next to the yoke: small end at the yoke, large end towards the drive housing", () => {
     const d = derive(
       { ...defaultInputs, shape: "cone", dLarge: "1200", dSmall: "600", height: "800" },
       withFixedMachine(),
@@ -66,12 +66,80 @@ describe("cone along the rolls", () => {
     const m = sceneModel(d.output!, d.thickness!, d.width, withFixedMachine());
     if (m.shape !== "cone") throw Error("No cone");
     const at = coneAlongRolls(m);
-    expect(at.large).toBeCloseTo(-1550 + 100, 9);
+    expect(at.small).toBeLessThan(1550 - 100);
+    expect(at.small).toBeGreaterThan(1550 - 100 - 300);
     expect(at.small - at.large).toBeCloseTo(m.rOuter - m.rInner, 9);
-    // Large end at −z: the plate's far point on the large edge lies behind the barrel middle.
-    const geometry = plateGeometry(m, 1);
-    geometry.computeBoundingBox();
-    expect(geometry.boundingBox!.min.z).toBeLessThan(0);
-    geometry.dispose();
+    // No point of the plate may enter the housings or the yoke at any stage: beyond the barrel ends
+    // the plate may only lie in front of them, over the feed table. Housing half-widths from the
+    // machine model: drive end 0.78 m, drop end 0.55 m.
+    for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+      const geometry = plateGeometry(m, p);
+      const pos = geometry.getAttribute("position");
+      for (let i = 0; i < pos.count; i++) {
+        const z = pos.getZ(i);
+        if (Math.abs(z) <= 1.55) continue;
+        expect(pos.getX(i), `progress ${p}, z ${z.toFixed(2)}`).toBeGreaterThan(
+          z > 0 ? 0.55 : 0.78,
+        );
+      }
+      geometry.dispose();
+    }
+  });
+});
+
+describe("vertical support clears the part", () => {
+  it.each(["600", "1500", "2380"])("arm rides above a Ø%s shell all through the run", (value) => {
+    const d = derive(
+      { ...defaultInputs, thickness: "10", value, width: "2480" },
+      withFixedMachine(),
+      defaultProcess,
+      materials,
+    );
+    const m = sceneModel(d.output!, d.thickness!, d.width, withFixedMachine());
+    for (const p of [0, 0.5, 1]) {
+      const geometry = plateGeometry(m, p);
+      geometry.computeBoundingBox();
+      const top = geometry.boundingBox!.max.y;
+      // Arm underside at rest is 0.823 m above the pinch; after the lift it stays above the part.
+      expect(0.823 + towerLift(top)).toBeGreaterThan(top);
+      geometry.dispose();
+    }
+  });
+
+  it("stays at rest for parts below the arm", () => {
+    expect(towerLift(0.5)).toBe(0);
+  });
+});
+
+describe("eccentric cone stays clear of the housings", () => {
+  it("never enters the drive housing or the yoke", () => {
+    const d = derive(
+      {
+        ...defaultInputs,
+        shape: "cone",
+        thickness: "8",
+        dLarge: "2400",
+        dSmall: "2200",
+        height: "1250",
+        offset: "100",
+      },
+      withFixedMachine(),
+      defaultProcess,
+      materials,
+    );
+    const m = sceneModel(d.output!, d.thickness!, d.width, withFixedMachine());
+    if (m.shape !== "eccentric") throw Error("No eccentric cone");
+    for (const p of [0.25, 0.5, 0.75, 1]) {
+      const geometry = plateGeometry(m, p);
+      const pos = geometry.getAttribute("position");
+      for (let i = 0; i < pos.count; i++) {
+        const z = pos.getZ(i);
+        if (Math.abs(z) <= 1.55) continue;
+        expect(pos.getX(i), `progress ${p}, z ${z.toFixed(2)}`).toBeGreaterThan(
+          z > 0 ? 0.55 : 0.78,
+        );
+      }
+      geometry.dispose();
+    }
   });
 });
