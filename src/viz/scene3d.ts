@@ -25,6 +25,8 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { bendAt, partlyRolled, traceProfile } from "../domain/profile";
 import { eccentricPoint } from "../domain/eccentric";
+import { placeConeOnMachine } from "./conePlacement";
+import { feedLength } from "./sceneModel";
 import { buildFrame, housingDepth } from "./machine3d";
 import type { SceneModel } from "./sceneModel";
 
@@ -280,7 +282,7 @@ export class RollingScene {
       });
     this.machineGroup = new Group();
     const m = this.model;
-    if (!m || m.shape === "cone" || m.shape === "eccentric") return;
+    if (!m) return;
     const mv = m.machine;
     const t = m.thickness;
     const rt = mv.rolls.top / 2,
@@ -309,7 +311,7 @@ export class RollingScene {
       this.applyVisibility();
       return;
     }
-    const blank = m.shape === "cylinder" ? m.length : m.dev.length;
+    const blank = feedLength(m);
     this.machineGroup = buildFrame(
       mv,
       t,
@@ -328,12 +330,18 @@ export class RollingScene {
   private placeSideRoll() {
     const m = this.model;
     const roll = this.rolls[2];
-    if (!m || m.shape === "cone" || m.shape === "eccentric" || !roll) return;
+    if (!m || !roll) return;
     const t = m.thickness;
     const rb = m.machine.rolls.bottom / 2,
       rs = m.machine.rolls.side / 2;
     const R =
-      m.shape === "cylinder" ? m.radius : bendAt(m.profile, m.dev, this.progress * m.dev.length);
+      m.shape === "cylinder"
+        ? m.radius
+        : m.shape === "profile"
+          ? bendAt(m.profile, m.dev, this.progress * m.dev.length)
+          : m.shape === "cone"
+            ? ((m.rOuter + m.rInner) * Math.tan(m.alpha)) / 2
+            : m.result.rtMin * t + m.result.k * t;
     if (R === null) {
       roll.position.set(-(rb + rs) * 1.08 * MM, (-t / 2 - rs - rb * 0.18) * MM, 0);
       return;
@@ -345,9 +353,9 @@ export class RollingScene {
 
   private spinRolls() {
     const m = this.model;
-    if (!m || m.shape === "cone" || m.shape === "eccentric") return;
+    if (!m) return;
     // Rolls turn with the plate feed so the motion reads as rolling, not sliding.
-    const fed = this.progress * (m.shape === "cylinder" ? m.length : m.dev.length);
+    const fed = this.progress * feedLength(m);
     const delta = fed - this.lastRollAngle;
     this.lastRollAngle = fed;
     const sizes = m.machine.rolls;
@@ -368,21 +376,25 @@ export class RollingScene {
   }
 }
 
-function plateGeometry(m: SceneModel, progress: number): BufferGeometry {
-  return m.shape === "cylinder"
-    ? cylinderPlate(m, progress)
-    : m.shape === "cone"
-      ? conePlate(m, progress)
-      : m.shape === "eccentric"
-        ? eccentricPlate(m, progress)
-        : profilePlate(m, progress);
+export function plateGeometry(m: SceneModel, progress: number): BufferGeometry {
+  const geometry =
+    m.shape === "cylinder"
+      ? cylinderPlate(m, progress)
+      : m.shape === "cone"
+        ? conePlate(m, progress)
+        : m.shape === "eccentric"
+          ? eccentricPlate(m, progress)
+          : profilePlate(m, progress);
+  return m.shape === "cone" || m.shape === "eccentric"
+    ? placeConeOnMachine(geometry, m, progress)
+    : geometry;
 }
 
 function scaleOf(m: SceneModel): number {
   return m.shape === "cylinder"
     ? Math.round(Math.log2(m.radius * m.width))
     : m.shape === "cone"
-      ? Math.round(Math.log2(m.rOuter))
+      ? Math.round(Math.log2(m.rOuter * Math.sin(m.alpha) * (m.rOuter - m.rInner)))
       : m.shape === "eccentric"
         ? Math.round(Math.log2(m.result.large.dNeutral))
         : Math.round(Math.log2(m.dev.length * m.width));

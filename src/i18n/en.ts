@@ -3,6 +3,17 @@ export const en = {
   appTagline: "Plate rolling · 4-roll",
   "drawing.chain": "Developed intervals (mm)",
   "geometry.radiusMin": "Minimum curvature radius",
+  "geometry.arcLength": "Developed segment length",
+  "geometry.arcLarge": "Large edge arc L1",
+  "geometry.arcSmall": "Small edge arc L2",
+  "geometry.blankWidth": "Developed blank width",
+  "geometry.blankHeight": "Developed blank height",
+  "drawing.scaleHint":
+    "This overall developed size scales the part proportionally. Thickness and flat-end allowances stay fixed. Review the linked dimensions before applying.",
+  "drawing.arcHint":
+    "This arc length adjusts the corresponding end diameter. Height, offset and the other end stay fixed.",
+  "pdf.drawingHeading": "Dimensioned drawing",
+  "pdf.drawingPage": "The dimensioned drawing is on page {page}.",
   "geometry.radiusMax": "Maximum curvature radius",
   "geometry.width": "Overall width",
   "geometry.height": "Overall height",

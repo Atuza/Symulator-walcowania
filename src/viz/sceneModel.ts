@@ -36,8 +36,16 @@ export type SceneModel =
       angle: number;
       alpha: number;
       thickness: number;
+      width: number;
+      machine: MachineView;
     }
-  | { shape: "eccentric"; result: EccentricResult }
+  | {
+      shape: "eccentric";
+      result: EccentricResult;
+      thickness: number;
+      width: number;
+      machine: MachineView;
+    }
   | {
       shape: "profile";
       profile: Profile;
@@ -85,9 +93,23 @@ export function sceneModel(
       angle: r.angle,
       alpha: r.alpha,
       thickness,
+      width: r.slant,
+      machine: machineView(machine, r.small.dInner, thickness, r.slant),
     };
   }
-  if (out.shape === "eccentric") return { shape: "eccentric", result: out.result };
+  if (out.shape === "eccentric")
+    return {
+      shape: "eccentric",
+      result: out.result,
+      thickness,
+      width: out.result.slantMax,
+      machine: machineView(
+        machine,
+        2 * out.result.small.innerCurvatureMin,
+        thickness,
+        out.result.slantMax,
+      ),
+    };
   if (out.shape === "profile") {
     const r = out.result;
     const w = width ?? Math.max(r.blankLength * 0.2, 200);
@@ -111,4 +133,15 @@ export function sceneModel(
     flatEnd: r.flatEnd,
     machine: machineView(machine, r.dInner, thickness, w),
   };
+}
+
+/** Mean length fed past the pinch; conical ends advance by different amounts. */
+export function feedLength(m: SceneModel): number {
+  return m.shape === "cylinder"
+    ? m.length
+    : m.shape === "profile"
+      ? m.dev.length
+      : m.shape === "cone"
+        ? ((m.rOuter + m.rInner) * m.angle) / 2
+        : (m.result.arcLarge + m.result.arcSmall) / 2 + 2 * m.result.flatEnd;
 }

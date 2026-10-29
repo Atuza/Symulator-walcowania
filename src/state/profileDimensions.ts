@@ -7,11 +7,14 @@ import {
 } from "../domain/editableProfile";
 import type { FreeSegment } from "../domain/shapes";
 import { surfaceDepth } from "../domain/types";
+import { develop } from "../domain/profile";
+import { neutralFactor } from "../domain/neutralAxis";
 import type { DimensionId } from "../drawing/model";
 import type { Derived } from "./derive";
 import type { DimensionSpec } from "./dimensions";
 import { freeSegments, formatFreeRows } from "./freeShape";
 import { parseNumber, type Inputs } from "./inputs";
+import { invertMeasure } from "./invertMeasure";
 
 export function editableSegments(d: Derived): FreeSegment[] | null {
   if (d.output?.shape !== "profile" || (d.inputs.shape === "ellipse" && !d.inputs.profileSegs))
@@ -23,6 +26,8 @@ export function editableSegments(d: Derived): FreeSegment[] | null {
 
 export function profileDimensionSpec(d: Derived, id: DimensionId): DimensionSpec | null {
   if (d.output?.shape !== "profile") return null;
+  if (id === "profile.blankLength")
+    return { label: "field.length", value: d.output.result.blankLength, unit: "mm" };
   const depth = surfaceDepth[d.inputs.surface],
     t = d.thickness ?? 0;
   if (id === "ellipse.min" || id === "ellipse.max") {
@@ -62,19 +67,36 @@ export function profileDimensionSpec(d: Derived, id: DimensionId): DimensionSpec
     index = Number(indexText),
     seg = segments[index];
   if (!seg || (property === "angle" && seg.kind !== "arc")) return null;
+  if (property === "diameter" && seg.kind !== "arc") return null;
+  if (property === "developed")
+    return {
+      label: "geometry.arcLength",
+      value: d.output.result.dev.segments[index + (d.flatEnd > 0 ? 1 : 0)]!.length,
+      unit: "mm",
+      segment: index + 1,
+    };
   const value =
     property === "angle" && seg.kind === "arc"
       ? (seg.angle * 180) / Math.PI
       : seg.kind === "line"
         ? seg.length
-        : seg.radius;
+        : seg.radius * (property === "diameter" ? 2 : 1);
   return {
-    label: property === "angle" ? "free.angle" : seg.kind === "arc" ? "free.radius" : "free.length",
+    label:
+      property === "angle"
+        ? "free.angle"
+        : property === "diameter"
+          ? "field.value.diameter"
+          : seg.kind === "arc"
+            ? "free.radius"
+            : "free.length",
     value,
-    unit: property === "size" ? "mm" : "deg",
+    unit: property === "angle" ? "deg" : "mm",
     segment: index + 1,
-    marker: `${property === "angle" ? "φ" : seg.kind === "arc" ? "R" : "L"}${segments.slice(0, index + 1).filter((s) => s.kind === seg.kind).length}`,
-    ...(seg.kind === "arc" && property === "size" ? { surface: d.inputs.surface } : {}),
+    marker: `${property === "angle" ? "φ" : property === "diameter" ? "Ø" : seg.kind === "arc" ? "R" : "L"}${segments.slice(0, index + 1).filter((s) => s.kind === seg.kind).length}`,
+    ...(seg.kind === "arc" && (property === "size" || property === "diameter")
+      ? { surface: d.inputs.surface }
+      : {}),
   };
 }
 
@@ -125,6 +147,50 @@ export function changeProfileDimension(d: Derived, id: DimensionId, value: numbe
       : null;
   const source = editableSegments(d);
   if (!source) return null;
+  const typedK = parseNumber(d.inputs.k),
+    kOverride = typedK !== null && typedK > 0 && typedK <= 1 ? typedK : null;
+  if (id === "profile.blankLength") {
+    if (!(value > 2 * d.flatEnd)) return null;
+    const t = d.thickness!,
+      depth = surfaceDepth[d.inputs.surface];
+    const minimum = Math.max(
+      1e-9,
+      ...source.filter((s) => s.kind === "arc").map((s) => (depth * t) / s.radius + 1e-9),
+    );
+    const scaled = (scale: number) =>
+      source.map((s) =>
+        s.kind === "line" ? { ...s, length: s.length * scale } : { ...s, radius: s.radius * scale },
+      );
+    const measure = (scale: number) => {
+      const inner = withFlatEnds(scaled(scale), d.flatEnd).map((s) =>
+        s.kind === "arc" ? { ...s, radius: s.radius - depth * t } : s,
+      );
+      const result = develop({ segments: inner, thickness: t, kOverride });
+      return typeof result === "string" ? null : result.length;
+    };
+    const factor = invertMeasure(1, value, measure, { min: minimum });
+    return factor === null ? null : store(d, scaled(factor), d.output.result.closed);
+  }
+  if (id.endsWith(".diameter"))
+    return changeProfileDimension(d, id.replace(".diameter", ".size") as DimensionId, value / 2);
+  if (id.endsWith(".developed")) {
+    const index = Number(id.split(".")[1]),
+      seg = source[index];
+    if (!seg || !(value > 0)) return null;
+    if (seg.kind === "line") return changeProfileDimension(d, `segment.${index}.size`, value);
+    const t = d.thickness!,
+      depth = surfaceDepth[d.inputs.surface];
+    const radius = invertMeasure(
+      seg.radius,
+      value,
+      (r) => {
+        const ri = r - depth * t;
+        return ri > 0 ? (ri + (kOverride ?? neutralFactor(ri, t)) * t) * Math.abs(seg.angle) : null;
+      },
+      { min: depth * t + 1e-8 },
+    );
+    return radius === null ? null : changeProfileDimension(d, `segment.${index}.size`, radius);
+  }
   const segments = source.map((s) => ({ ...s }));
   const depth = surfaceDepth[d.inputs.surface],
     thickness = d.thickness ?? 0,

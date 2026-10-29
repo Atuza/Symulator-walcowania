@@ -159,13 +159,44 @@ export async function buildPdf(data: ReportData): Promise<Blob> {
     : blockTop;
   const drawingBottom = Math.min(blockTop, captionTop) - 4;
   const box = { x: dx, y: top + 4, w: PAGE.w - m - dx, h: drawingBottom - (top + 4) };
-  const scales = drawViews(data.views, box, pdfSink(doc), {
+  const drawingStyle = {
     fontSize: 3,
     arrow: 2.2,
     pad: 9,
     gap: 4,
     snapScale: true,
-  });
+  };
+  const sink = pdfSink(doc);
+  let scales = drawViews(
+    data.views,
+    box,
+    { ...sink, path() {}, fill() {}, text() {} },
+    drawingStyle,
+  );
+  if (scales.some((scale) => !(scale > 0))) {
+    // Dense editable intervals can require more height than an A4 report column provides.
+    doc.addPage();
+    const drawingPage = doc.getNumberOfPages();
+    doc.setFont("Poppins", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...INK);
+    doc.text(t("pdf.drawingHeading"), m, m + 4);
+    doc.setDrawColor(...LINE);
+    doc.line(m, top, PAGE.w - m, top);
+    scales = drawViews(
+      data.views,
+      { x: m, y: top + 4, w: PAGE.w - 2 * m, h: footerTop - 4 - top - 4 },
+      pdfSink(doc),
+      drawingStyle,
+    );
+    doc.setPage(1);
+    doc.setFont("Poppins", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...MUTED);
+    doc.text(t("pdf.drawingPage", { page: String(drawingPage) }), box.x + 2, box.y + 8);
+  } else {
+    scales = drawViews(data.views, box, sink, drawingStyle);
+  }
   const blockX = PAGE.w - m - BLOCK_W;
   titleBlock(doc, data, scales, blockX, blockTop);
   if (data.qr) drawQr(doc, data.qr, blockX - 8 - QR_SIZE, qrTop);

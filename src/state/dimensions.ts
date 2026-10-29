@@ -30,7 +30,12 @@ const fields = {
 
 export function dimensionSpec(d: Derived, id: DimensionId): DimensionSpec | null {
   if (id.startsWith("cone.")) return coneDimensionSpec(d, id);
-  if (id.startsWith("segment.") || id.startsWith("extent.") || id.startsWith("ellipse."))
+  if (
+    id.startsWith("segment.") ||
+    id.startsWith("extent.") ||
+    id.startsWith("ellipse.") ||
+    id.startsWith("profile.")
+  )
     return profileDimensionSpec(d, id);
   const i = d.inputs;
   const spec = (
@@ -39,6 +44,20 @@ export function dimensionSpec(d: Derived, id: DimensionId): DimensionSpec | null
     unit: "mm" | "deg" = "mm",
   ): DimensionSpec | null =>
     value !== null && Number.isFinite(value) ? { label, value, unit } : null;
+  if (id === "flatEnd") return d.flatEnd > 0 ? spec("field.flatLength", d.flatEnd) : null;
+  if (id === "cylinder.ringLength")
+    return d.output?.shape === "cylinder"
+      ? spec("result.ringLength", d.output.result.ringLength)
+      : null;
+  if (id === "radius.inner" || id === "radius.outer") {
+    if (d.output?.shape !== "cylinder") return null;
+    return {
+      label: "field.value.radius",
+      value: (id === "radius.inner" ? d.output.result.dInner : d.output.result.dOuter) / 2,
+      unit: "mm",
+      surface: id === "radius.inner" ? "inner" : "outer",
+    };
+  }
   if (id === "cylinder.circumference" || id === "cylinder.blankLength") {
     if (d.output?.shape !== "cylinder") return null;
     const r = d.output.result;
@@ -92,10 +111,16 @@ export function dimensionSpec(d: Derived, id: DimensionId): DimensionSpec | null
 export function dimensionInputs(d: Derived, id: DimensionId, value: number): Inputs | null {
   if (!Number.isFinite(value) || !dimensionSpec(d, id)) return null;
   if (id.startsWith("cone.")) return changeConeDimension(d, id, value);
-  if (id.startsWith("segment.") || id.startsWith("extent.") || id.startsWith("ellipse."))
+  if (
+    id.startsWith("segment.") ||
+    id.startsWith("extent.") ||
+    id.startsWith("ellipse.") ||
+    id.startsWith("profile.")
+  )
     return changeProfileDimension(d, id, value);
   const zeroAllowed =
     id === "offset" ||
+    id === "flatEnd" ||
     id === "dSmall" ||
     (d.inputs.shape === "bucket" && (id === "a" || id === "b"));
   if (id.endsWith(".angle")) {
@@ -103,6 +128,17 @@ export function dimensionInputs(d: Derived, id: DimensionId, value: number): Inp
   } else if (value < 0 || (value === 0 && !zeroAllowed)) return null;
   const i = d.inputs,
     text = String(value);
+  if (id === "flatEnd") return { ...i, flatEnds: value > 0, flatLength: text };
+  if (id === "cylinder.ringLength")
+    return { ...i, mode: "fromLength", length: String(value + 2 * d.flatEnd) };
+  if (id === "radius.inner" || id === "radius.outer")
+    return {
+      ...i,
+      mode: "fromDiameter",
+      dimension: "radius",
+      value: text,
+      surface: id === "radius.inner" ? "inner" : "outer",
+    };
   if (id === "cylinder.blankLength") return { ...i, mode: "fromLength", length: text };
   if (id === "cylinder.circumference")
     return { ...i, mode: "fromDiameter", dimension: "diameter", value: String(value / Math.PI) };

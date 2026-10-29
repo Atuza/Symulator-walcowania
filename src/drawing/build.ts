@@ -56,7 +56,7 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
       a: [0, top],
       b: [H, top],
       offsetModel: 0,
-      offsetScreen: GAP,
+      offsetScreen: GAP * 3.5,
       label: mm(H),
       edit: "height",
     },
@@ -66,8 +66,12 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
       b: [H, -D1 / 2],
       offsetModel: 0,
       offsetScreen: GAP,
-      label: mm(D1),
+      label: `Ø ${mm(D1)}`,
       edit: "dLarge",
+      extra: [
+        { label: `R ${mm(D1 / 2)}`, edit: "cone.radius.large" },
+        { label: `C1 ${mm(Math.PI * D1)}`, edit: "cone.circumference.large" },
+      ],
     },
     {
       kind: "dim",
@@ -75,8 +79,57 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
       b: [0, e - D2 / 2],
       offsetModel: 0,
       offsetScreen: -GAP,
-      label: mm(D2),
+      label: `Ø ${mm(D2)}`,
       edit: "dSmall",
+      extra: [
+        { label: `R ${mm(D2 / 2)}`, edit: "cone.radius.small" },
+        { label: `C2 ${mm(Math.PI * D2)}`, edit: "cone.circumference.small" },
+      ],
+    },
+    {
+      kind: "dim",
+      a: [0, e + D2 / 2],
+      b: [H, D1 / 2],
+      offsetModel: 0,
+      offsetScreen: GAP,
+      label: `S1 ${mm(r.slantMin)}`,
+      edit: "cone.slant.short",
+    },
+    {
+      kind: "dim",
+      a: [0, e - D2 / 2],
+      b: [H, -D1 / 2],
+      offsetModel: 0,
+      offsetScreen: -GAP,
+      label: `S2 ${mm(r.slantMax)}`,
+      edit: "cone.slant.long",
+    },
+    {
+      kind: "path",
+      pts: [
+        [0, 0],
+        [H, 0],
+      ],
+      closed: false,
+      stroke: "center",
+    },
+    {
+      kind: "path",
+      pts: [
+        [0, e],
+        [H, e],
+      ],
+      closed: false,
+      stroke: "center",
+    },
+    {
+      kind: "dim",
+      a: [H * 0.45, 0],
+      b: [H * 0.45, e],
+      offsetModel: 0,
+      offsetScreen: 0,
+      label: `e ${mm(e)}`,
+      edit: "offset",
     },
   ];
 
@@ -102,9 +155,31 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
       stroke: "thin",
     },
     // Leave the first lane below the blank for its small-edge arc dimension.
-    { kind: "dim", a: [0, 0], b: [W, 0], offsetModel: 0, offsetScreen: -GAP * 2.5, label: mm(W) },
-    { kind: "dim", a: [0, Hb], b: [0, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(Hb) },
-    { kind: "curveDim", pts: r.net.large, offsetScreen: -GAP, label: `L1 ${mm(r.arcLarge)}` },
+    {
+      kind: "dim",
+      a: [0, 0],
+      b: [W, 0],
+      offsetModel: 0,
+      offsetScreen: -GAP * 2.5,
+      label: mm(W),
+      edit: "cone.box.width",
+    },
+    {
+      kind: "dim",
+      a: [0, Hb],
+      b: [0, 0],
+      offsetModel: 0,
+      offsetScreen: -GAP,
+      label: mm(Hb),
+      edit: "cone.box.height",
+    },
+    {
+      kind: "curveDim",
+      pts: r.net.large,
+      offsetScreen: -GAP,
+      label: `L1 ${mm(r.arcLarge)}`,
+      edit: "cone.arc.large",
+    },
     ...(r.arcSmall > 1e-8
       ? [
           {
@@ -112,31 +187,17 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
             pts: r.net.small,
             offsetScreen: GAP,
             label: `L2 ${mm(r.arcSmall)}`,
+            edit: "cone.arc.small" as const,
           },
         ]
       : []),
   ];
-  const devNotes: (string | Annotation)[] = [
-    {
-      text: `${t("result.slantMin")}: ${mm(r.slantMin)} ${t("unit.mm")}`,
-      edit: "cone.slant.short",
-    },
-    { text: `${t("result.slantMax")}: ${mm(r.slantMax)} ${t("unit.mm")}`, edit: "cone.slant.long" },
-    t("drawing.netEdges"),
-    ...(r.flatEnd > 0 ? [`${t("result.flatEnds")}: 2 × ${mm(r.flatEnd)} ${t("unit.mm")}`] : []),
-  ];
+  const devNotes: (string | Annotation)[] = [t("drawing.netEdges")];
   return [
     {
       title: t("result.sideView"),
       prims: side,
-      notes: [
-        { text: `t = ${mm(r.thickness)} ${t("unit.mm")}`, edit: "thickness" },
-        { text: `e = ${mm(e)} ${t("unit.mm")}`, edit: "offset" },
-        { text: `R1 = ${mm(D1 / 2)} mm`, edit: "cone.radius.large" },
-        { text: `R2 = ${mm(D2 / 2)} mm`, edit: "cone.radius.small" },
-        { text: `C1 = ${mm(Math.PI * D1)} mm`, edit: "cone.circumference.large" },
-        { text: `C2 = ${mm(Math.PI * D2)} mm`, edit: "cone.circumference.small" },
-      ],
+      notes: [],
     },
     { title: t("result.development"), prims: dev, notes: devNotes },
   ];
@@ -220,7 +281,15 @@ function profileViews(
       stroke: "part",
       fill: true,
     },
-    { kind: "dim", a: [0, W], b: [L, W], offsetModel: 0, offsetScreen: GAP, label: mm(L) },
+    {
+      kind: "dim",
+      a: [0, W],
+      b: [L, W],
+      offsetModel: 0,
+      offsetScreen: GAP,
+      label: mm(L),
+      edit: "profile.blankLength",
+    },
   ];
   if (width !== null)
     dev.push({
@@ -259,13 +328,19 @@ function profileViews(
     ...new Set([...(r.flatEnd > 0 ? [r.flatEnd, L - r.flatEnd] : []), ...r.dev.bendLines]),
     L,
   ].sort((a, b) => a - b);
-  // Short pieces would stack their labels on top of each other; then the notes list the positions.
-  const shortest = Math.min(...marks.slice(1).map((x, i) => x - marks[i]!));
-  if (marks.length > 2 && shortest >= L / 8)
+  // Dense intervals become editable rows in the renderer rather than losing their input binding.
+  if (marks.length > 2 && (r.shape !== "ellipse" || r.custom))
     for (let i = 0; i + 1 < marks.length; i++) {
       const a = marks[i]!,
         b = marks[i + 1]!;
       if (b - a < 1e-6) continue;
+      const segmentIndex = r.dev.segments.findIndex(
+        (s) => Math.abs(s.start - a) < 1e-5 && Math.abs(s.start + s.length - b) < 1e-5,
+      );
+      const segment = r.dev.segments[segmentIndex];
+      const allowance =
+        r.flatEnd > 0 && (segmentIndex === 0 || segmentIndex === r.dev.segments.length - 1);
+      if (!segment) continue;
       dev.push({
         kind: "dim",
         a: [a, 0],
@@ -274,12 +349,13 @@ function profileViews(
         offsetScreen: -GAP,
         label: mm(b - a),
         chain: t("drawing.chain"),
+        edit: allowance
+          ? "flatEnd"
+          : `segment.${segmentIndex - (r.flatEnd > 0 ? 1 : 0)}.${segment.segment.kind === "line" ? "size" : "developed"}`,
       });
     }
 
-  const sectionNotes: (string | Annotation)[] = [
-    { text: `t = ${mm(r.profile.thickness)} ${t("unit.mm")}`, edit: "thickness" },
-  ];
+  const sectionNotes: (string | Annotation)[] = [];
   if (r.shape === "ellipse" && !r.custom)
     sectionNotes.push(
       {
@@ -328,12 +404,21 @@ function profileViews(
           label: `R${arcNumber} ${mm(segment.radius)}`,
           edit: `segment.${f.index}.size`,
         });
-        if (["halfround", "bucket", "free"].includes(r.shape))
+        if (r.shape === "halfround")
           section.push({
             kind: "tag",
             at: featureAt,
             direction,
             row: 1,
+            label: `Ø ${mm(2 * segment.radius)}`,
+            edit: `segment.${f.index}.diameter`,
+          });
+        if (["halfround", "bucket", "free"].includes(r.shape))
+          section.push({
+            kind: "tag",
+            at: featureAt,
+            direction,
+            row: r.shape === "halfround" ? 2 : 1,
             label: `φ${arcNumber} ${mm((segment.angle * 180) / Math.PI)}°`,
             edit: `segment.${f.index}.angle`,
           });
@@ -341,13 +426,7 @@ function profileViews(
     }
   }
   // Three positions per line keep the notes inside the view.
-  const lines = r.dev.bendLines.map((x) => mm(x));
   const devNotes: string[] = [];
-  for (let i = 0; i < Math.max(1, lines.length); i += 3)
-    devNotes.push(
-      `${i === 0 ? `${t("result.bendLines")}: ` : ""}${lines.slice(i, i + 3).join(" · ") || "—"}`,
-    );
-  if (r.flatEnd > 0) devNotes.push(`${t("result.flatEnds")}: 2 × ${mm(r.flatEnd)} ${t("unit.mm")}`);
   return [
     {
       title: `${t("result.section")}${r.custom ? ` · ${t("geometry.modified")}` : ""}`,
@@ -397,6 +476,7 @@ function cylinderViews(
       offsetScreen: -GAP,
       label: `Ø ${mm(r.dOuter)}`,
       edit: "diameter.outer",
+      extra: [{ label: `R ${mm(ro)}`, edit: "radius.outer" }],
     },
     {
       kind: "dim",
@@ -406,6 +486,17 @@ function cylinderViews(
       offsetScreen: 0,
       label: `Ø ${mm(r.dInner)}`,
       edit: "diameter.inner",
+      extra: [{ label: `R ${mm(ri)}`, edit: "radius.inner" }],
+    },
+    {
+      kind: "arcDim",
+      c: [0, 0],
+      r: ri + surfaceDepth[surface] * (ro - ri),
+      a0: -Math.PI / 2,
+      a1: Math.PI * 1.5,
+      offsetScreen: GAP,
+      label: `C ${mm(Math.PI * (r.dInner + surfaceDepth[surface] * (r.dOuter - r.dInner)))}`,
+      edit: "cylinder.circumference",
     },
   ];
 
@@ -477,6 +568,7 @@ function cylinderViews(
         offsetScreen: -GAP,
         label: mm(f),
         chain: t("drawing.chain"),
+        edit: "flatEnd",
       },
       {
         kind: "dim",
@@ -486,6 +578,7 @@ function cylinderViews(
         offsetScreen: -GAP,
         label: mm(r.ringLength),
         chain: t("drawing.chain"),
+        edit: "cylinder.ringLength",
       },
       {
         kind: "dim",
@@ -495,29 +588,17 @@ function cylinderViews(
         offsetScreen: -GAP,
         label: mm(f),
         chain: t("drawing.chain"),
+        edit: "flatEnd",
       },
     );
   }
-  const notes = [`${t("result.ringLength")}: ${mm(r.ringLength)} ${t("unit.mm")}`];
-  if (r.flatEnd > 0) notes.push(`${t("result.flatEnds")}: 2 × ${mm(r.flatEnd)} ${t("unit.mm")}`);
-  const thickness = (r.dOuter - r.dInner) / 2;
+  const notes: string[] = [];
 
   return [
     {
       title: t("result.diameters"),
       prims: section,
-      notes: [
-        { text: `t = ${mm(thickness)} ${t("unit.mm")}`, edit: "thickness" },
-        {
-          text: `R ${mm(ri + surfaceDepth[surface] * thickness)} (${t(`surface.${surface}`).toLowerCase()})`,
-          edit: "r",
-        },
-        {
-          text: `C = ${mm(Math.PI * (r.dInner + 2 * surfaceDepth[surface] * thickness))} mm (${t(`surface.${surface}`).toLowerCase()})`,
-          edit: "cylinder.circumference",
-        },
-        `${t("result.dNeutral")}: ${mm(r.dNeutral)} ${t("unit.mm")}`,
-      ],
+      notes: [],
     },
     { title: t("result.development"), prims: dev, notes },
   ];
@@ -581,6 +662,10 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       offsetScreen: -GAP,
       label: `Ø ${mm(dl)}`,
       edit: "dLarge",
+      extra: [
+        { label: `R ${mm(dl / 2)}`, edit: "cone.radius.large" },
+        { label: `C1 ${mm(Math.PI * dl)}`, edit: "cone.circumference.large" },
+      ],
     },
     {
       kind: "dim",
@@ -590,6 +675,10 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       offsetScreen: GAP,
       label: `Ø ${mm(ds)}`,
       edit: "dSmall",
+      extra: [
+        { label: `R ${mm(ds / 2)}`, edit: "cone.radius.small" },
+        { label: `C2 ${mm(Math.PI * ds)}`, edit: "cone.circumference.small" },
+      ],
     },
     {
       kind: "dim",
@@ -621,7 +710,17 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       label: mm(r.slant),
       edit: "cone.slant",
     },
-    { kind: "arcDim", c: [0, 0], r: r.rOuter, a0, a1, offsetScreen: GAP, label: mm(r.arcOuter) },
+    {
+      kind: "arcDim",
+      c: [0, 0],
+      r: r.rOuter,
+      a0,
+      a1,
+      offsetScreen: GAP,
+      label: `L1 ${mm(r.arcOuter)}`,
+      edit: "cone.arc.large",
+      extra: [{ label: `R1 ${mm(r.rOuter)}`, edit: "cone.r1" }],
+    },
   ];
   if (r.rInner > 1e-9)
     dev.push({
@@ -630,18 +729,16 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       r: r.rInner,
       a0,
       a1,
-      // Keep the arc-length annotation on the plate side of the inner cut edge.
-      offsetScreen: GAP,
-      label: mm(r.arcInner),
+      offsetScreen: -GAP,
+      label: `L2 ${mm(r.arcInner)}`,
+      edit: "cone.arc.small",
+      extra: [{ label: `R2 ${mm(r.rInner)}`, edit: "cone.r2" }],
     });
   // Smallest plate the development fits in, dimensioned below and on the left.
-  const pts = [...outer, ...inner];
-  const xs = pts.map((p) => p[0]),
-    ys = pts.map((p) => p[1]);
-  const x0 = Math.min(...xs),
-    x1 = Math.max(...xs),
-    y0 = Math.min(...ys),
-    y1 = Math.max(...ys);
+  const x0 = -r.box.height / 2,
+    x1 = r.box.height / 2,
+    y1 = r.rOuter,
+    y0 = y1 - r.box.width;
   dev.push(
     {
       kind: "path",
@@ -659,8 +756,9 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       a: [x0, y0],
       b: [x1, y0],
       offsetModel: 0,
-      offsetScreen: -GAP,
+      offsetScreen: -GAP * 4,
       label: mm(x1 - x0),
+      edit: "cone.box.width",
     },
     {
       kind: "dim",
@@ -669,6 +767,7 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       offsetModel: 0,
       offsetScreen: -GAP,
       label: mm(y1 - y0),
+      edit: "cone.box.height",
     },
   );
   if (r.flatEnd > 0) {
@@ -686,25 +785,12 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
     {
       title: t("section.geometry"),
       prims: side,
-      notes: [
-        {
-          text: `t = ${mm(((L.dOuter - L.dInner) / 2) * Math.cos(r.alpha))} ${t("unit.mm")}`,
-          edit: "thickness",
-        },
-        `${t("result.alpha")}: ${num((r.alpha * 180) / Math.PI)}°`,
-        { text: `R1 = ${mm(dl / 2)} mm`, edit: "cone.radius.large" },
-        { text: `R2 = ${mm(ds / 2)} mm`, edit: "cone.radius.small" },
-        { text: `C1 = ${mm(Math.PI * dl)} mm`, edit: "cone.circumference.large" },
-        { text: `C2 = ${mm(Math.PI * ds)} mm`, edit: "cone.circumference.small" },
-      ],
+      notes: [],
     },
     {
       title: t("result.development"),
       prims: dev,
-      notes: [
-        { text: `R1 ${mm(r.rOuter)} ${t("unit.mm")}`, edit: "cone.r1" },
-        { text: `R2 ${mm(r.rInner)} ${t("unit.mm")}`, edit: "cone.r2" },
-      ],
+      notes: [],
     },
   ];
 }

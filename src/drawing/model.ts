@@ -3,7 +3,7 @@
 export type Pt = readonly [number, number];
 export type Stroke = "part" | "thin" | "center" | "flat";
 
-/** Editable geometric measures. Only a cylinder has a unique blank-length inverse. */
+/** Editable geometric measures; inverse edits use explicit, previewed geometry drivers. */
 export type DimensionId =
   | "a"
   | "b"
@@ -17,8 +17,13 @@ export type DimensionId =
   | "dSmall"
   | "diameter.inner"
   | "diameter.outer"
+  | "radius.inner"
+  | "radius.outer"
+  | "flatEnd"
+  | "profile.blankLength"
   | "cylinder.circumference"
   | "cylinder.blankLength"
+  | "cylinder.ringLength"
   | "extent.x"
   | "extent.y"
   | "ellipse.min"
@@ -33,11 +38,22 @@ export type DimensionId =
   | "cone.circumference.small"
   | "cone.slant.short"
   | "cone.slant.long"
+  | "cone.arc.large"
+  | "cone.arc.small"
+  | "cone.box.width"
+  | "cone.box.height"
   | `segment.${number}.size`
+  | `segment.${number}.developed`
+  | `segment.${number}.diameter`
   | `segment.${number}.angle`;
 
 export interface Annotation {
   text: string;
+  edit?: DimensionId;
+}
+
+export interface DimensionLabel {
+  label: string;
   edit?: DimensionId;
 }
 
@@ -52,6 +68,7 @@ export type Prim =
       offsetScreen: number;
       label: string;
       edit?: DimensionId;
+      extra?: DimensionLabel[];
     }
   | {
       /** Arc length or angle dimension around centre c, from angle a0 to a1 (radians, CCW). */
@@ -65,6 +82,7 @@ export type Prim =
       offsetScreen: number;
       label: string;
       edit?: DimensionId;
+      extra?: DimensionLabel[];
     }
   | {
       kind: "dim";
@@ -76,6 +94,7 @@ export type Prim =
       offsetScreen: number;
       label: string;
       edit?: DimensionId;
+      extra?: DimensionLabel[];
       /** Caption for the compact fallback when a chain of dimensions cannot fit. */
       chain?: string;
     };

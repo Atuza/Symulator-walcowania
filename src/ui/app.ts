@@ -40,6 +40,7 @@ import {
   defaultInputs,
   inputsSchema,
   parseNumber,
+  selectableShapes,
   shapeDefaults,
   type Inputs,
   type TextField,
@@ -361,8 +362,8 @@ export class App {
         h("span", { class: "field-label" }, t("field.material")),
         h("span", { class: "select-wrap" }, select),
       ),
+      this.numberField("thickness", t("field.thickness"), t("unit.mm")),
       materialInfo,
-      onDrawing ? null : this.numberField("thickness", t("field.thickness"), t("unit.mm")),
     );
     if (i.materialId === CUSTOM_MATERIAL_ID) {
       materialGroup.append(
@@ -542,19 +543,7 @@ export class App {
   }
 
   private shapePicker() {
-    const shapes: Inputs["shape"][] = [
-      "cylinder",
-      "cone",
-      "eccentric",
-      "halfround",
-      "ushape",
-      "obround",
-      "rect",
-      "tank",
-      "bucket",
-      "ellipse",
-      "free",
-    ];
+    const shapes = selectableShapes;
     return h(
       "div",
       { class: "shape-grid", role: "radiogroup", "aria-label": t("section.shape") },
@@ -941,15 +930,22 @@ export class App {
     panel.append(
       h(
         "div",
-        { class: `heroes heroes-${hs.length}` },
+        {
+          class: `heroes heroes-${hs.length}${hs.some((x) => x.value.length > 10) ? " heroes-stack" : ""}`,
+        },
         ...hs.map((x) =>
           h(
             "button",
             {
               type: "button",
               class: "hero",
-              title: "Copy",
-              onClick: (e: Event) => copyValue(e.currentTarget as HTMLElement, x.raw),
+              title: x.edit
+                ? t("drawing.edit", { name: dimensionName(d, x.edit) ?? x.label, value: x.value })
+                : "Copy",
+              onClick: (e: Event) =>
+                x.edit
+                  ? this.editDimension(x.edit)
+                  : copyValue(e.currentTarget as HTMLElement, x.raw),
             },
             h("span", { class: "hero-label" }, x.label),
             h("span", { class: "hero-value" }, x.value, h("span", { class: "hero-unit" }, x.unit)),

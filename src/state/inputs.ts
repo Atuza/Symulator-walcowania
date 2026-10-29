@@ -47,6 +47,18 @@ export const inputsSchema = z
 export type Inputs = z.infer<typeof inputsSchema>;
 export type TextField = { [K in keyof Inputs]: Inputs[K] extends string ? K : never }[keyof Inputs];
 
+/** Shapes offered for new parts; old saved jobs keep their original geometry. */
+export const selectableShapes = [
+  "cylinder",
+  "cone",
+  "eccentric",
+  "halfround",
+  "ushape",
+  "obround",
+  "rect",
+  "bucket",
+] as const;
+
 export function isConeShape(shape: Inputs["shape"]): shape is "cone" | "eccentric" {
   return shape === "cone" || shape === "eccentric";
 }

@@ -172,6 +172,10 @@ describe("interactive drawing contract", () => {
             p.edit === undefined ||
               p.edit === "width" ||
               p.edit === "cylinder.blankLength" ||
+              p.edit === "cylinder.ringLength" ||
+              p.edit === "profile.blankLength" ||
+              p.edit === "flatEnd" ||
+              p.edit.startsWith("segment.") ||
               p.edit.startsWith("cone."),
           ).toBe(true);
       }

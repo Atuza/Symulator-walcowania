@@ -1,4 +1,12 @@
-import { bounds, type DimensionId, type Prim, type Pt, type Stroke, type View } from "./model";
+import {
+  bounds,
+  type DimensionId,
+  type DimensionLabel,
+  type Prim,
+  type Pt,
+  type Stroke,
+  type View,
+} from "./model";
 
 /** Output surface in screen units (px for SVG, mm for PDF), y pointing down. */
 export interface Sink {
@@ -83,11 +91,41 @@ export function standardScale(fit: number): number {
 
 function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
   const occupied: Box[] = [];
+  const ink: Box[] = [];
+  const dimensionPaths: { points: Pt[]; stroke: "dim" | "center" }[] = [];
   const original = sink;
   sink = {
     ...original,
+    path(points, closed, stroke, fill) {
+      if (stroke === "dim" || stroke === "center")
+        dimensionPaths.push({
+          points: closed && points.length ? [...points, points[0]!] : points,
+          stroke,
+        });
+      else original.path(points, closed, stroke, fill);
+    },
     text(x, y, text, o) {
       if (o.role === "dim") {
+        const glyphWidth = original.textWidth?.(text, o.size) ?? text.length * o.size * 0.62;
+        const left = o.anchor === "middle" ? -glyphWidth / 2 : o.anchor === "end" ? -glyphWidth : 0;
+        const angle = ((o.angle ?? 0) * Math.PI) / 180;
+        const corners = [
+          [left, -o.size * 1.1],
+          [left + glyphWidth, -o.size * 1.1],
+          [left + glyphWidth, o.size * 0.25],
+          [left, o.size * 0.25],
+        ].map(([dx, dy]) => [
+          x + dx! * Math.cos(angle) - dy! * Math.sin(angle),
+          y + dx! * Math.sin(angle) + dy! * Math.cos(angle),
+        ]);
+        const xs = corners.map((p) => p[0]!),
+          ys = corners.map((p) => p[1]!);
+        ink.push({
+          x: Math.min(...xs) - o.size * 0.2,
+          y: Math.min(...ys) - o.size * 0.2,
+          w: Math.max(...xs) - Math.min(...xs) + o.size * 0.4,
+          h: Math.max(...ys) - Math.min(...ys) + o.size * 0.4,
+        });
         const w = (original.textWidth?.(text, o.size) ?? text.length * o.size * 0.62) + o.size,
           h = s.interactive && o.edit ? Math.max(24, o.size * 1.8) : o.size * 1.8,
           a = ((o.angle ?? 0) * Math.PI) / 180;
@@ -108,7 +146,7 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
   });
   const pitch = (edit?: DimensionId) =>
     s.interactive && edit ? Math.max(28, s.fontSize * 1.5) : s.fontSize * 1.5;
-  let notesH = notes.reduce((sum, n) => sum + pitch(n.edit), 0);
+  const notesH = notes.reduce((sum, n) => sum + pitch(n.edit), 0);
   const tags = view.prims.filter((p): p is Extract<Prim, { kind: "tag" }> => p.kind === "tag");
   const tagWidth = Math.max(
     0,
@@ -119,12 +157,21 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
   );
   // Dedicated gutters keep every feature value away from the part and its overall dimensions.
   const gutter = tags.length ? tagWidth + s.fontSize * 2 : 0;
-  const dimensionOffset = Math.max(
-    1.8,
-    ...view.prims.map((p) => ("offsetScreen" in p ? Math.abs(p.offsetScreen) : 0)),
+  const labelPitch = s.interactive ? Math.max(28, s.fontSize * 1.5) : s.fontSize * 1.5;
+  const extraRows = Math.max(
+    0,
+    ...view.prims.map((p) => ("extra" in p ? (p.extra?.length ?? 0) : 0)),
   );
-  const padY = Math.max(s.pad, s.fontSize * (dimensionOffset + 1.6));
-  const padX = Math.max(s.pad, s.fontSize * 3.4);
+  const dimensionOffset = Math.max(
+    s.fontSize * 1.8,
+    ...view.prims.map((p) =>
+      "offsetScreen" in p
+        ? Math.abs(p.offsetScreen) * s.fontSize + (p.extra?.length ?? 0) * labelPitch
+        : 0,
+    ),
+  );
+  const padY = Math.max(s.pad, dimensionOffset + s.fontSize * 1.6);
+  const padX = Math.max(s.pad, s.fontSize * 3.4 + extraRows * labelPitch);
   const area: Box = {
     x: cell.x + padX + gutter,
     y: cell.y + titleH + padY,
@@ -137,21 +184,37 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
   const chains = view.prims.filter(
     (p): p is Extract<Prim, { kind: "dim" }> => p.kind === "dim" && !!p.chain,
   );
-  const trialFit = Math.min(area.w / bw, area.h / bh);
-  const trialScale = s.snapScale ? standardScale(trialFit) : trialFit;
-  const showChains = chains.every(
-    (p) =>
-      Math.hypot(p.b[0] - p.a[0], p.b[1] - p.a[1]) * trialScale >=
-      (sink.textWidth?.(p.label, s.fontSize) ?? p.label.length * s.fontSize * 0.62) +
-        s.fontSize * 1.5,
-  );
-  if (!showChains) {
-    const caption = `${chains[0]!.chain}: ${chains.map((p) => p.label).join(" · ")}`;
-    notes.push(
-      ...wrapNote(caption, cell.w - s.gap, measure).map((text) => ({ text, edit: undefined })),
-    );
-    notesH = notes.reduce((sum, n) => sum + pitch(n.edit), 0);
-    area.h = cell.h - titleH - notesH - 2 * padY;
+  // Stagger crowded intervals at their dimension lines instead of moving edits into a footer.
+  const chainLanes = new Map<Prim, number>();
+  const chainPitch = s.interactive ? Math.max(28, s.fontSize * 1.9) : s.fontSize * 1.9;
+  const originalHeight = area.h;
+  let chainHeight = 0;
+  for (let iteration = 0; iteration < 6 && chains.length; iteration++) {
+    const fit = Math.min(area.w / bw, area.h / bh),
+      scale = s.snapScale ? standardScale(fit) : fit;
+    const lanes: { left: number; right: number }[][] = [];
+    for (const p of [...chains].sort((a, b) => a.a[0] + a.b[0] - (b.a[0] + b.b[0]))) {
+      const centre = ((p.a[0] + p.b[0]) * scale) / 2;
+      const width = Math.max(
+        s.interactive && p.edit ? 34 : 0,
+        (sink.textWidth?.(p.label, s.fontSize) ?? p.label.length * s.fontSize * 0.62) + s.fontSize,
+      );
+      const left = centre - width / 2,
+        right = centre + width / 2;
+      let lane = lanes.findIndex((row) =>
+        row.every((r) => left >= r.right + s.fontSize * 0.5 || right <= r.left - s.fontSize * 0.5),
+      );
+      if (lane < 0) {
+        lane = lanes.length;
+        lanes.push([]);
+      }
+      lanes[lane]!.push({ left, right });
+      chainLanes.set(p, lane);
+    }
+    const required = Math.max(0, lanes.length - 1) * chainPitch;
+    if (required <= chainHeight) break;
+    chainHeight = required;
+    area.h = originalHeight - chainHeight;
   }
   sink.text(cell.x, cell.y + s.fontSize, view.title, {
     size: s.fontSize,
@@ -178,7 +241,6 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
 
   for (const p of view.prims) {
     if (p.kind === "tag") continue;
-    if (p.kind === "dim" && p.chain && !showChains) continue;
     if (p.kind === "path") {
       sink.path(p.pts.map(map), p.closed, p.stroke, p.fill);
       continue;
@@ -196,13 +258,19 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
     const dx = bb[0] - a[0],
       dy = bb[1] - a[1];
     const len = Math.hypot(dx, dy);
-    if (len < 1e-6) continue;
+    if (len < 1e-6) {
+      const point: Pt = [a[0], a[1] - p.offsetScreen * s.fontSize];
+      sink.path([a, point], false, "dim");
+      placeLabel(sink, s, point, 1, 0, 0, p.offsetScreen >= 0 ? -1 : 1, p.label, p.edit, p.extra);
+      continue;
+    }
     const ux = dx / len,
       uy = dy / len;
     // Left normal of a→b in model space becomes (uy, -ux) once y is flipped for the screen.
     const nx = uy,
       ny = -ux;
-    const off = p.offsetModel * scale + p.offsetScreen * s.fontSize;
+    const lane = p.chain ? (chainLanes.get(p) ?? 0) : 0;
+    const off = p.offsetModel * scale + p.offsetScreen * s.fontSize - lane * chainPitch;
     const a2: Pt = [a[0] + nx * off, a[1] + ny * off];
     const b2: Pt = [bb[0] + nx * off, bb[1] + ny * off];
     if (Math.abs(off) > 0.5) {
@@ -225,6 +293,7 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
       ny * side,
       p.label,
       p.edit,
+      p.extra,
     );
   }
   if (tags.length) {
@@ -275,6 +344,7 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
       }
     }
     const obstacles = [...occupied, ...arranged.map((g) => g.box)];
+    ink.push(...arranged.map((g) => g.box));
     const leaders: Pt[][] = [];
     for (const group of arranged) {
       const box = group.box;
@@ -299,7 +369,77 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
         });
       });
   }
+  for (const path of dimensionPaths)
+    drawClearDimensionPath(path.points, ink, original, path.stroke);
   return scale;
+}
+
+/** Break dimension guides around text instead of drawing a leader through a numeric value. */
+function drawClearDimensionPath(points: Pt[], labels: Box[], sink: Sink, stroke: "dim" | "center") {
+  let current: Pt[] = [];
+  const flush = () => {
+    if (current.length > 1) sink.path(current, false, stroke);
+    current = [];
+  };
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!,
+      b = points[i]!,
+      dx = b[0] - a[0],
+      dy = b[1] - a[1];
+    let visible: [number, number][] = [[0, 1]];
+    for (const label of labels) {
+      if (
+        Math.max(a[0], b[0]) < label.x ||
+        Math.min(a[0], b[0]) > label.x + label.w ||
+        Math.max(a[1], b[1]) < label.y ||
+        Math.min(a[1], b[1]) > label.y + label.h
+      )
+        continue;
+      let low = 0,
+        high = 1;
+      for (const [origin, delta, min, max] of [
+        [a[0], dx, label.x, label.x + label.w],
+        [a[1], dy, label.y, label.y + label.h],
+      ]) {
+        if (Math.abs(delta!) < 1e-12) {
+          if (origin! < min! || origin! > max!) {
+            low = 1;
+            high = 0;
+            break;
+          }
+        } else {
+          const t0 = (min! - origin!) / delta!,
+            t1 = (max! - origin!) / delta!;
+          low = Math.max(low, Math.min(t0, t1));
+          high = Math.min(high, Math.max(t0, t1));
+        }
+      }
+      if (low >= high) continue;
+      visible = visible.flatMap(([start, end]) => {
+        if (high <= start || low >= end) return [[start, end]] as [number, number][];
+        const result: [number, number][] = [];
+        if (low > start) result.push([start, low]);
+        if (high < end) result.push([high, end]);
+        return result;
+      });
+    }
+    if (!visible.length) {
+      flush();
+      continue;
+    }
+    for (const [start, end] of visible) {
+      const p: Pt = [a[0] + dx * start, a[1] + dy * start],
+        q: Pt = [a[0] + dx * end, a[1] + dy * end];
+      const last = current.at(-1);
+      if (!last || Math.hypot(last[0] - p[0], last[1] - p[1]) > 1e-6) {
+        flush();
+        current.push(p);
+      }
+      current.push(q);
+      if (end < 1 - 1e-9) flush();
+    }
+  }
+  flush();
 }
 
 /** Visibility routing keeps a leader out of every label, including labels in the other gutter. */
@@ -454,7 +594,7 @@ function drawCurveDim(
   const mid: Pt = [a[0] + (b[0] - a[0]) * fraction, a[1] + (b[1] - a[1]) * fraction];
   const [ux, uy] = direction(a, b),
     side = off < 0 ? -1 : 1;
-  placeLabel(sink, s, mid, ux, uy, uy * side, -ux * side, p.label, p.edit);
+  placeLabel(sink, s, mid, ux, uy, uy * side, -ux * side, p.label, p.edit, p.extra);
 }
 
 function drawArcDim(
@@ -464,7 +604,7 @@ function drawArcDim(
   sink: Sink,
   s: LayoutStyle,
 ) {
-  const rr = p.r + (p.offsetScreen * s.fontSize) / scale;
+  const rr = Math.max(p.r * 0.4, p.r + (p.offsetScreen * s.fontSize) / scale);
   if (!(rr > 0)) return;
   const at = (r: number, a: number): Pt =>
     map([p.c[0] + r * Math.cos(a), p.c[1] + r * Math.sin(a)]);
@@ -492,7 +632,7 @@ function drawArcDim(
   // Labels sit on the outer side of the arc unless the dimension was pushed inwards.
   const [ox, oy] = dir(centre, mid);
   const side = p.offsetScreen < 0 ? -1 : 1;
-  placeLabel(sink, s, mid, ux, uy, ox * side, oy * side, p.label, p.edit);
+  placeLabel(sink, s, mid, ux, uy, ox * side, oy * side, p.label, p.edit, p.extra);
 }
 
 /** Puts a dimension label along direction (ux, uy) on the side given by the unit vector (ax, ay). */
@@ -506,6 +646,7 @@ function placeLabel(
   ay: number,
   label: string,
   edit?: DimensionId,
+  extra: DimensionLabel[] = [],
 ) {
   let angle = (Math.atan2(uy, ux) * 180) / Math.PI;
   // Keep labels readable: vertical text reads bottom-to-top, as on drawings.
@@ -516,13 +657,16 @@ function placeLabel(
     upy = -Math.cos(rad);
   const awayIsUp = upx * ax + upy * ay >= 0;
   // Text grows upwards from its baseline, so below-the-line labels shift by a full line height.
-  const lift = awayIsUp ? s.fontSize * 0.35 : -s.fontSize * 1.05;
-  sink.text(mid[0] + upx * lift, mid[1] + upy * lift, label, {
-    size: s.fontSize,
-    anchor: "middle",
-    angle,
-    role: "dim",
-    edit,
+  const pitch = s.interactive ? Math.max(28, s.fontSize * 1.5) : s.fontSize * 1.5;
+  [{ label, edit }, ...extra].forEach((item, row) => {
+    const lift = awayIsUp ? s.fontSize * 0.35 + row * pitch : -s.fontSize * 1.05 - row * pitch;
+    sink.text(mid[0] + upx * lift, mid[1] + upy * lift, item.label, {
+      size: s.fontSize,
+      anchor: "middle",
+      angle,
+      role: "dim",
+      edit: item.edit,
+    });
   });
 }
 

@@ -156,11 +156,15 @@ export function openDimensionEditor(
         h("span", { class: "unit" }, t(`unit.${spec.unit}`)),
       ),
     ),
-    id.includes("circumference")
-      ? h("p", { class: "muted" }, t("drawing.circumferenceHint"))
-      : id === "cylinder.blankLength"
-        ? h("p", { class: "muted" }, t("drawing.blankHint"))
-        : null,
+    id === "profile.blankLength" || id.startsWith("cone.box.")
+      ? h("p", { class: "muted" }, t("drawing.scaleHint"))
+      : id.startsWith("cone.arc.")
+        ? h("p", { class: "muted" }, t("drawing.arcHint"))
+        : id.includes("circumference")
+          ? h("p", { class: "muted" }, t("drawing.circumferenceHint"))
+          : id === "cylinder.blankLength"
+            ? h("p", { class: "muted" }, t("drawing.blankHint"))
+            : null,
     h("p", { class: "muted" }, t("drawing.commitHint")),
     preview,
     linked,

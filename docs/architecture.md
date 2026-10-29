@@ -66,8 +66,8 @@ Eccentric development uses `curveDim` primitives on the solver's net edge polyli
 integrated neutral-edge lengths, not chords; screen offsets keep the two arc dimensions and the
 bounding width in separate lanes. SVG and PDF share this placement.
 PDF tables measure wrapped labels and values before choosing row spacing. Sections and warnings
-continue on another numbered page when they cannot fit above the footer; the drawing and QR stay
-on the first page.
+continue on another numbered page when they cannot fit above the footer. The QR stays on the first
+page; a dense drawing that cannot fit the report column gets a full drawing page.
 
 Drawing primitives and annotations carry optional semantic input-dimension identifiers. SVG renders
 these as labelled, keyboard-accessible controls; PDF treats them as ordinary technical annotations.
@@ -79,6 +79,11 @@ See [drawing dimension editing](adr/0006-drawing-dimensions.md).
 Circumference edits and the cylinder cut-length inverse extend it in
 [ADR 0008](adr/0008-circumference-dimensions.md). The last edited measure drives the existing inputs;
 no separate circumference storage or visible diameter/length mode is introduced.
+Direct feature placement and the remaining inverse measures extend this in
+[ADR 0009](adr/0009-direct-measures-and-cone-machine.md). Ø/R/C labels share one dimension primitive,
+with separate semantic bindings and touch-safe rows. Thickness is always a sidebar material field.
+Cone arcs invert one end diameter; developed extents and profile total length use a proportional scale
+driver. Bounded scalar inversion rejects invalid samples and preserves the previous part on failure.
 
 Independent bend radii and straight lengths use a reference-surface segment chain stored in
 `profileSegs`, with `profileClosed` preserving the original closure constraint. The original shape
@@ -92,8 +97,13 @@ drawing; invalid input retains a recovery form and a modified-profile reset.
 Feature annotations occupy two reserved gutters and are packed in non-overlapping rows. Leader
 routing avoids all dimension-label rectangles and penalizes crossings. Small interactive views stack
 and scroll; the enlarged drawing uses the same model and disposes its resize observer on close.
-Crowded developed-interval chains become a wrapped list below the blank, retaining every value.
+Crowded developed-interval chains use staggered dimension lanes, retaining their editable bindings.
 See [independent profile dimensions](adr/0007-independent-profile-dimensions.md).
+
+All scene models include the installed machine. Cone geometry is transformed into a right-handed
+contact frame: feed along x, inward wall normal along y, and the current contact generator along z.
+The real roll dimensions and length are preserved. Side-roll placement and motion remain a visual
+reference rather than a prediction of tilted-roll or CNC settings.
 
 Calculation links (`state/share.ts`, ADR 0004) put the inputs that differ from frozen link defaults into
 the URL fragment (`#c=1;key=value;…`). The fragment never reaches the server; the PDF prints it as a

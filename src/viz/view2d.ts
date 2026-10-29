@@ -56,28 +56,47 @@ export class View2D {
 
   private render() {
     const w = this.host.clientWidth;
-    const stacked = w < (this.views.some((v) => v.prims.some((p) => p.kind === "tag")) ? 900 : 520);
+    const fontSize = w < 520 ? 11 : 12;
+    const stacked =
+      w <
+      (this.views.some((v) =>
+        v.prims.some((p) => p.kind === "tag" || ("extra" in p && p.extra?.length)),
+      )
+        ? 900
+        : 520);
     const cellWidth = (w - 32) / (stacked ? 1 : Math.max(1, this.views.length));
     // Keep the part visible even with a long free-profile dimension list. The canvas can scroll.
     const minCell = Math.max(
       200,
-      ...this.views.map(
-        (v) =>
-          Math.max(260, v.prims.filter((p) => p.kind === "tag").length * 32 + 80) +
+      ...this.views.map((v) => {
+        const levels = Math.max(
+          1.8,
+          ...v.prims.map((p) =>
+            "offsetScreen" in p
+              ? Math.abs(p.offsetScreen) + ((p.extra?.length ?? 0) * 28) / fontSize
+              : 0,
+          ),
+        );
+        const chains = v.prims.filter((p) => p.kind === "dim" && p.chain);
+        const listHeight = Math.min(chains.length, 4) * 28;
+        return (
+          Math.max(320, v.prims.filter((p) => p.kind === "tag").length * 32 + 80) +
+          2 * fontSize * (levels - 1.8) +
+          listHeight +
           v.notes.reduce((sum, note) => {
             const text = typeof note === "string" ? note : note.text;
             const editable = typeof note !== "string" && note.edit;
             const lines = Math.max(1, Math.ceil((text.length * 7) / Math.max(80, cellWidth - 16)));
             return sum + lines * (editable ? 28 : 18);
-          }, 0),
-      ),
+          }, 0)
+        );
+      }),
     );
     const h = Math.max(this.host.clientHeight, 52 + minCell * (stacked ? this.views.length : 1));
     this.el.replaceChildren();
     if (w < 10 || h < 10) return;
     this.el.setAttribute("viewBox", `0 0 ${w} ${h}`);
     this.el.style.height = `${h}px`;
-    const fontSize = w < 520 ? 11 : 12;
     drawViews(
       this.views,
       { x: 16, y: 38, w: w - 32, h: h - 50 },

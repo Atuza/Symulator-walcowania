@@ -9,6 +9,30 @@ import { defaultProcess } from "../src/state/config";
 import type { Pt } from "../src/drawing/model";
 
 describe("standard drawing scales", () => {
+  it("fits both dense rectangle views on a full A4 drawing page", () => {
+    const d = derive(
+      { ...defaultInputs, shape: "rect", ...shapeDefaults.rect, thickness: "9.9", width: "2500" },
+      emptyMachine,
+      defaultProcess,
+      materials,
+    );
+    let blanks = 0;
+    const scales = drawViews(
+      buildViews(d.output!, d.width, d.inputs.surface),
+      { x: 12, y: 30, w: 273, h: 160 },
+      {
+        path(_p, _c, _s, fill) {
+          if (fill) blanks++;
+        },
+        fill() {},
+        text() {},
+      },
+      { fontSize: 3, arrow: 2.2, pad: 9, gap: 4, snapScale: true },
+    );
+    expect(scales).toHaveLength(2);
+    expect(scales.every((s) => s > 0)).toBe(true);
+    expect(blanks).toBe(1);
+  });
   it("rounds the fitting scale down to the next standard ratio", () => {
     // Fits at 1:17.3 → 1:20; at exactly 1:50 stays 1:50; 1:2.2 has to go to 1:5.
     expect(1 / standardScale(1 / 17.3)).toBe(20);
@@ -23,7 +47,66 @@ describe("standard drawing scales", () => {
 });
 
 describe("drawing annotations", () => {
-  it("retains crowded developed intervals in a wrapped list instead of overlapping chain labels", () => {
+  it("breaks crowded interval guides around numeric labels instead of crossing their text", () => {
+    const d = derive(
+      { ...defaultInputs, shape: "rect", ...shapeDefaults.rect, surface: "outer", thickness: "20" },
+      emptyMachine,
+      defaultProcess,
+      materials,
+    );
+    const view = buildViews(d.output!, d.width, d.inputs.surface)[1]!;
+    const paths: Pt[][] = [],
+      labels: { x: number; y: number; w: number; h: number }[] = [];
+    drawViews(
+      [view],
+      { x: 0, y: 0, w: 600, h: 450 },
+      {
+        fill() {},
+        path(pts, _closed, stroke) {
+          if (stroke === "dim") paths.push(pts);
+        },
+        text(x, y, text, o) {
+          if (o.role !== "dim") return;
+          const w = text.length * o.size * 0.62,
+            a = ((o.angle ?? 0) * Math.PI) / 180;
+          const corners = [
+            [-w / 2, -o.size],
+            [w / 2, -o.size],
+            [w / 2, 0],
+            [-w / 2, 0],
+          ].map(([dx, dy]) => [
+            x + dx! * Math.cos(a) - dy! * Math.sin(a),
+            y + dx! * Math.sin(a) + dy! * Math.cos(a),
+          ]);
+          const xs = corners.map((p) => p[0]!),
+            ys = corners.map((p) => p[1]!);
+          labels.push({
+            x: Math.min(...xs),
+            y: Math.min(...ys),
+            w: Math.max(...xs) - Math.min(...xs),
+            h: Math.max(...ys) - Math.min(...ys),
+          });
+        },
+      },
+      { fontSize: 12, arrow: 7, pad: 30, gap: 16, interactive: true },
+    );
+    expect(labels).toHaveLength(view.prims.filter((p) => p.kind === "dim").length);
+    for (const pts of paths)
+      for (let i = 1; i < pts.length; i++)
+        for (let j = 1; j < 60; j++) {
+          const a = pts[i - 1]!,
+            b = pts[i]!,
+            x = a[0] + ((b[0] - a[0]) * j) / 60,
+            y = a[1] + ((b[1] - a[1]) * j) / 60;
+          expect(
+            labels.some(
+              (l) =>
+                x > l.x + 0.01 && x < l.x + l.w - 0.01 && y > l.y + 0.01 && y < l.y + l.h - 0.01,
+            ),
+          ).toBe(false);
+        }
+  });
+  it("retains crowded developed intervals at their dimension lines in separate lanes", () => {
     const d = derive(
       { ...defaultInputs, shape: "ushape", ...shapeDefaults.ushape },
       emptyMachine,
@@ -50,9 +133,9 @@ describe("drawing annotations", () => {
       { fontSize: 12, arrow: 7, pad: 30, gap: 16, interactive: true },
     );
     for (const p of chains) {
-      expect(notes.join(" ")).toContain(p.label);
-      expect(dims).not.toContain(p.label);
+      expect(dims).toContain(p.label);
     }
+    expect(notes).toEqual([]);
   });
   it("stacks a crowded A4 drawing instead of shrinking the part between its labels", () => {
     const d = derive(

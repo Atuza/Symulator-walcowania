@@ -131,7 +131,7 @@ describe("cone: one part, every output", () => {
       expect.arrayContaining([`Ø ${num(1400)}`, `Ø ${num(500)}`, num(900)]),
     );
     expect(labels(dev!)).toEqual(
-      expect.arrayContaining([num(r.arcOuter), num(r.arcInner), num(r.slant)]),
+      expect.arrayContaining([`L1 ${num(r.arcOuter)}`, `L2 ${num(r.arcInner)}`, num(r.slant)]),
     );
     expect(labels(dev!)).not.toContain(`${num((r.angle * 180) / Math.PI)}°`);
   });

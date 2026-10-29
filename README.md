@@ -4,7 +4,7 @@ Plate rolling calculator for 4-roll plate bending machines: blank length, diamet
 3D rolling preview, 2D drawing, PDF report and DXF cut contour. Runs entirely in the browser, works
 offline once loaded, stores nothing outside the device.
 
-**Version:** 1.1.7
+**Version:** 1.1.8
 
 **App:** https://atuza.github.io/Symulator-walcowania/
 
@@ -23,26 +23,25 @@ Dimensions are in mm and angles in degrees.
 | U shape        | Overall width A and straight length B of each leg                                    |
 | Obround        | Overall length A and width B, A ≥ B                                                  |
 | Rectangle      | Overall sides A and B, corner radius R                                               |
-| Tank           | Four-tangent-arc oval: overall width A, height B, side radius R                      |
 | Bucket         | Straight back A, bend radius R, turning angle, straight bottom B                     |
-| Ellipse        | Full horizontal and vertical axes A and B                                            |
-| Free           | Ordered list of straight lengths and arcs with signed turning angles                 |
 
 Concentric cones develop to an annular sector. Eccentric cones use a numerical contour and list
 generator lengths every 30° from the shortest. Other shapes share a straight-and-arc profile engine,
-with the neutral fibre calculated per bend. Closed profiles have fixed seam positions; free profiles
-close only when their ends meet and the total turn is ±360°.
+with the neutral fibre calculated per bend. Closed profiles have fixed seam positions. Tank, ellipse
+and free shapes are no longer offered for new parts; existing saved calculations remain readable.
 
 ## Features
 
 - Cylinder: edit Ø, R, circumference C or cut length directly on the drawing, without switching modes.
+- Thickness stays beside the material grade in the sidebar. Diameter dimensions show an independently
+  editable R beside Ø; cone end dimensions also carry C1/C2 at the measured feature.
 - Both cone types: edit C1/C2 on the selected reference surface to calculate the matching end Ø and
   development. Circumferences exclude flat allowances and stay synchronized with radii and diameters.
 - Cone: large Ø, small Ø and axial height → annular sector development (R1, R2, angle, plate size).
 - Eccentric cone: constant normal wall thickness, parallel neutral-surface development and
   generator table; numerical refinement targets 0.01 mm for contour and edge lengths.
   The development dimensions follow both numerical edges (L1/L2), measuring their net arc lengths
-  rather than endpoint chords; flat allowances are listed separately.
+  rather than endpoint chords; flat allowances remain separate process inputs.
 - Neutral axis from R/t (DIN 6935), optional flat-end allowance, mass.
 - Springback estimate with the machine set diameter; certificate Re and a calibration factor improve it.
 - Material database: structural, high-strength, pressure vessel, stainless and aluminium grades (EN standards).
@@ -55,15 +54,17 @@ close only when their ends meet and the total turn is ±360°.
 - Click an underlined dimension on any shape's drawing to edit it. Each profile bend has its own
   radius R1, R2, etc.; straight lengths and overall sizes can be changed independently. Closed
   contours stay closed, and the editor previews any automatically adjusted dimensions. No separate
-  corner-angle fields are shown. Arc sweeps remain available for half-round, bucket and free profiles.
+  corner-angle fields are shown. Arc sweeps remain available for half-round and bucket profiles.
 - Geometry fields move from the sidebar to the drawing, with a larger drawing dialog when needed.
   Feature labels occupy separate gutters, and their leaders avoid dimension text on screen and paper.
-  Enter or Apply validates and updates both views and all results; Esc cancels. The total developed
-  blank length remains read-only for profiles; cylinder cut length has a unique inverse and is editable.
+  Enter or Apply validates and updates both views and all results; Esc cancels. Profile blank-length
+  edits scale the reference section proportionally, preserving thickness, plate width and allowances.
+  Cone arc-length edits adjust the corresponding end; blank-extent edits scale the cone proportionally.
+  Cone development radii and eccentric generator lengths are edited at their actual drawing measures.
   Invalid or non-finite changes leave the last valid part intact. Modified profiles persist in templates,
   history and calculation links.
 - DXF R12: one closed red `POLYLINE` on layer `cut`, 1:1 mm; discrete profile bend lines are blue
-  `LINE` entities on layer `bend`. Ellipses have no artificial bend lines. Eccentric cone contours
+  `LINE` entities on layer `bend`. Eccentric cone contours
   use sampled line segments. R12 has no unit header: select mm on CAD import.
 - Fixed installed-machine geometry: top roll Ø 338.38 mm, bottom Ø 310.12 mm, both side rolls
   Ø 240.02 mm, working roll length 3100 mm and maximum plate width 3000 mm. These values are
@@ -123,14 +124,15 @@ precedence.
 
 The 3D preview illustrates geometry and rolling progress. It does not calculate CNC axis settings,
 tool collisions or material deformation. Tight profiles can intersect the illustrated rolls even
-when warnings are present. Cones show the plate without the machine or tilted rolls.
+when warnings are present. Both cone types show the installed machine, with the contact generator
+aligned with the pinch line. Roll dimensions stay fixed; conical roll tilt and CNC setup are not simulated.
 
 Eccentric-cone geometry offsets each wall along its local normal. Circular end diameters belong to
 the selected reference surface; other offset surfaces generally have non-circular end curves, reported
 as equivalent diameters (perimeter / π). The numerical development has a 0.01 mm refinement target;
 the material neutral factor and circular-section springback estimate still require process calibration.
-Ellipses are drawn as 256 short arcs while their inner perimeter is integrated numerically.
-Free-profile closure does not detect self-intersections. Oblique end cuts, splitting a blank into
+Legacy ellipse jobs use 256 short arcs while their inner perimeter is integrated numerically.
+Legacy free-profile closure does not detect self-intersections. Oblique end cuts, splitting a blank into
 several pieces and the v1.2 machine-program editor remain outside this release.
 
 ## Licence

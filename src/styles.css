@@ -1219,6 +1219,10 @@ textarea:focus {
   grid-template-columns: 1fr;
 }
 
+.heroes-stack {
+  grid-template-columns: 1fr;
+}
+
 .hero-value {
   white-space: nowrap;
 }

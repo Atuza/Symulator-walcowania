@@ -80,7 +80,7 @@ describe("cone development framing", () => {
           snapScale: fontSize === 3,
         },
       );
-      expect(labels).toHaveLength(5);
+      expect(labels).toHaveLength(7);
       expect(labels.some((l) => l.text.includes("°"))).toBe(false);
       for (let i = 0; i < labels.length; i++)
         for (let j = i + 1; j < labels.length; j++) {

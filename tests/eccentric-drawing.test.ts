@@ -52,7 +52,7 @@ describe("eccentric developed arc dimensions", () => {
     expect(flat.r.arcLarge).toBe(plain.r.arcLarge);
     expect(flat.r.arcSmall).toBe(plain.r.arcSmall);
     expect(flat.r.box.height).toBeGreaterThan(plain.r.box.height);
-    expect(flat.view.notes.some((n) => typeof n === "string" && n.includes("2 × 35"))).toBe(true);
+    expect(flat.view.notes.some((n) => typeof n === "string" && n.includes("L1/L2"))).toBe(true);
   });
   it.each([
     {},

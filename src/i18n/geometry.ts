@@ -1,10 +1,9 @@
-import { PROFILE_SHAPES } from "../domain/shapes";
-import type { Inputs } from "../state/inputs";
+import { selectableShapes, type Inputs } from "../state/inputs";
 import { getLang, type Lang } from ".";
 import type { ParamDoc } from "./docs";
 
 type Shape = Inputs["shape"];
-export const referenceShapes: Shape[] = ["cylinder", "cone", "eccentric", ...PROFILE_SHAPES];
+export const referenceShapes: readonly Shape[] = selectableShapes;
 
 const pl: Record<Shape | "surface" | "width", ParamDoc> = {
   surface: {
@@ -40,7 +39,7 @@ const pl: Record<Shape | "surface" | "width", ParamDoc> = {
     ],
   },
   cylinder: {
-    what: "Walec z jednego arkusza. Wybierz Ø albo R oraz stronę pomiaru. W trybie odwrotnym podaj długość blachy, a aplikacja obliczy średnicę wewnętrzną i zewnętrzną.",
+    what: "Walec z jednego arkusza. Kliknij na rysunku Ø, R, obwód C albo długość blachy i wybierz stronę pomiaru. Pozostałe wymiary przeliczają się automatycznie, bez przełączania trybu.",
     effect:
       "Średnica określa obwód po osi obojętnej. Naddatek dodaje płaski odcinek f na każdej krawędzi spoiny; domyślnie jest wyłączony.",
     range:
@@ -268,7 +267,7 @@ const en: Record<keyof typeof pl, ParamDoc> = {
     ],
   },
   cylinder: {
-    what: "A cylinder from one plate. Select Ø or R and the reference surface. In reverse mode, enter the blank length to obtain inner and outer diameters.",
+    what: "A cylinder from one plate. Click Ø, R, circumference C or cut length on the drawing and choose the reference surface. Linked dimensions update without switching modes.",
     effect:
       "Diameter sets the neutral-fibre circumference. The optional allowance adds a flat length f at each seam edge; it starts off.",
     range:

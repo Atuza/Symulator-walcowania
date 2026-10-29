@@ -1,4 +1,5 @@
 import type { SetPoint } from "../domain/calculate";
+import type { DimensionId } from "../drawing/model";
 import { SHAPE_FIELDS } from "../domain/shapes";
 import { parseFreeRows } from "../state/freeShape";
 import { num, percent, t, type Key } from "../i18n";
@@ -22,6 +23,7 @@ export interface Hero {
   unit: string;
   /** Plain number for copying. */
   raw: number;
+  edit?: DimensionId;
 }
 
 const mm = (v: number) => num(v);
@@ -39,11 +41,24 @@ export function heroes(d: Derived): Hero[] {
             value: mm(r.blankLength),
             unit: t("unit.mm"),
             raw: r.blankLength,
+            edit: "cylinder.blankLength",
           },
         ]
       : [
-          { label: t("result.dInner"), value: mm(r.dInner), unit: t("unit.mm"), raw: r.dInner },
-          { label: t("result.dOuter"), value: mm(r.dOuter), unit: t("unit.mm"), raw: r.dOuter },
+          {
+            label: t("result.dInner"),
+            value: mm(r.dInner),
+            unit: t("unit.mm"),
+            raw: r.dInner,
+            edit: "diameter.inner",
+          },
+          {
+            label: t("result.dOuter"),
+            value: mm(r.dOuter),
+            unit: t("unit.mm"),
+            raw: r.dOuter,
+            edit: "diameter.outer",
+          },
         ];
   }
   if (out.shape === "profile") {
@@ -54,25 +69,39 @@ export function heroes(d: Derived): Hero[] {
         value: mm(r.blankLength),
         unit: t("unit.mm"),
         raw: r.blankLength,
+        edit: r.shape === "ellipse" && !r.custom ? undefined : "profile.blankLength",
       },
     ];
   }
   if (out.shape === "eccentric") {
     const r = out.result;
     return [
-      { label: t("result.slantMin"), value: mm(r.slantMin), unit: t("unit.mm"), raw: r.slantMin },
-      { label: t("result.slantMax"), value: mm(r.slantMax), unit: t("unit.mm"), raw: r.slantMax },
+      {
+        label: t("result.slantMin"),
+        value: mm(r.slantMin),
+        unit: t("unit.mm"),
+        raw: r.slantMin,
+        edit: "cone.slant.short",
+      },
+      {
+        label: t("result.slantMax"),
+        value: mm(r.slantMax),
+        unit: t("unit.mm"),
+        raw: r.slantMax,
+        edit: "cone.slant.long",
+      },
     ];
   }
   const r = out.result;
   return [
-    { label: "R1", value: mm(r.rOuter), unit: t("unit.mm"), raw: r.rOuter },
-    { label: "R2", value: mm(r.rInner), unit: t("unit.mm"), raw: r.rInner },
+    { label: "R1", value: mm(r.rOuter), unit: t("unit.mm"), raw: r.rOuter, edit: "cone.r1" },
+    { label: "R2", value: mm(r.rInner), unit: t("unit.mm"), raw: r.rInner, edit: "cone.r2" },
     {
       label: t("result.angle"),
       value: deg(r.angle),
       unit: t("unit.deg"),
       raw: (r.angle * 180) / Math.PI,
+      edit: "cone.sector",
     },
   ];
 }

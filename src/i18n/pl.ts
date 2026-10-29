@@ -5,6 +5,17 @@ export const pl: Dict = {
   appTagline: "Walcowanie blach · 4 walce",
   "drawing.chain": "Odcinki rozwinięcia (mm)",
   "geometry.radiusMin": "Najmniejszy promień krzywizny",
+  "geometry.arcLength": "Długość odcinka w rozwinięciu",
+  "geometry.arcLarge": "Łuk większej krawędzi L1",
+  "geometry.arcSmall": "Łuk mniejszej krawędzi L2",
+  "geometry.blankWidth": "Szerokość rozwinięcia",
+  "geometry.blankHeight": "Wysokość rozwinięcia",
+  "drawing.scaleHint":
+    "Zmiana tego gabarytu rozwinięcia skaluje detal proporcjonalnie. Grubość i płaskie naddatki pozostają stałe. Sprawdź wymiary powiązane przed zatwierdzeniem.",
+  "drawing.arcHint":
+    "Zmiana długości łuku dopasowuje średnicę odpowiedniego końca. Wysokość, mimośród i drugi koniec pozostają stałe.",
+  "pdf.drawingHeading": "Rysunek wymiarowy",
+  "pdf.drawingPage": "Rysunek wymiarowy znajduje się na stronie {page}.",
   "geometry.radiusMax": "Największy promień krzywizny",
   "geometry.width": "Szerokość całkowita",
   "geometry.height": "Wysokość całkowita",

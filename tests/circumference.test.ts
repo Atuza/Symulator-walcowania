@@ -126,7 +126,11 @@ describe("circumference and blank edits", () => {
       const d = run({ shape, offset: shape === "eccentric" ? "300" : "" });
       const views = buildViews(d.output!, d.width, d.inputs.surface);
       const ids = views.flatMap((v) =>
-        v.notes.flatMap((n) => (typeof n === "string" || !n.edit ? [] : [n.edit])),
+        v.prims.flatMap((p) =>
+          p.kind === "path"
+            ? []
+            : [p.edit, ...("extra" in p ? (p.extra?.map((e) => e.edit) ?? []) : [])],
+        ),
       );
       expect(ids).toContain(
         shape === "cylinder" ? "cylinder.circumference" : "cone.circumference.large",
