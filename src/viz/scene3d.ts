@@ -8,6 +8,7 @@ import {
   DirectionalLight,
   DoubleSide,
   Group,
+  CylinderGeometry,
   HemisphereLight,
   LatheGeometry,
   Mesh,
@@ -49,11 +50,13 @@ function loadMachineModel(): Promise<Group | null> {
 }
 
 /** Machine parts the viewer can hide when they block the view. */
-export type MachinePart = "housings" | "tower" | "ejector" | "supports" | "table" | "rolls";
+export type MachinePart =
+  "housings" | "tower" | "ejector" | "supports" | "posts" | "table" | "rolls";
 
 /** Which part a node of the machine model belongs to, from its name. */
 function partOf(name: string): MachinePart {
   if (/^Tower/.test(name)) return "tower";
+  if (/^Post/.test(name)) return "posts";
   if (/^Ejector/.test(name)) return "ejector";
   if (/^Support/.test(name)) return "supports";
   if (/^Table/.test(name)) return "table";
@@ -116,6 +119,7 @@ export class RollingScene {
   private accentMat = new MeshStandardMaterial({ metalness: 0.4, roughness: 0.5 });
   // Machine paint stays the same in both themes, like the real machine.
   private frameMat = new MeshStandardMaterial({ color: 0xb3261e, metalness: 0.15, roughness: 0.6 });
+  private collarMat = new MeshStandardMaterial({ color: 0x1b2a5c, metalness: 0.3, roughness: 0.5 });
   private yokeMat = new MeshStandardMaterial({ color: 0x8c1d17, metalness: 0.15, roughness: 0.6 });
   private machineGroup = new Group();
   private machineTemplate: Group | null = null;
@@ -295,6 +299,16 @@ export class RollingScene {
     const add = (r: number, x: number, y: number, mat: MeshStandardMaterial) => {
       const mesh = new Mesh(rollGeometry(r * MM, mv.rollLength * MM, journal), mat);
       mesh.position.set(x * MM, y * MM, 0);
+      // Dark seal collars where the barrel meets the journals, as on the machine.
+      for (const end of [-1, 1]) {
+        const collar = new Mesh(
+          new CylinderGeometry(r * MM * 0.82, r * MM * 0.82, 0.07, 48),
+          this.collarMat,
+        );
+        collar.rotation.x = Math.PI / 2;
+        collar.position.z = end * ((mv.rollLength / 2) * MM + 0.035);
+        mesh.add(collar);
+      }
       this.root.add(mesh);
       this.rolls.push(mesh);
     };
@@ -316,6 +330,7 @@ export class RollingScene {
       this.root.add(this.machineGroup);
       this.applyVisibility();
       this.liftTower();
+      this.dropPosts();
       return;
     }
     const blank = feedLength(m);
@@ -405,6 +420,23 @@ export class RollingScene {
     this.plate = new Mesh(plateGeometry(m, this.progress), this.plateMat);
     this.root.add(this.plate);
     this.liftTower();
+    this.dropPosts();
+  }
+
+  /**
+   * Guide posts FL/RL/FR/RR retract below their table wherever the plate would run into them, as the
+   * CNC lowers them; otherwise they stand up at the table corners.
+   */
+  private dropPosts() {
+    if (!this.plate) return;
+    const plate = new Box3().setFromObject(this.plate);
+    for (const node of this.machineGroup.children) {
+      if (!/^Post/.test(node.name)) continue;
+      node.userData.baseY ??= node.position.y;
+      node.position.y = node.userData.baseY as number;
+      const post = new Box3().setFromObject(node);
+      if (post.intersectsBox(plate)) node.position.y -= POST_TRAVEL;
+    }
   }
 
   /**
@@ -429,6 +461,8 @@ export class RollingScene {
 const TOWER_ARM_BOTTOM = 0.823;
 const TOWER_CLEARANCE = 0.03;
 const TOWER_TRAVEL = 2.5;
+// How far a guide post drops to clear the plate [m]: its full height above the table.
+const POST_TRAVEL = 0.62;
 
 /** How far the vertical support's arm rises [m] to clear a part whose top is at `top` [m]. */
 export function towerLift(top: number): number {

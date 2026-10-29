@@ -143,3 +143,37 @@ describe("eccentric cone stays clear of the housings", () => {
     }
   });
 });
+
+describe("side tables SL/SR stay under the plate", () => {
+  const cases: Record<string, Partial<typeof defaultInputs>> = {
+    cylinder: { thickness: "10", value: "1500", width: "2480" },
+    cone: { shape: "cone", thickness: "8", dLarge: "1200", dSmall: "600", height: "800" },
+    rectangle: {
+      shape: "rect",
+      thickness: "10",
+      sizeA: "1000",
+      sizeB: "600",
+      sizeR: "60",
+      width: "2000",
+    },
+  };
+  it.each(Object.keys(cases))("%s never dips into a table", (name) => {
+    const d = derive(
+      { ...defaultInputs, ...cases[name] },
+      withFixedMachine(),
+      defaultProcess,
+      materials,
+    );
+    const m = sceneModel(d.output!, d.thickness!, d.width, withFixedMachine());
+    for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+      const pos = plateGeometry(m, p).getAttribute("position");
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i),
+          y = pos.getY(i);
+        // Table tops from the machine model: SR at x 0.62–1.62 m, top −0.012 m; SL at x −1.78–−0.74 m, top −0.045 m.
+        if (x > 0.62 && x < 1.62) expect(y, `${name} p${p}`).toBeGreaterThan(-0.0125);
+        if (x < -0.74 && x > -1.78) expect(y, `${name} p${p}`).toBeGreaterThan(-0.0455);
+      }
+    }
+  });
+});

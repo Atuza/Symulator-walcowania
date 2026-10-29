@@ -17,10 +17,20 @@ export interface StageTarget {
 
 const VIEW_KEY = "rolling.view.v1";
 const SPEEDS = [1, 2, 4, 0.5];
-const PARTS: MachinePart[] = ["rolls", "housings", "tower", "ejector", "supports", "table"];
+const PARTS: MachinePart[] = [
+  "rolls",
+  "housings",
+  "tower",
+  "ejector",
+  "supports",
+  "posts",
+  "table",
+];
 const viewSchema = z.object({
   speed: z.number().refine((v) => SPEEDS.includes(v)),
-  hidden: z.array(z.enum(["housings", "tower", "ejector", "supports", "table", "rolls"])).max(6),
+  hidden: z
+    .array(z.enum(["housings", "tower", "ejector", "supports", "posts", "table", "rolls"]))
+    .max(7),
 });
 
 // A full roll takes this long at 1×.
