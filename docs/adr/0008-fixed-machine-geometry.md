@@ -18,9 +18,8 @@ Keep the following dimensions in one immutable application constant, in millimet
 - Working roll length: 3100.
 - Maximum permitted plate width: 3000.
 
-The diameters use the controller parameter precision rather than the rounded import-file values.
-Source documents and controller dumps stay local; no source document, machine identifier or network
-configuration is published.
+The diameters keep two decimals rather than rounded values. No source document, machine identifier or
+network configuration is published.
 
 Normalize application defaults, old settings, machine-file imports, configuration backups, setters
 and reset to these dimensions. Preserve language, theme, other machine limits, capacity charts,

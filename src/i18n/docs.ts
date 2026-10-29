@@ -57,8 +57,7 @@ const pl: Record<DocId, ParamDoc> = {
     what: "Średnica górnego walca roboczego. W walcarce czterowalcowej blacha jest zaciśnięta między walcem górnym a dolnym, a walce boczne ją wyginają. Walec górny zostaje wewnątrz zwijanego płaszcza, dlatego to on wyznacza najmniejszą średnicę, jaką da się zwinąć.",
     effect:
       "Kontrola wykonalności: ostrzeżenie, gdy średnica do ustawienia na maszynie (po kompensacji sprężynowania) nie mieści walca górnego. Rozmiar walców w widoku 3D. Nie zmienia długości blachy ani sprężynowania.",
-    range:
-      "Stałe 338,38 mm (promień 169,19 mm) z parametrów sterowania tej maszyny. Wartość tylko do odczytu.",
+    range: "Stałe 338,38 mm (promień 169,19 mm) dla tej maszyny. Wartość tylko do odczytu.",
     formula: ["D_s > D_g", "D_{s,\\min} \\approx (1,1 \\ldots 1,2) \\cdot D_g"],
     symbols: [
       [
@@ -72,8 +71,7 @@ const pl: Record<DocId, ParamDoc> = {
   "machine.bottomRollD": {
     what: "Średnica dolnego walca zaciskowego. Razem z walcem górnym trzyma i przesuwa blachę, więc w walcarce czterowalcowej arkusz nie ślizga się, a zawijanie obu końców odbywa się bez przekładania.",
     effect: "Tylko rozmiar walca w widoku 3D. Nie wpływa na obliczenia.",
-    range:
-      "Stałe 310,12 mm (promień 155,06 mm) z parametrów sterowania tej maszyny. Wartość tylko do odczytu.",
+    range: "Stałe 310,12 mm (promień 155,06 mm) dla tej maszyny. Wartość tylko do odczytu.",
   },
   "machine.sideRollD": {
     what: "Średnica walców bocznych (gnących). Podniesienie walca bocznego względem linii zacisku ustala krzywiznę: im wyżej, tym mniejszy promień. Jeden walec boczny gnie, drugi podpiera i prowadzi blachę, a przy zawijaniu drugiego końca role się zamieniają.",
@@ -82,7 +80,7 @@ const pl: Record<DocId, ParamDoc> = {
     range: "Stałe 240,02 mm (promień 120,01 mm) dla obu walców bocznych. Wartość tylko do odczytu.",
   },
   "machine.maxThickness": {
-    what: "Największa grubość, jaką maszyna zwija na pełnej szerokości, wg tabliczki znamionowej. Producent podaje ją dla określonej granicy plastyczności (zwykle stal o Re około 235–275 MPa) i zwykle dla określonej średnicy.",
+    what: "Największa grubość, jaką maszyna zwija na pełnej szerokości, wg danych maszyny. Producent podaje ją dla określonej granicy plastyczności (zwykle stal o Re około 235–275 MPa) i zwykle dla określonej średnicy.",
     effect:
       "Ostrzeżenie przy przekroczeniu. Moment potrzebny do uplastycznienia przekroju rośnie z kwadratem grubości oraz liniowo z Re i szerokością, więc mocniejszy materiał zmniejsza dopuszczalną grubość, a węższa blacha ją zwiększa.",
     range: "Typowo 3–150 mm. Puste pole: brak kontroli.",
@@ -122,7 +120,7 @@ const pl: Record<DocId, ParamDoc> = {
     what: "Długość robocza walców tej maszyny wynosi 3100 mm. Maksymalna dopuszczona szerokość blachy wynosi 3000 mm.",
     effect:
       "Reguła dla stożków: im dłuższa tworząca w stosunku do walców, tym mniejszy dopuszczalny udział grubości nominalnej (50 % do ½ długości, 40 % do ¾, 30 % powyżej).",
-    range: "Stałe 3100 mm z parametrów sterowania tej maszyny. Wartość tylko do odczytu.",
+    range: "Stałe 3100 mm dla tej maszyny. Wartość tylko do odczytu.",
     formula: [
       "t_{stożek} \\le u \\cdot t_{nom}",
       "u = 0{,}5 \\quad s \\le 0{,}5 \\cdot L_w",
@@ -375,8 +373,7 @@ const en: Record<DocId, ParamDoc> = {
     what: "Diameter of the top working roll. On a 4-roll machine the plate is pinched between the top and bottom rolls while the side rolls bend it. The top roll stays inside the shell being rolled, so it sets the smallest diameter that can be rolled.",
     effect:
       "Feasibility check: warning when the diameter to set on the machine (after springback compensation) does not clear the top roll. Roll size in the 3D view. Does not change the blank length or springback.",
-    range:
-      "Fixed at 338.38 mm (radius 169.19 mm) from this machine's controller parameters. Read-only.",
+    range: "Fixed at 338.38 mm (radius 169.19 mm) for this machine. Read-only.",
     formula: ["D_s > D_t", "D_{s,\\min} \\approx (1.1 \\ldots 1.2) \\cdot D_t"],
     symbols: [
       [
@@ -390,8 +387,7 @@ const en: Record<DocId, ParamDoc> = {
   "machine.bottomRollD": {
     what: "Diameter of the bottom pinch roll. Together with the top roll it grips and drives the plate, so on a 4-roll machine the sheet does not slip and both ends can be pre-bent without turning it over.",
     effect: "3D roll size only. No effect on calculations.",
-    range:
-      "Fixed at 310.12 mm (radius 155.06 mm) from this machine's controller parameters. Read-only.",
+    range: "Fixed at 310.12 mm (radius 155.06 mm) for this machine. Read-only.",
   },
   "machine.sideRollD": {
     what: "Diameter of the side (bending) rolls. Raising a side roll relative to the pinch line sets the curvature: the higher, the smaller the radius. One side roll bends, the other supports and guides the plate; for the second end the roles swap.",
@@ -400,7 +396,7 @@ const en: Record<DocId, ParamDoc> = {
     range: "Fixed at 240.02 mm (radius 120.01 mm) for both side rolls. Read-only.",
   },
   "machine.maxThickness": {
-    what: "Largest thickness the machine rolls at full width, from the rating plate. The maker states it for a given yield strength (usually steel with Re around 235–275 MPa) and usually for a given diameter.",
+    what: "Largest thickness the machine rolls at full width, from the machine data. The maker states it for a given yield strength (usually steel with Re around 235–275 MPa) and usually for a given diameter.",
     effect:
       "Warning when exceeded. The moment needed to yield the section grows with the square of thickness and linearly with Re and width, so a stronger material lowers the allowable thickness and a narrower plate raises it.",
     range: "Typically 3–150 mm. Empty: no check.",
@@ -440,7 +436,7 @@ const en: Record<DocId, ParamDoc> = {
     what: "This machine has a working roll length of 3100 mm and a maximum permitted plate width of 3000 mm.",
     effect:
       "Cone rule: the longer the slant compared with the rolls, the smaller the allowed share of nominal thickness (50 % up to ½ of the length, 40 % up to ¾, 30 % above).",
-    range: "Fixed at 3100 mm from this machine's controller parameters. Read-only.",
+    range: "Fixed at 3100 mm for this machine. Read-only.",
     formula: [
       "t_{cone} \\le u \\cdot t_{nom}",
       "u = 0.5 \\quad s \\le 0.5 \\cdot L_w",
