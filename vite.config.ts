@@ -72,7 +72,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,woff2,ttf}"],
+        globPatterns: ["**/*.{js,css,html,svg,png,woff2,ttf,glb}"],
         // Optional jsPDF plugins (HTML rendering) are never used; keep them out of the offline cache.
         globIgnores: ["**/html2canvas-*.js", "**/purify.es-*.js", "**/index.es-*.js"],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,

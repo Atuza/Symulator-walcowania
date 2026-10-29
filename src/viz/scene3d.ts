@@ -1,4 +1,5 @@
 import {
+  ACESFilmicToneMapping,
   AmbientLight,
   Box3,
   BufferAttribute,
@@ -13,6 +14,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   PerspectiveCamera,
+  PMREMGenerator,
   Scene,
   Shape,
   Sphere,
@@ -21,6 +23,8 @@ import {
   WebGLRenderer,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { bendAt, partlyRolled, traceProfile } from "../domain/profile";
 import { eccentricPoint } from "../domain/eccentric";
 import { buildFrame, housingDepth } from "./machine3d";
@@ -28,6 +32,21 @@ import type { SceneModel } from "./sceneModel";
 
 // Model is built in metres to keep camera and depth precision comfortable.
 const MM = 0.001;
+
+/*
+ * The plate roll itself (housings, tower, yoke, ejector, supports, feed table) is a model built to the
+ * machine's layout drawing, in metres with the pinch line at the origin and the rolls along z. It is
+ * fetched once; until it arrives, or if it cannot be loaded, the simple frame from machine3d stands in.
+ */
+let machineModel: Promise<Group | null> | null = null;
+
+function loadMachineModel(): Promise<Group | null> {
+  machineModel ??= new GLTFLoader()
+    .loadAsync(`${import.meta.env.BASE_URL}models/machine.glb`)
+    .then((gltf) => gltf.scene)
+    .catch(() => null);
+  return machineModel;
+}
 
 export interface ScenePalette {
   plate: string;
@@ -55,6 +74,7 @@ export class RollingScene {
   private frameMat = new MeshStandardMaterial({ color: 0xb3261e, metalness: 0.15, roughness: 0.6 });
   private yokeMat = new MeshStandardMaterial({ color: 0x8c1d17, metalness: 0.15, roughness: 0.6 });
   private machineGroup = new Group();
+  private machineTemplate: Group | null = null;
   private model: SceneModel | null = null;
   private progress = 1;
   private frame = 0;
@@ -64,11 +84,17 @@ export class RollingScene {
   constructor(private host: HTMLElement) {
     this.renderer = new WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Filmic tone mapping and a studio environment give metal and paint believable reflections.
+    this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
     host.append(this.renderer.domElement);
+    const pmrem = new PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
     this.scene.add(this.root);
-    this.scene.add(new HemisphereLight(0xffffff, 0x404040, 1.2));
-    this.scene.add(new AmbientLight(0xffffff, 0.25));
-    const key = new DirectionalLight(0xffffff, 2.2);
+    this.scene.add(new HemisphereLight(0xffffff, 0x404040, 0.45));
+    this.scene.add(new AmbientLight(0xffffff, 0.1));
+    const key = new DirectionalLight(0xffffff, 1.6);
     key.position.set(3, 5, 4);
     this.scene.add(key);
     const rim = new DirectionalLight(0xffffff, 0.8);
@@ -81,6 +107,13 @@ export class RollingScene {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(host);
     this.resize();
+    void loadMachineModel().then((model) => {
+      this.machineTemplate = model;
+      if (model) {
+        this.rebuildRolls();
+        this.requestRender();
+      }
+    });
   }
 
   setPalette(p: ScenePalette) {
@@ -179,9 +212,11 @@ export class RollingScene {
     this.rolls.forEach((r) => this.clear(r));
     this.rolls = [];
     this.root.remove(this.machineGroup);
-    this.machineGroup.traverse((o) => {
-      if (o instanceof Mesh) o.geometry.dispose();
-    });
+    // Clones of the loaded model share its geometry, which must outlive them.
+    if (!this.machineGroup.userData.shared)
+      this.machineGroup.traverse((o) => {
+        if (o instanceof Mesh) o.geometry.dispose();
+      });
     this.machineGroup = new Group();
     const m = this.model;
     if (!m || m.shape === "cone" || m.shape === "eccentric") return;
@@ -208,6 +243,12 @@ export class RollingScene {
     add(rs, (rb + rs) * 1.08, -t / 2 - rs - rb * 0.18, this.rollMat);
     this.placeSideRoll();
 
+    if (this.machineTemplate) {
+      this.machineGroup = this.machineTemplate.clone();
+      this.machineGroup.userData.shared = true;
+      this.root.add(this.machineGroup);
+      return;
+    }
     const blank = m.shape === "cylinder" ? m.length : m.dev.length;
     this.machineGroup = buildFrame(
       mv,
