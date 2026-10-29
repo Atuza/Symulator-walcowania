@@ -322,23 +322,7 @@ export class App {
     panel.replaceChildren();
 
     panel.append(this.templateBar());
-    panel.append(
-      group(
-        t("section.shape"),
-        this.shapePicker(),
-        i.shape === "cylinder"
-          ? segmented(
-              t("section.shape"),
-              [
-                { value: "fromDiameter", label: t("mode.fromDiameter") },
-                { value: "fromLength", label: t("mode.fromLength") },
-              ],
-              i.mode,
-              (v) => this.set("mode", v, true),
-            )
-          : null,
-      ),
-    );
+    panel.append(group(t("section.shape"), this.shapePicker()));
 
     // Material
     const select = h(
@@ -397,8 +381,6 @@ export class App {
     const geo = group(t(onDrawing ? "field.surface" : "geometry.correct"));
     if (onDrawing) {
       geo.append(this.surfaceControl());
-      if (i.shape === "cylinder" && i.mode === "fromLength")
-        geo.append(this.numberField("length", t("field.length"), t("unit.mm")));
     } else if (i.shape === "cylinder" && i.mode === "fromDiameter") {
       geo.append(
         h(

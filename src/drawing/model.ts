@@ -3,7 +3,7 @@
 export type Pt = readonly [number, number];
 export type Stroke = "part" | "thin" | "center" | "flat";
 
-/** Editable geometric measures. Developed blank lengths remain read-only. */
+/** Editable geometric measures. Only a cylinder has a unique blank-length inverse. */
 export type DimensionId =
   | "a"
   | "b"
@@ -17,6 +17,8 @@ export type DimensionId =
   | "dSmall"
   | "diameter.inner"
   | "diameter.outer"
+  | "cylinder.circumference"
+  | "cylinder.blankLength"
   | "extent.x"
   | "extent.y"
   | "ellipse.min"
@@ -27,6 +29,8 @@ export type DimensionId =
   | "cone.slant"
   | "cone.radius.large"
   | "cone.radius.small"
+  | "cone.circumference.large"
+  | "cone.circumference.small"
   | "cone.slant.short"
   | "cone.slant.long"
   | `segment.${number}.size`
@@ -40,6 +44,15 @@ export interface Annotation {
 export type Prim =
   | { kind: "path"; pts: Pt[]; closed: boolean; stroke: Stroke; fill?: boolean }
   | { kind: "tag"; at: Pt; direction: Pt; label: string; edit: DimensionId; row?: number }
+  | {
+      /** Length along a numerically developed edge, not the chord between its ends. */
+      kind: "curveDim";
+      pts: Pt[];
+      /** Offset along the curve's left model-space normal, in font-size multiples. */
+      offsetScreen: number;
+      label: string;
+      edit?: DimensionId;
+    }
   | {
       /** Arc length or angle dimension around centre c, from angle a0 to a1 (radians, CCW). */
       kind: "arcDim";
@@ -107,7 +120,7 @@ export function bounds(view: View) {
     maxY = Math.max(maxY, y);
   };
   for (const p of view.prims) {
-    if (p.kind === "path") p.pts.forEach(add);
+    if (p.kind === "path" || p.kind === "curveDim") p.pts.forEach(add);
     else if (p.kind === "tag") add(p.at);
     else if (p.kind === "arcDim") arc(p.c[0], p.c[1], p.r, p.a0, p.a1, 32).forEach(add);
     else {

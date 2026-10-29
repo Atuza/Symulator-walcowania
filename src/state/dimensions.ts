@@ -39,6 +39,19 @@ export function dimensionSpec(d: Derived, id: DimensionId): DimensionSpec | null
     unit: "mm" | "deg" = "mm",
   ): DimensionSpec | null =>
     value !== null && Number.isFinite(value) ? { label, value, unit } : null;
+  if (id === "cylinder.circumference" || id === "cylinder.blankLength") {
+    if (d.output?.shape !== "cylinder") return null;
+    const r = d.output.result;
+    return id === "cylinder.blankLength"
+      ? spec("field.length", r.blankLength)
+      : {
+          label: "field.circumference",
+          value: Math.PI * (r.dInner + 2 * surfaceDepth[i.surface] * (d.thickness ?? 0)),
+          unit: "mm",
+          surface: i.surface,
+          marker: "C",
+        };
+  }
   if (id === "diameter.inner" || id === "diameter.outer") {
     if (d.output?.shape !== "cylinder") return null;
     const inner = id === "diameter.inner";
@@ -90,6 +103,9 @@ export function dimensionInputs(d: Derived, id: DimensionId, value: number): Inp
   } else if (value < 0 || (value === 0 && !zeroAllowed)) return null;
   const i = d.inputs,
     text = String(value);
+  if (id === "cylinder.blankLength") return { ...i, mode: "fromLength", length: text };
+  if (id === "cylinder.circumference")
+    return { ...i, mode: "fromDiameter", dimension: "diameter", value: String(value / Math.PI) };
   if (id === "diameter.inner" || id === "diameter.outer")
     return {
       ...i,
@@ -107,4 +123,15 @@ export function dimensionInputs(d: Derived, id: DimensionId, value: number): Inp
   }
   const field = fields[id as keyof typeof fields];
   return field ? { ...i, [field]: text } : null;
+}
+
+/** An editor transaction must produce finite geometry before it can replace the last valid part. */
+export function validDimensionResult(d: Derived): boolean {
+  const finite = (value: unknown): boolean =>
+    typeof value === "number"
+      ? Number.isFinite(value)
+      : value !== null && typeof value === "object"
+        ? Object.values(value).every(finite)
+        : true;
+  return d.output !== null && finite(d.output);
 }

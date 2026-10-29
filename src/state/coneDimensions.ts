@@ -7,6 +7,16 @@ import { isConeShape, parseNumber, type Inputs } from "./inputs";
 export function coneDimensionSpec(d: Derived, id: DimensionId): DimensionSpec | null {
   const out = d.output;
   if (!out || !isConeShape(d.inputs.shape)) return null;
+  if (id === "cone.circumference.large" || id === "cone.circumference.small") {
+    const large = id === "cone.circumference.large";
+    return {
+      label: "field.circumference",
+      value: Math.PI * (parseNumber(large ? d.inputs.dLarge : d.inputs.dSmall) ?? 0),
+      unit: "mm",
+      surface: d.inputs.surface,
+      marker: large ? "C1" : "C2",
+    };
+  }
   if (id === "cone.radius.large" || id === "cone.radius.small")
     return {
       label: "field.value.radius",
@@ -41,6 +51,10 @@ export function coneDimensionSpec(d: Derived, id: DimensionId): DimensionSpec | 
 export function changeConeDimension(d: Derived, id: DimensionId, value: number): Inputs | null {
   if (!Number.isFinite(value) || !coneDimensionSpec(d, id)) return null;
   const i = d.inputs;
+  if (id === "cone.circumference.large" || id === "cone.circumference.small")
+    return value > 0 || (id === "cone.circumference.small" && value === 0)
+      ? { ...i, [id === "cone.circumference.large" ? "dLarge" : "dSmall"]: String(value / Math.PI) }
+      : null;
   if (id === "cone.radius.large" || id === "cone.radius.small")
     return value >= 0
       ? { ...i, [id === "cone.radius.large" ? "dLarge" : "dSmall"]: String(2 * value) }

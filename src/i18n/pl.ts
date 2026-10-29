@@ -17,7 +17,13 @@ export const pl: Dict = {
   "geometry.expand": "Powiększ rysunek",
   "error.closure": "Przekrój nie jest zamknięty. Popraw jego długości i kąty.",
   "drawing.hint":
-    "Kliknij podkreślony wymiar, aby go zmienić. Długość rozwinięcia jest tylko do odczytu.",
+    "Kliknij podkreślony wymiar, aby go zmienić. Wymiary powiązane przeliczają się automatycznie.",
+  "field.circumference": "Obwód",
+  "drawing.circumferenceHint":
+    "Obwód gotowego detalu na wybranej powierzchni, bez naddatków. Średnica = obwód / π.",
+  "drawing.blankHint":
+    "Długość do cięcia zawiera oba naddatki. Obwód gotowego detalu zależy także od grubości i osi obojętnej.",
+  "drawing.netEdges": "L1/L2: łuki rozwinięcia osi obojętnej, bez płaskich naddatków.",
   "drawing.edit": "Zmień {name}: {value}",
   "drawing.title": "Zmień wymiar",
   "drawing.apply": "Zastosuj",
@@ -43,8 +49,8 @@ export const pl: Dict = {
   "error.resolution": "Nie udało się wyznaczyć stabilnego rozwinięcia dla tych wymiarów.",
   "result.slantMin": "Tworząca najkrótsza",
   "result.slantMax": "Tworząca najdłuższa",
-  "result.arcLarge": "Obwód Ø większej",
-  "result.arcSmall": "Obwód Ø mniejszej",
+  "result.arcLarge": "Łuk większej krawędzi L1 (netto)",
+  "result.arcSmall": "Łuk mniejszej krawędzi L2 (netto)",
   "result.generators": "Tworzące co 30°, od najkrótszej",
   "result.offset": "Przesunięcie osi e",
   "result.alphaMax": "Największe pochylenie tworzącej",

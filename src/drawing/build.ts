@@ -101,15 +101,29 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
       closed: true,
       stroke: "thin",
     },
-    { kind: "dim", a: [0, 0], b: [W, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(W) },
+    // Leave the first lane below the blank for its small-edge arc dimension.
+    { kind: "dim", a: [0, 0], b: [W, 0], offsetModel: 0, offsetScreen: -GAP * 2.5, label: mm(W) },
     { kind: "dim", a: [0, Hb], b: [0, 0], offsetModel: 0, offsetScreen: -GAP, label: mm(Hb) },
+    { kind: "curveDim", pts: r.net.large, offsetScreen: -GAP, label: `L1 ${mm(r.arcLarge)}` },
+    ...(r.arcSmall > 1e-8
+      ? [
+          {
+            kind: "curveDim" as const,
+            pts: r.net.small,
+            offsetScreen: GAP,
+            label: `L2 ${mm(r.arcSmall)}`,
+          },
+        ]
+      : []),
   ];
-  const devNotes: Annotation[] = [
+  const devNotes: (string | Annotation)[] = [
     {
       text: `${t("result.slantMin")}: ${mm(r.slantMin)} ${t("unit.mm")}`,
       edit: "cone.slant.short",
     },
     { text: `${t("result.slantMax")}: ${mm(r.slantMax)} ${t("unit.mm")}`, edit: "cone.slant.long" },
+    t("drawing.netEdges"),
+    ...(r.flatEnd > 0 ? [`${t("result.flatEnds")}: 2 × ${mm(r.flatEnd)} ${t("unit.mm")}`] : []),
   ];
   return [
     {
@@ -120,6 +134,8 @@ function eccentricViews(out: Extract<CalcOutput, { shape: "eccentric" }>): View[
         { text: `e = ${mm(e)} ${t("unit.mm")}`, edit: "offset" },
         { text: `R1 = ${mm(D1 / 2)} mm`, edit: "cone.radius.large" },
         { text: `R2 = ${mm(D2 / 2)} mm`, edit: "cone.radius.small" },
+        { text: `C1 = ${mm(Math.PI * D1)} mm`, edit: "cone.circumference.large" },
+        { text: `C2 = ${mm(Math.PI * D2)} mm`, edit: "cone.circumference.small" },
       ],
     },
     { title: t("result.development"), prims: dev, notes: devNotes },
@@ -409,7 +425,15 @@ function cylinderViews(
       stroke: "part",
       fill: true,
     },
-    { kind: "dim", a: [0, W], b: [L, W], offsetModel: 0, offsetScreen: GAP, label: mm(L) },
+    {
+      kind: "dim",
+      a: [0, W],
+      b: [L, W],
+      offsetModel: 0,
+      offsetScreen: GAP,
+      label: mm(L),
+      edit: "cylinder.blankLength",
+    },
   ];
   if (width !== null)
     dev.push({
@@ -487,6 +511,10 @@ function cylinderViews(
         {
           text: `R ${mm(ri + surfaceDepth[surface] * thickness)} (${t(`surface.${surface}`).toLowerCase()})`,
           edit: "r",
+        },
+        {
+          text: `C = ${mm(Math.PI * (r.dInner + 2 * surfaceDepth[surface] * thickness))} mm (${t(`surface.${surface}`).toLowerCase()})`,
+          edit: "cylinder.circumference",
         },
         `${t("result.dNeutral")}: ${mm(r.dNeutral)} ${t("unit.mm")}`,
       ],
@@ -666,6 +694,8 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
         `${t("result.alpha")}: ${num((r.alpha * 180) / Math.PI)}°`,
         { text: `R1 = ${mm(dl / 2)} mm`, edit: "cone.radius.large" },
         { text: `R2 = ${mm(ds / 2)} mm`, edit: "cone.radius.small" },
+        { text: `C1 = ${mm(Math.PI * dl)} mm`, edit: "cone.circumference.large" },
+        { text: `C2 = ${mm(Math.PI * ds)} mm`, edit: "cone.circumference.small" },
       ],
     },
     {

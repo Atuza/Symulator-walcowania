@@ -119,11 +119,16 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
   );
   // Dedicated gutters keep every feature value away from the part and its overall dimensions.
   const gutter = tags.length ? tagWidth + s.fontSize * 2 : 0;
-  const padY = Math.max(s.pad, s.fontSize * 3.4);
+  const dimensionOffset = Math.max(
+    1.8,
+    ...view.prims.map((p) => ("offsetScreen" in p ? Math.abs(p.offsetScreen) : 0)),
+  );
+  const padY = Math.max(s.pad, s.fontSize * (dimensionOffset + 1.6));
+  const padX = Math.max(s.pad, s.fontSize * 3.4);
   const area: Box = {
-    x: cell.x + s.pad + gutter,
+    x: cell.x + padX + gutter,
     y: cell.y + titleH + padY,
-    w: cell.w - 2 * s.pad - s.gap - 2 * gutter,
+    w: cell.w - 2 * padX - s.gap - 2 * gutter,
     h: cell.h - titleH - notesH - 2 * padY,
   };
   const b = bounds(view);
@@ -180,6 +185,10 @@ function drawView(view: View, cell: Box, sink: Sink, s: LayoutStyle): number {
     }
     if (p.kind === "arcDim") {
       drawArcDim(p, map, scale, sink, s);
+      continue;
+    }
+    if (p.kind === "curveDim") {
+      drawCurveDim(p, map, sink, s);
       continue;
     }
     const a = map(p.a),
@@ -392,6 +401,60 @@ function wrapNote(text: string, width: number, measure: (text: string) => number
   }
   if (line) lines.push(line);
   return lines;
+}
+
+/** Follow the actual numerical edge and put its value halfway along its length. */
+function drawCurveDim(
+  p: Extract<Prim, { kind: "curveDim" }>,
+  map: (pt: Pt) => Pt,
+  sink: Sink,
+  s: LayoutStyle,
+) {
+  const edge = p.pts.map(map);
+  if (edge.length < 2) return;
+  const direction = (a: Pt, b: Pt): Pt => {
+    const dx = b[0] - a[0],
+      dy = b[1] - a[1],
+      length = Math.hypot(dx, dy) || 1;
+    return [dx / length, dy / length];
+  };
+  const off = p.offsetScreen * s.fontSize;
+  const normal = edge.map((_pt, i): Pt => {
+    const [ux, uy] = direction(edge[Math.max(0, i - 1)]!, edge[Math.min(edge.length - 1, i + 1)]!);
+    return [uy, -ux];
+  });
+  const pts = edge.map(([x, y], i): Pt => [x + normal[i]![0] * off, y + normal[i]![1] * off]);
+  const lengths = [0];
+  for (let i = 1; i < pts.length; i++)
+    lengths.push(
+      lengths[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]),
+    );
+  const total = lengths.at(-1)!;
+  if (total < 1e-6) return;
+  for (const i of [0, edge.length - 1]) {
+    const over = off + Math.sign(off) * s.arrow * 0.8;
+    sink.path(
+      [edge[i]!, [edge[i]![0] + normal[i]![0] * over, edge[i]![1] + normal[i]![1] * over]],
+      false,
+      "dim",
+    );
+  }
+  sink.path(pts, false, "dim");
+  const [sx, sy] = direction(pts[1]!, pts[0]!),
+    [ex, ey] = direction(pts.at(-2)!, pts.at(-1)!);
+  arrowHead(sink, pts[0]!, sx, sy, s.arrow);
+  arrowHead(sink, pts.at(-1)!, ex, ey, s.arrow);
+  const j = Math.max(
+    1,
+    lengths.findIndex((v) => v >= total / 2),
+  );
+  const a = pts[j - 1]!,
+    b = pts[j]!,
+    fraction = (total / 2 - lengths[j - 1]!) / (lengths[j]! - lengths[j - 1]! || 1);
+  const mid: Pt = [a[0] + (b[0] - a[0]) * fraction, a[1] + (b[1] - a[1]) * fraction];
+  const [ux, uy] = direction(a, b),
+    side = off < 0 ? -1 : 1;
+  placeLabel(sink, s, mid, ux, uy, uy * side, -ux * side, p.label, p.edit);
 }
 
 function drawArcDim(

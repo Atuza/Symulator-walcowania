@@ -10,11 +10,18 @@ export const en = {
   "geometry.modified": "Modified profile",
   "geometry.reset": "Restore preset geometry",
   "geometry.constraint":
-    "This value cannot satisfy the profile constraints. The existing part has been kept.",
+    "This value does not produce valid geometry. The existing part has been kept.",
   "geometry.correct": "Correct dimensions",
   "geometry.expand": "Enlarge drawing",
   "error.closure": "The profile does not close. Correct its lengths and angles.",
-  "drawing.hint": "Click an underlined dimension to edit it. Developed length is read-only.",
+  "drawing.hint":
+    "Click an underlined dimension to edit it. Linked dimensions update automatically.",
+  "field.circumference": "Circumference",
+  "drawing.circumferenceHint":
+    "Finished-part circumference on the selected surface, without allowances. Diameter = circumference / π.",
+  "drawing.blankHint":
+    "Cut length includes both flat-end allowances. The finished circumference also depends on thickness and the neutral axis.",
+  "drawing.netEdges": "L1/L2: developed neutral-edge arc lengths, without flat allowances.",
   "drawing.edit": "Edit {name}: {value}",
   "drawing.title": "Edit dimension",
   "drawing.apply": "Apply",
@@ -40,8 +47,8 @@ export const en = {
   "error.resolution": "A stable development could not be calculated for these dimensions.",
   "result.slantMin": "Shortest generator",
   "result.slantMax": "Longest generator",
-  "result.arcLarge": "Large end circumference",
-  "result.arcSmall": "Small end circumference",
+  "result.arcLarge": "Large edge arc L1 (net)",
+  "result.arcSmall": "Small edge arc L2 (net)",
   "result.generators": "Generators every 30°, from the shortest",
   "result.offset": "Axis offset e",
   "result.alphaMax": "Largest generator lean",

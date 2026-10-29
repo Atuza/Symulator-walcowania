@@ -4,7 +4,7 @@ Plate rolling calculator for 4-roll plate bending machines: blank length, diamet
 3D rolling preview, 2D drawing, PDF report and DXF cut contour. Runs entirely in the browser, works
 offline once loaded, stores nothing outside the device.
 
-**Version:** 1.1.6
+**Version:** 1.1.7
 
 **App:** https://atuza.github.io/Symulator-walcowania/
 
@@ -14,19 +14,19 @@ Sizes use the selected inner, mid or outer surface. Mid means half the thickness
 fibre only when `k = 0.5`. Plate width is the length along the rolls, not the developed blank length.
 Dimensions are in mm and angles in degrees.
 
-| Shape          | Dimensions                                                                          |
-| -------------- | ----------------------------------------------------------------------------------- |
-| Cylinder       | Inner/mid/outer Ø or R to blank length; reverse blank-length-to-Ø mode              |
-| Cone           | Large and small end Ø, axial height H; concentric circular ends                     |
-| Eccentric cone | Separate tile: both Ø, height H and centre offset e; Flat side sets e = (D1 - D2)/2 |
-| Half round     | Ø or R and arc angle strictly between 0° and 360°                                   |
-| U shape        | Overall width A and straight length B of each leg                                   |
-| Obround        | Overall length A and width B, A ≥ B                                                 |
-| Rectangle      | Overall sides A and B, corner radius R                                              |
-| Tank           | Four-tangent-arc oval: overall width A, height B, side radius R                     |
-| Bucket         | Straight back A, bend radius R, turning angle, straight bottom B                    |
-| Ellipse        | Full horizontal and vertical axes A and B                                           |
-| Free           | Ordered list of straight lengths and arcs with signed turning angles                |
+| Shape          | Dimensions                                                                           |
+| -------------- | ------------------------------------------------------------------------------------ |
+| Cylinder       | Inner/mid/outer Ø, R, circumference C or cut length; edit any of them on the drawing |
+| Cone           | Large and small end Ø, axial height H; concentric circular ends                      |
+| Eccentric cone | Separate tile: both Ø, height H and centre offset e; Flat side sets e = (D1 - D2)/2  |
+| Half round     | Ø or R and arc angle strictly between 0° and 360°                                    |
+| U shape        | Overall width A and straight length B of each leg                                    |
+| Obround        | Overall length A and width B, A ≥ B                                                  |
+| Rectangle      | Overall sides A and B, corner radius R                                               |
+| Tank           | Four-tangent-arc oval: overall width A, height B, side radius R                      |
+| Bucket         | Straight back A, bend radius R, turning angle, straight bottom B                     |
+| Ellipse        | Full horizontal and vertical axes A and B                                            |
+| Free           | Ordered list of straight lengths and arcs with signed turning angles                 |
 
 Concentric cones develop to an annular sector. Eccentric cones use a numerical contour and list
 generator lengths every 30° from the shortest. Other shapes share a straight-and-arc profile engine,
@@ -35,10 +35,14 @@ close only when their ends meet and the total turn is ±360°.
 
 ## Features
 
-- Cylinder: target Ø or R on the inner or outer surface → blank length, or blank length → Ø.
+- Cylinder: edit Ø, R, circumference C or cut length directly on the drawing, without switching modes.
+- Both cone types: edit C1/C2 on the selected reference surface to calculate the matching end Ø and
+  development. Circumferences exclude flat allowances and stay synchronized with radii and diameters.
 - Cone: large Ø, small Ø and axial height → annular sector development (R1, R2, angle, plate size).
 - Eccentric cone: constant normal wall thickness, parallel neutral-surface development and
   generator table; numerical refinement targets 0.01 mm for contour and edge lengths.
+  The development dimensions follow both numerical edges (L1/L2), measuring their net arc lengths
+  rather than endpoint chords; flat allowances are listed separately.
 - Neutral axis from R/t (DIN 6935), optional flat-end allowance, mass.
 - Springback estimate with the machine set diameter; certificate Re and a calibration factor improve it.
 - Material database: structural, high-strength, pressure vessel, stainless and aluminium grades (EN standards).
@@ -55,7 +59,9 @@ close only when their ends meet and the total turn is ±360°.
 - Geometry fields move from the sidebar to the drawing, with a larger drawing dialog when needed.
   Feature labels occupy separate gutters, and their leaders avoid dimension text on screen and paper.
   Enter or Apply validates and updates both views and all results; Esc cancels. The total developed
-  blank length remains read-only. Modified profiles persist in templates, history and calculation links.
+  blank length remains read-only for profiles; cylinder cut length has a unique inverse and is editable.
+  Invalid or non-finite changes leave the last valid part intact. Modified profiles persist in templates,
+  history and calculation links.
 - DXF R12: one closed red `POLYLINE` on layer `cut`, 1:1 mm; discrete profile bend lines are blue
   `LINE` entities on layer `bend`. Ellipses have no artificial bend lines. Eccentric cone contours
   use sampled line segments. R12 has no unit header: select mm on CAD import.

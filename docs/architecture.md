@@ -62,6 +62,9 @@ the drawing and results column.
 Concentric-cone development views omit remote apex construction lines and the opening-angle
 annotation. Their bounds follow the cut sheet, so a shallow taper does not force the view to include
 an apex far away from the blank. Slant and bounding-height dimensions occupy opposite sides.
+Eccentric development uses `curveDim` primitives on the solver's net edge polylines. Labels show the
+integrated neutral-edge lengths, not chords; screen offsets keep the two arc dimensions and the
+bounding width in separate lanes. SVG and PDF share this placement.
 PDF tables measure wrapped labels and values before choosing row spacing. Sections and warnings
 continue on another numbered page when they cannot fit above the footer; the drawing and QR stay
 on the first page.
@@ -73,6 +76,9 @@ surface and radius/diameter semantics. `ui/dimensionEditor.ts` validates the can
 existing derivation pipeline before a single commit. Cancel and invalid values never modify the
 calculator. The resulting inputs use the same persistence, history, links and export paths as the form.
 See [drawing dimension editing](adr/0006-drawing-dimensions.md).
+Circumference edits and the cylinder cut-length inverse extend it in
+[ADR 0008](adr/0008-circumference-dimensions.md). The last edited measure drives the existing inputs;
+no separate circumference storage or visible diameter/length mode is introduced.
 
 Independent bend radii and straight lengths use a reference-surface segment chain stored in
 `profileSegs`, with `profileClosed` preserving the original closure constraint. The original shape

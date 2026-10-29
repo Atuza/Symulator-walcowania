@@ -1,6 +1,6 @@
 import type { DimensionId } from "../drawing/model";
 import { getLang, num, t } from "../i18n";
-import { dimensionInputs, dimensionSpec } from "../state/dimensions";
+import { dimensionInputs, dimensionSpec, validDimensionResult } from "../state/dimensions";
 import type { Derived } from "../state/derive";
 import { parseNumber, type Inputs } from "../state/inputs";
 import { openDialog } from "./dialog";
@@ -58,7 +58,7 @@ export function openDimensionEditor(
     const n = parseNumber(input.value);
     candidate = n === null ? null : dimensionInputs(initial, id, n);
     const derived = candidate ? validate(candidate) : null;
-    const valid = !!derived?.output;
+    const valid = !!derived && validDimensionResult(derived);
     error.textContent = valid
       ? ""
       : derived?.error
@@ -68,7 +68,7 @@ export function openDimensionEditor(
           : t("drawing.invalid");
     input.setAttribute("aria-invalid", String(!valid));
     save.disabled = !valid;
-    const out = derived?.output;
+    const out = valid ? derived?.output : null;
     preview.textContent =
       out && (out.shape === "cylinder" || out.shape === "profile")
         ? `${t("result.blankLength")}: ${num(out.result.blankLength)} ${t("unit.mm")}`
@@ -118,6 +118,22 @@ export function openDimensionEditor(
         if (a !== null && b !== null && Math.abs(a - b) > 0.00001)
           changes.push(`${t(label)}: ${num(a)} → ${num(b)} mm`);
       }
+      for (const measure of [
+        "diameter.inner",
+        "diameter.outer",
+        "r",
+        "cylinder.circumference",
+        "cone.radius.large",
+        "cone.radius.small",
+        "cone.circumference.large",
+        "cone.circumference.small",
+      ] as const) {
+        if (measure === id) continue;
+        const a = dimensionSpec(initial, measure),
+          b = dimensionSpec(derived, measure);
+        if (a && b && (Math.abs(a.value - b.value) > 0.00001 || a.surface !== b.surface))
+          changes.push(`${dimensionName(derived, measure)}: ${num(b.value)} mm`);
+      }
       if (changes.length)
         linked.append(
           h("p", {}, t("geometry.coupled")),
@@ -140,6 +156,11 @@ export function openDimensionEditor(
         h("span", { class: "unit" }, t(`unit.${spec.unit}`)),
       ),
     ),
+    id.includes("circumference")
+      ? h("p", { class: "muted" }, t("drawing.circumferenceHint"))
+      : id === "cylinder.blankLength"
+        ? h("p", { class: "muted" }, t("drawing.blankHint"))
+        : null,
     h("p", { class: "muted" }, t("drawing.commitHint")),
     preview,
     linked,

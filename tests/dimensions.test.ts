@@ -7,7 +7,7 @@ import { drawViews, type Sink } from "../src/drawing/layout";
 import type { DimensionId } from "../src/drawing/model";
 import { defaultProcess } from "../src/state/config";
 import { derive, type Derived } from "../src/state/derive";
-import { dimensionInputs, dimensionSpec } from "../src/state/dimensions";
+import { dimensionInputs, dimensionSpec, validDimensionResult } from "../src/state/dimensions";
 import { defaultInputs, shapeDefaults, type Inputs } from "../src/state/inputs";
 import { sceneModel } from "../src/viz/sceneModel";
 import { rectangleContour, contourLength } from "../src/export/dxf";
@@ -139,7 +139,7 @@ describe("drawing dimension changes", () => {
 
 describe("interactive drawing contract", () => {
   it.each(["cylinder", "cone", "eccentric", ...PROFILE_SHAPES] as const)(
-    "all %s targets resolve while developed measures stay read-only",
+    "all %s targets resolve and only uniquely invertible developed measures are editable",
     (shape) => {
       const d = run({
         shape,
@@ -147,6 +147,7 @@ describe("interactive drawing contract", () => {
         offset: shape === "eccentric" ? "100" : "",
       });
       if (!d.output) throw Error("No output");
+      expect(validDimensionResult(d)).toBe(true);
       const views = buildViews(d.output, d.width, d.inputs.surface);
       const ids: DimensionId[] = [];
       const sink: Sink = {
@@ -167,9 +168,12 @@ describe("interactive drawing contract", () => {
       for (const id of ids) expect(dimensionSpec(d, id), id).not.toBeNull();
       for (const p of views[1]!.prims) {
         if (p.kind !== "path")
-          expect(p.edit === undefined || p.edit === "width" || p.edit.startsWith("cone.")).toBe(
-            true,
-          );
+          expect(
+            p.edit === undefined ||
+              p.edit === "width" ||
+              p.edit === "cylinder.blankLength" ||
+              p.edit.startsWith("cone."),
+          ).toBe(true);
       }
     },
   );
