@@ -1,4 +1,4 @@
-import type { SetPoint } from "../domain/calculate";
+import type { SetPoint, ThicknessLimits } from "../domain/calculate";
 import type { DimensionId } from "../drawing/model";
 import { SHAPE_FIELDS } from "../domain/shapes";
 import { parseFreeRows } from "../state/freeShape";
@@ -115,6 +115,26 @@ function springRows(set: SetPoint | null, label: Key): Row[] {
 }
 
 /** Secondary results, grouped. */
+/** Maximum thickness from the machine's capacity charts, so the margin is visible before a warning. */
+function limitRows(l: ThicknessLimits): Row[] {
+  const tag = l.scaled ? ` (${t("result.limitScaled")})` : "";
+  const row = (key: Key, v: number | null): Row[] =>
+    v === null ? [] : [{ label: t(key) + tag, value: num(v, 1), unit: t("unit.mm") }];
+  return [
+    ...row("result.limitRolling", l.rolling),
+    ...row("result.limitPrebending", l.prebending),
+    ...(l.cone !== null && l.coneShare !== null
+      ? [
+          {
+            label: t("result.limitCone", { share: percent(l.coneShare) }),
+            value: num(l.cone, 1),
+            unit: t("unit.mm"),
+          },
+        ]
+      : []),
+  ];
+}
+
 function calibrationRow(d: Derived): Row {
   const c = d.calibration;
   const source =
@@ -153,6 +173,7 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
       {
         title: t("result.process"),
         rows: [
+          ...limitRows(out.limits),
           { label: t("result.k"), value: num(r.k, 3) },
           { label: t("result.rt"), value: num(r.rt, 1) },
           { label: t("result.strain"), value: percent(r.outerStrain) },
@@ -223,6 +244,7 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
     {
       title: t("result.process"),
       rows: [
+        ...limitRows(out.limits),
         { label: t("result.k"), value: num(r.k, 3) },
         { label: `${t("result.rt")} min`, value: num(r.rtMin, 1) },
         { label: t("result.strain"), value: percent(r.outerStrainMax) },
@@ -322,6 +344,7 @@ function eccentricGroups(
     {
       title: t("result.process"),
       rows: [
+        ...limitRows(out.limits),
         { label: t("result.k"), value: num(r.k, 3) },
         { label: `${t("result.rt")} min`, value: num(r.rtMin, 1) },
         { label: t("result.strain"), value: percent(r.outerStrainMax) },
@@ -392,6 +415,7 @@ function profileGroups(
     {
       title: t("result.process"),
       rows: [
+        ...limitRows(out.limits),
         { label: t("result.k"), value: num(r.k, 3) },
         { label: `${t("result.rt")} min`, value: num(r.rtMin, 1) },
         { label: t("result.strain"), value: percent(r.outerStrainMax) },

@@ -45,6 +45,10 @@ export const pl: Dict = {
 
   "shape.cylinder": "Walec",
   "shape.cone": "Stożek",
+  "result.limitRolling": "Maks. grubość wg karty zwijania",
+  "result.limitPrebending": "Maks. grubość wg karty podginania",
+  "result.limitCone": "Maks. grubość stożka ({share} karty)",
+  "result.limitScaled": "przeliczone dla Re",
   "view.speed": "Prędkość walcowania",
   "view.parts": "Pokaż elementy maszyny",
   "view.partsButton": "Widok",

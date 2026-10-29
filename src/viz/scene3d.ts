@@ -25,7 +25,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { bendAt, partlyRolled, traceProfile } from "../domain/profile";
 import { eccentricPoint } from "../domain/eccentric";
-import { placeConeOnMachine } from "./conePlacement";
+import { coneAlongRolls, placeConeOnMachine } from "./conePlacement";
 import { feedLength } from "./sceneModel";
 import { buildFrame, housingDepth } from "./machine3d";
 import type { SceneModel } from "./sceneModel";
@@ -106,6 +106,7 @@ export class RollingScene {
   private root = new Group();
   private plate: Mesh | null = null;
   private rolls: Mesh[] = [];
+  private sidePivot = new Group();
   private plateMat = new MeshStandardMaterial({
     metalness: 0.55,
     roughness: 0.42,
@@ -267,13 +268,14 @@ export class RollingScene {
 
   private clear(mesh: Mesh | null) {
     if (!mesh) return;
-    this.root.remove(mesh);
+    mesh.removeFromParent();
     mesh.geometry.dispose();
   }
 
   private rebuildRolls() {
     this.rolls.forEach((r) => this.clear(r));
     this.rolls = [];
+    this.sidePivot.removeFromParent();
     this.root.remove(this.machineGroup);
     // Clones of the loaded model share its geometry, which must outlive them.
     if (!this.machineGroup.userData.shared)
@@ -299,8 +301,12 @@ export class RollingScene {
     // Pinch point at the origin: top roll inside the shell, bottom roll below the plate.
     add(rt, 0, t / 2 + rt, this.rollMat);
     add(rb, 0, -t / 2 - rb, this.rollMat);
-    // Exit-side roll is placed by placeSideRoll; entry-side roll waits under the flat plate.
+    // Exit-side roll is placed by placeSideRoll through a pivot, which can also tilt it for cones;
+    // the roll itself only spins about its own axis. Entry-side roll waits under the flat plate.
     add(rs, 0, 0, this.accentMat);
+    this.sidePivot = new Group();
+    this.root.add(this.sidePivot);
+    this.sidePivot.add(this.rolls[2]!);
     add(rs, (rb + rs) * 1.08, -t / 2 - rs - rb * 0.18, this.rollMat);
     this.placeSideRoll();
 
@@ -334,21 +340,45 @@ export class RollingScene {
     const t = m.thickness;
     const rb = m.machine.rolls.bottom / 2,
       rs = m.machine.rolls.side / 2;
+    // A cone bends with a radius that grows along the generator. The roll's drive end stays put and
+    // the yoke end is raised, so the roll runs askew: low at the large end by the drive housing,
+    // higher at the small end towards the yoke.
+    if (m.shape === "cone") {
+      const at = coneAlongRolls(m);
+      const large = this.sideRollAt(m.rOuter * Math.tan(m.alpha), t, rb, rs);
+      const small = this.sideRollAt(m.rInner * Math.tan(m.alpha), t, rb, rs);
+      const dz = at.small - at.large;
+      // The roll is centred on z = 0; place it on the line through both contact points.
+      const k = -at.large / dz;
+      this.sidePivot.position.set(
+        (large.x + (small.x - large.x) * k) * MM,
+        (large.y + (small.y - large.y) * k) * MM,
+        0,
+      );
+      const axis = new Vector3((small.x - large.x) * MM, (small.y - large.y) * MM, dz * MM);
+      this.sidePivot.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), axis.normalize());
+      return;
+    }
+    this.sidePivot.quaternion.identity();
     const R =
       m.shape === "cylinder"
         ? m.radius
         : m.shape === "profile"
           ? bendAt(m.profile, m.dev, this.progress * m.dev.length)
-          : m.shape === "cone"
-            ? ((m.rOuter + m.rInner) * Math.tan(m.alpha)) / 2
-            : m.result.rtMin * t + m.result.k * t;
-    if (R === null) {
-      roll.position.set(-(rb + rs) * 1.08 * MM, (-t / 2 - rs - rb * 0.18) * MM, 0);
-      return;
-    }
+          : m.result.rtMin * t + m.result.k * t;
+    const p = this.sideRollAt(R, t, rb, rs);
+    this.sidePivot.position.set(p.x * MM, p.y * MM, 0);
+  }
+
+  /**
+   * Exit-side roll centre [mm] for a bend of neutral radius R: resting on the outer surface of the
+   * bend, or low, mirrored to the entry roll, while a straight (R null) passes.
+   */
+  private sideRollAt(R: number | null, t: number, rb: number, rs: number) {
+    if (R === null) return { x: -(rb + rs) * 1.08, y: -t / 2 - rs - rb * 0.18 };
     const reach = R + t / 2 + rs;
     const beta = Math.asin(Math.min(0.95, ((rb + rs) * 1.08) / reach));
-    roll.position.set(-reach * Math.sin(beta) * MM, (R - reach * Math.cos(beta)) * MM, 0);
+    return { x: -reach * Math.sin(beta), y: R - reach * Math.cos(beta) };
   }
 
   private spinRolls() {

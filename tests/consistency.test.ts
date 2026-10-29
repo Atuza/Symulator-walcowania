@@ -330,3 +330,22 @@ describe("springback from the standard's minimum yield strength", () => {
     expect(codes({ reActual: "380" })).not.toContain("reMinimum");
   });
 });
+
+describe("chart limits in the results", () => {
+  const rows = (patch: Partial<Inputs>) => {
+    const d = derive({ ...defaultInputs, ...patch }, withFixedMachine(), defaultProcess, materials);
+    return resultGroups(d).flatMap((g) => g.rows);
+  };
+
+  it("shows the rolling and pre-bending maxima for a cylinder", () => {
+    const r = rows({ thickness: "10", value: "2380", width: "2480" });
+    const labels = r.map((x) => x.label);
+    expect(labels).toContain("Maks. grubość wg karty zwijania");
+    expect(labels).toContain("Maks. grubość wg karty podginania");
+  });
+
+  it("shows the cone limit as a share of the chart", () => {
+    const r = rows({ shape: "cone", thickness: "8", dLarge: "1200", dSmall: "600", height: "800" });
+    expect(r.some((x) => x.label.startsWith("Maks. grubość stożka"))).toBe(true);
+  });
+});

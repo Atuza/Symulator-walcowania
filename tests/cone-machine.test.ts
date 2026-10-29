@@ -6,7 +6,7 @@ import { derive } from "../src/state/derive";
 import { defaultInputs } from "../src/state/inputs";
 import { withFixedMachine } from "../src/state/fixedMachine";
 import { sceneModel, feedLength } from "../src/viz/sceneModel";
-import { coneContactFrame } from "../src/viz/conePlacement";
+import { coneAlongRolls, coneContactFrame } from "../src/viz/conePlacement";
 import { plateGeometry } from "../src/viz/scene3d";
 
 describe("cones at the installed machine", () => {
@@ -53,4 +53,25 @@ describe("cones at the installed machine", () => {
       }
     },
   );
+});
+
+describe("cone along the rolls", () => {
+  it("puts the large end at the drive-end housing and the small end towards the yoke", () => {
+    const d = derive(
+      { ...defaultInputs, shape: "cone", dLarge: "1200", dSmall: "600", height: "800" },
+      withFixedMachine(),
+      defaultProcess,
+      materials,
+    );
+    const m = sceneModel(d.output!, d.thickness!, d.width, withFixedMachine());
+    if (m.shape !== "cone") throw Error("No cone");
+    const at = coneAlongRolls(m);
+    expect(at.large).toBeCloseTo(-1550 + 100, 9);
+    expect(at.small - at.large).toBeCloseTo(m.rOuter - m.rInner, 9);
+    // Large end at −z: the plate's far point on the large edge lies behind the barrel middle.
+    const geometry = plateGeometry(m, 1);
+    geometry.computeBoundingBox();
+    expect(geometry.boundingBox!.min.z).toBeLessThan(0);
+    geometry.dispose();
+  });
 });

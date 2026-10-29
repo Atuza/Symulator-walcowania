@@ -143,7 +143,12 @@ describe("installed machine geometry", () => {
       after = run(inputs);
     expect(before.error).toBeNull();
     expect(after.error).toBeNull();
-    expect({ ...after.output, warnings: [] }).toEqual({ ...before.output, warnings: [] });
+    // Warnings and chart limits depend on the machine data by design; geometry must not.
+    expect({ ...after.output, warnings: [], limits: null }).toEqual({
+      ...before.output,
+      warnings: [],
+      limits: null,
+    });
     expect(buildViews(after.output!, after.width, after.inputs.surface)).toEqual(
       buildViews(before.output!, before.width, before.inputs.surface),
     );

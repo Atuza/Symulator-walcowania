@@ -79,6 +79,7 @@ export type CalcOutput =
       set: SetPoint | null;
       massKg: number | null;
       warnings: Warning[];
+      limits: ThicknessLimits;
     }
   | {
       shape: "cone";
@@ -87,6 +88,7 @@ export type CalcOutput =
       setSmall: SetPoint | null;
       massKg: number;
       warnings: Warning[];
+      limits: ThicknessLimits;
     }
   | {
       shape: "eccentric";
@@ -95,6 +97,7 @@ export type CalcOutput =
       setSmall: SetPoint | null;
       massKg: number;
       warnings: Warning[];
+      limits: ThicknessLimits;
     }
   | {
       shape: "profile";
@@ -103,6 +106,7 @@ export type CalcOutput =
       sets: RadiusSet[];
       massKg: number | null;
       warnings: Warning[];
+      limits: ThicknessLimits;
     };
 
 export interface RadiusSet {
@@ -223,7 +227,7 @@ function capacityWarnings(
   dSet: number,
   flatEnds: boolean,
   w: Warning[],
-) {
+): ThicknessLimits {
   const charts = input.machine.charts;
   const re = input.material.re;
   const rolling = capacity(charts, "rolling", re, width, dSet);
@@ -238,7 +242,34 @@ function capacityWarnings(
       severity: flatEnds ? "info" : "warn",
       values: { tmax: pre.tMax, re },
     });
+  return {
+    ...noLimits,
+    rolling: rolling.ok ? rolling.tMax : null,
+    prebending: pre.ok ? pre.tMax : null,
+    scaled: (rolling.ok && rolling.scaled) || (pre.ok && pre.scaled),
+  };
 }
+
+/** Maximum thickness for the part from the capacity charts and the cone rule; null when unknown. */
+export interface ThicknessLimits {
+  /** Rolling chart at the plate width (cones: slant) and set diameter (cones: small end) [mm]. */
+  rolling: number | null;
+  /** Pre-bending chart, cylinders and profiles only [mm]. */
+  prebending: number | null;
+  /** Cone limit: the share below of the nominal thickness [mm]. */
+  cone: number | null;
+  coneShare: number | null;
+  /** The material is stronger than every chart, so the values were scaled by √(Re_chart / Re). */
+  scaled: boolean;
+}
+
+export const noLimits: ThicknessLimits = {
+  rolling: null,
+  prebending: null,
+  cone: null,
+  coneShare: null,
+  scaled: false,
+};
 
 /**
  * Cones: the thickness may not exceed a share of the nominal capacity read for the small end
@@ -250,11 +281,11 @@ function coneCapacityWarning(
   slant: number,
   dSetSmall: number,
   w: Warning[],
-) {
+): ThicknessLimits {
   const mc = input.machine;
   const chart = capacity(mc.charts, "rolling", input.material.re, slant, dSetSmall);
   const nominal = chart.ok ? chart.tMax : mc.maxThickness;
-  if (nominal === null) return;
+  if (nominal === null) return noLimits;
   const share = coneThicknessShare(slant, mc.rollLength);
   if (t > share * nominal + 1e-9)
     w.push({
@@ -262,6 +293,13 @@ function coneCapacityWarning(
       severity: "warn",
       values: { tmax: share * nominal, share, nominal },
     });
+  return {
+    ...noLimits,
+    rolling: chart.ok ? chart.tMax : null,
+    cone: share * nominal,
+    coneShare: share,
+    scaled: chart.ok && chart.scaled,
+  };
 }
 
 function calcCylinder(input: Extract<CalcInput, { shape: "cylinder" }>): CalcOutput | CalcError {
@@ -278,14 +316,16 @@ function calcCylinder(input: Extract<CalcInput, { shape: "cylinder" }>): CalcOut
   const dSet = rollingDiameter(result.dInner, set);
   machineDiameterWarnings(mc, dSet, w);
   diameterRatioWarning(dSet, t, w);
-  if (input.width !== null && input.width > 0)
-    capacityWarnings(input, t, input.width, dSet, input.cylinder.flatEnds > 0, w);
+  const limits =
+    input.width !== null && input.width > 0
+      ? capacityWarnings(input, t, input.width, dSet, input.cylinder.flatEnds > 0, w)
+      : noLimits;
 
   const massKg =
     input.width !== null && input.width > 0
       ? result.blankLength * input.width * t * 1e-9 * input.material.density
       : null;
-  return { shape: "cylinder", result, set, massKg, warnings: w };
+  return { shape: "cylinder", result, set, massKg, warnings: w, limits };
 }
 
 function calcCone(input: Extract<CalcInput, { shape: "cone" }>): CalcOutput | CalcError {
@@ -309,10 +349,10 @@ function calcCone(input: Extract<CalcInput, { shape: "cone" }>): CalcOutput | Ca
   const dSetSmall = rollingDiameter(result.small.dInner, setSmall);
   machineDiameterWarnings(mc, dSetSmall, w);
   diameterRatioWarning(dSetSmall, t, w);
-  coneCapacityWarning(input, t, result.slant, dSetSmall, w);
+  const limits = coneCapacityWarning(input, t, result.slant, dSetSmall, w);
 
   const massKg = result.area * t * 1e-9 * input.material.density;
-  return { shape: "cone", result, setLarge, setSmall, massKg, warnings: w };
+  return { shape: "cone", result, setLarge, setSmall, massKg, warnings: w, limits };
 }
 
 /**
@@ -346,10 +386,10 @@ function calcEccentric(input: Extract<CalcInput, { shape: "eccentric" }>): CalcO
   );
   machineDiameterWarnings(mc, dSetSmall, w);
   diameterRatioWarning(dSetSmall, t, w);
-  coneCapacityWarning(input, t, result.slantMax, dSetSmall, w);
+  const limits = coneCapacityWarning(input, t, result.slantMax, dSetSmall, w);
 
   const massKg = result.area * t * 1e-9 * input.material.density;
-  return { shape: "eccentric", result, setLarge, setSmall, massKg, warnings: w };
+  return { shape: "eccentric", result, setLarge, setSmall, massKg, warnings: w, limits };
 }
 
 function calcProfile(input: Extract<CalcInput, { shape: "profile" }>): CalcOutput | CalcError {
@@ -371,12 +411,14 @@ function calcProfile(input: Extract<CalcInput, { shape: "profile" }>): CalcOutpu
   const dSet = rollingDiameter(2 * tightest.rInner, tightest.set);
   machineDiameterWarnings(mc, dSet, w);
   diameterRatioWarning(dSet, t, w);
-  if (input.width !== null && input.width > 0)
-    capacityWarnings(input, t, input.width, dSet, input.profile.flatEnds > 0, w);
+  const limits =
+    input.width !== null && input.width > 0
+      ? capacityWarnings(input, t, input.width, dSet, input.profile.flatEnds > 0, w)
+      : noLimits;
 
   const massKg =
     input.width !== null && input.width > 0
       ? result.blankLength * input.width * t * 1e-9 * input.material.density
       : null;
-  return { shape: "profile", result, sets, massKg, warnings: w };
+  return { shape: "profile", result, sets, massKg, warnings: w, limits };
 }

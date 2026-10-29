@@ -38,9 +38,25 @@ export function coneContactFrame(m: ConeModel, progress: number) {
   return { origin, feed, inward, along };
 }
 
+// Gap between the drive-end housing face and the cone's large end [mm].
+const DRIVE_END_GAP = 100;
+
+/**
+ * Where the contact generator lies along the rolls [mm]: as on the machine, the large end sits at the
+ * fixed drive-end housing (−z) and the small end towards the yoke (+z).
+ */
+export function coneAlongRolls(m: ConeModel) {
+  const slant = m.shape === "cone" ? m.rOuter - m.rInner : m.result.slantMax;
+  const large = -m.machine.rollLength / 2 + DRIVE_END_GAP;
+  return { large, small: large + slant, centre: large + slant / 2 };
+}
+
 export function placeConeOnMachine(geometry: BufferGeometry, m: ConeModel, progress: number) {
   const { origin, feed, inward, along } = coneContactFrame(m, progress);
   origin.multiplyScalar(MM);
+  // The frame's `along` points from the small end to the large end; reversing it puts the large end
+  // at the drive end. The mirror keeps feed and inner normal; the plate material is double-sided.
+  const shift = coneAlongRolls(m).centre * MM;
   const positions = geometry.getAttribute("position");
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i) - origin.x,
@@ -50,7 +66,7 @@ export function placeConeOnMachine(geometry: BufferGeometry, m: ConeModel, progr
       i,
       x * feed.x + y * feed.y + z * feed.z,
       x * inward.x + y * inward.y + z * inward.z,
-      x * along.x + y * along.y + z * along.z,
+      shift - (x * along.x + y * along.y + z * along.z),
     );
   }
   geometry.computeVertexNormals();

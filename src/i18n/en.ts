@@ -43,6 +43,10 @@ export const en = {
 
   "shape.cylinder": "Cylinder",
   "shape.cone": "Cone",
+  "result.limitRolling": "Max thickness, rolling chart",
+  "result.limitPrebending": "Max thickness, pre-bending chart",
+  "result.limitCone": "Max cone thickness ({share} of chart)",
+  "result.limitScaled": "scaled for Re",
   "view.speed": "Rolling speed",
   "view.parts": "Show machine parts",
   "view.partsButton": "View",
