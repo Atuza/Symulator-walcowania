@@ -68,14 +68,14 @@ function partOf(name: string): MachinePart {
  * Work roll along z: barrel with a slight crown (it offsets the deflection under load), chamfered
  * shoulders, and journals that run into the housings.
  */
-function rollGeometry(r: number, barrel: number, journal: number): LatheGeometry {
+function rollGeometry(r: number, barrel: number, back: number, front: number): LatheGeometry {
   const h = barrel / 2;
   const pts: Vector2[] = [];
   const add = (rad: number, y: number) => pts.push(new Vector2(rad, y));
-  add(0, -h - journal);
-  add(r * 0.48, -h - journal);
-  add(r * 0.48, -h - journal * 0.35);
-  add(r * 0.6, -h - journal * 0.35);
+  add(0, -h - back);
+  add(r * 0.48, -h - back);
+  add(r * 0.48, -h - back * 0.35);
+  add(r * 0.6, -h - back * 0.35);
   add(r * 0.6, -h);
   add(r * 0.97, -h);
   add(r, -h + r * 0.06);
@@ -86,10 +86,10 @@ function rollGeometry(r: number, barrel: number, journal: number): LatheGeometry
   add(r, h - r * 0.06);
   add(r * 0.97, h);
   add(r * 0.6, h);
-  add(r * 0.6, h + journal * 0.35);
-  add(r * 0.48, h + journal * 0.35);
-  add(r * 0.48, h + journal);
-  add(0, h + journal);
+  add(r * 0.6, h + front * 0.35);
+  add(r * 0.48, h + front * 0.35);
+  add(r * 0.48, h + front);
+  add(0, h + front);
   const geo = new LatheGeometry(pts, 72);
   geo.rotateX(Math.PI / 2);
   return geo;
@@ -304,10 +304,20 @@ export class RollingScene {
       rb = mv.rolls.bottom / 2,
       rs = mv.rolls.side / 2;
     // Journals run into both housings, so it shows where the rolls are carried.
-    // With the machine model the journals reach the yoke at the drop end; the simple frame is shorter.
-    const journal = this.machineTemplate ? MODEL_JOURNAL : (housingDepth(mv) + 20) * MM;
-    const add = (r: number, x: number, y: number, mat: MeshStandardMaterial) => {
-      const mesh = new Mesh(rollGeometry(r * MM, mv.rollLength * MM, journal), mat);
+    // With the machine model only the top roll's journal reaches into the yoke; the others end inside
+    // the front frame. The simple frame uses short journals throughout. Back journals (−z) run into
+    // the drive housing.
+    const short = (housingDepth(mv) + 20) * MM;
+    const model = this.machineTemplate !== null;
+    const back = model ? MODEL_JOURNAL_BACK : short;
+    const add = (
+      r: number,
+      x: number,
+      y: number,
+      mat: MeshStandardMaterial,
+      front = model ? MODEL_JOURNAL_FRONT : short,
+    ) => {
+      const mesh = new Mesh(rollGeometry(r * MM, mv.rollLength * MM, back, front), mat);
       mesh.position.set(x * MM, y * MM, 0);
       // Dark seal collars where the barrel meets the journals, as on the machine.
       for (const end of [-1, 1]) {
@@ -323,11 +333,11 @@ export class RollingScene {
       this.rolls.push(mesh);
     };
     // Pinch point at the origin: top roll inside the shell, bottom roll below the plate.
-    add(rt, 0, t / 2 + rt, this.rollMat);
+    add(rt, 0, t / 2 + rt, this.rollMat, model ? MODEL_JOURNAL_TOP : short);
     add(rb, 0, -t / 2 - rb, this.rollMat);
     // Exit-side roll is placed by placeSideRoll through a pivot, which can also tilt it for cones;
     // the roll itself only spins about its own axis. Entry-side roll waits under the flat plate.
-    add(rs, 0, 0, this.accentMat);
+    add(rs, 0, 0, this.rollMat);
     this.sidePivot = new Group();
     this.root.add(this.sidePivot);
     this.sidePivot.add(this.rolls[2]!);
@@ -523,8 +533,12 @@ export class RollingScene {
 const TOWER_ARM_BOTTOM = 0.823;
 const TOWER_CLEARANCE = 0.03;
 const TOWER_TRAVEL = 2.5;
-// Journal length beyond the barrel with the machine model [m]: through the front frame into the yoke.
-const MODEL_JOURNAL = 0.7;
+// Journal lengths beyond the barrel with the machine model [m]: the top roll ends inside the yoke
+// bearing (yoke face at 0.64 m), the others inside the front frame (outer plate face at 0.43 m), and
+// all of them inside the drive housing at the back.
+const MODEL_JOURNAL_TOP = 0.6;
+const MODEL_JOURNAL_FRONT = 0.4;
+const MODEL_JOURNAL_BACK = 0.5;
 // Side-roll arms: plane between the front frame plates, beyond the barrel end [m], and pivot point.
 const LEVER_Z = 0.25;
 const LEVER_PIVOT_X = 0.42;
