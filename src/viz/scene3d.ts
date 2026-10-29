@@ -2,6 +2,7 @@ import {
   ACESFilmicToneMapping,
   AmbientLight,
   Box3,
+  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -110,6 +111,8 @@ export class RollingScene {
   private plate: Mesh | null = null;
   private rolls: Mesh[] = [];
   private sidePivot = new Group();
+  /** Swinging arms that carry the side rolls in the front frame, as in the assembly drawings. */
+  private levers = new Group();
   private plateMat = new MeshStandardMaterial({
     metalness: 0.55,
     roughness: 0.42,
@@ -202,6 +205,7 @@ export class RollingScene {
 
   private applyVisibility() {
     for (const roll of this.rolls) roll.visible = !this.hidden.has("rolls");
+    this.levers.visible = !this.hidden.has("housings");
     for (const child of this.machineGroup.children)
       child.visible = !this.hidden.has(partOf(child.name));
   }
@@ -280,6 +284,11 @@ export class RollingScene {
     this.rolls.forEach((r) => this.clear(r));
     this.rolls = [];
     this.sidePivot.removeFromParent();
+    this.levers.removeFromParent();
+    this.levers.traverse((o) => {
+      if (o instanceof Mesh) o.geometry.dispose();
+    });
+    this.levers = new Group();
     this.root.remove(this.machineGroup);
     // Clones of the loaded model share its geometry, which must outlive them.
     if (!this.machineGroup.userData.shared)
@@ -295,7 +304,8 @@ export class RollingScene {
       rb = mv.rolls.bottom / 2,
       rs = mv.rolls.side / 2;
     // Journals run into both housings, so it shows where the rolls are carried.
-    const journal = (housingDepth(mv) + 20) * MM;
+    // With the machine model the journals reach the yoke at the drop end; the simple frame is shorter.
+    const journal = this.machineTemplate ? MODEL_JOURNAL : (housingDepth(mv) + 20) * MM;
     const add = (r: number, x: number, y: number, mat: MeshStandardMaterial) => {
       const mesh = new Mesh(rollGeometry(r * MM, mv.rollLength * MM, journal), mat);
       mesh.position.set(x * MM, y * MM, 0);
@@ -325,6 +335,7 @@ export class RollingScene {
     this.placeSideRoll();
 
     if (this.machineTemplate) {
+      this.buildLevers(rs);
       this.machineGroup = this.machineTemplate.clone();
       this.machineGroup.userData.shared = true;
       this.root.add(this.machineGroup);
@@ -373,6 +384,7 @@ export class RollingScene {
       );
       const axis = new Vector3((small.x - large.x) * MM, (small.y - large.y) * MM, dz * MM);
       this.sidePivot.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), axis.normalize());
+      this.updateLevers();
       return;
     }
     this.sidePivot.quaternion.identity();
@@ -384,6 +396,56 @@ export class RollingScene {
           : m.result.rtMin * t + m.result.k * t;
     const p = this.sideRollAt(R, t, rb, rs);
     this.sidePivot.position.set(p.x * MM, p.y * MM, 0);
+    this.updateLevers();
+  }
+
+  /** Two arms, one per side roll, each a beam from its pivot to an eye round the roll journal. */
+  private buildLevers(rs: number) {
+    for (let i = 0; i < 2; i++) {
+      const arm = new Mesh(new BoxGeometry(1, 1, 1), this.yokeMat);
+      const eye = new Mesh(
+        new CylinderGeometry(rs * MM * 0.85, rs * MM * 0.85, 0.12, 40),
+        this.yokeMat,
+      );
+      eye.rotation.x = Math.PI / 2;
+      const hub = new Mesh(new CylinderGeometry(0.07, 0.07, 0.16, 24), this.collarMat);
+      hub.rotation.x = Math.PI / 2;
+      const g = new Group();
+      g.add(arm, eye, hub);
+      this.levers.add(g);
+    }
+    this.root.add(this.levers);
+    this.updateLevers();
+  }
+
+  /** Points each arm from its fixed pivot to where its roll's axis crosses the front frame. */
+  private updateLevers() {
+    const m = this.model;
+    if (!m || this.levers.children.length !== 2) return;
+    const z = (m.machine.rollLength / 2) * MM + LEVER_Z;
+    const exit = this.sidePivot;
+    const dir = new Vector3(0, 0, 1).applyQuaternion(exit.quaternion);
+    const k = (z - exit.position.z) / dir.z;
+    const exitAt = exit.position.clone().addScaledVector(dir, k);
+    const entry = this.rolls[3]?.position;
+    if (!entry) return;
+    const ends: [number, Vector3][] = [
+      [-1, exitAt],
+      [1, new Vector3(entry.x, entry.y, z)],
+    ];
+    ends.forEach(([side, at], i) => {
+      const g = this.levers.children[i]!;
+      const [arm, eye, hub] = g.children as Mesh[];
+      const px = side * LEVER_PIVOT_X,
+        py = LEVER_PIVOT_Y;
+      const dx = at.x - px,
+        dy = at.y - py;
+      arm!.position.set((px + at.x) / 2, (py + at.y) / 2, z);
+      arm!.rotation.z = Math.atan2(dy, dx);
+      arm!.scale.set(Math.hypot(dx, dy), 0.11, 0.09);
+      eye!.position.set(at.x, at.y, z);
+      hub!.position.set(px, py, z);
+    });
   }
 
   /**
@@ -461,6 +523,12 @@ export class RollingScene {
 const TOWER_ARM_BOTTOM = 0.823;
 const TOWER_CLEARANCE = 0.03;
 const TOWER_TRAVEL = 2.5;
+// Journal length beyond the barrel with the machine model [m]: through the front frame into the yoke.
+const MODEL_JOURNAL = 0.7;
+// Side-roll arms: plane between the front frame plates, beyond the barrel end [m], and pivot point.
+const LEVER_Z = 0.25;
+const LEVER_PIVOT_X = 0.42;
+const LEVER_PIVOT_Y = -0.877 + 0.32;
 // How far a guide post drops to clear the plate [m]: its full height above the table.
 const POST_TRAVEL = 0.62;
 
