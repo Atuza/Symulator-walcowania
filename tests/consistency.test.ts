@@ -125,19 +125,15 @@ describe("cone: one part, every output", () => {
     expect(r.small.dOuter).toBeCloseTo(500, 9);
   });
 
-  it("drawing shows the arc lengths, the angle and the input diameters", () => {
+  it("drawing shows arc lengths and input diameters without an apex-angle annotation", () => {
     const [side, dev] = buildViews(out, null, "outer");
     expect(labels(side!)).toEqual(
       expect.arrayContaining([`Ø ${num(1400)}`, `Ø ${num(500)}`, num(900)]),
     );
     expect(labels(dev!)).toEqual(
-      expect.arrayContaining([
-        num(r.arcOuter),
-        num(r.arcInner),
-        num(r.slant),
-        `${num((r.angle * 180) / Math.PI)}°`,
-      ]),
+      expect.arrayContaining([num(r.arcOuter), num(r.arcInner), num(r.slant)]),
     );
+    expect(labels(dev!)).not.toContain(`${num((r.angle * 180) / Math.PI)}°`);
   });
 
   it("DXF sector perimeter equals arcs plus both seams", () => {

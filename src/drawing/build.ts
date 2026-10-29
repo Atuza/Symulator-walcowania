@@ -582,29 +582,18 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
   const edge = (rad: number, a: number) => [rad * Math.cos(a), rad * Math.sin(a)] as const;
   const dev: Prim[] = [
     { kind: "path", pts: [...outer, ...inner], closed: true, stroke: "part", fill: true },
-    { kind: "path", pts: [[0, 0], edge(r.rInner, a0)], closed: false, stroke: "center" },
-    { kind: "path", pts: [[0, 0], edge(r.rInner, a1)], closed: false, stroke: "center" },
+    // Frame the sheet itself. The virtual apex can be kilometres away for a shallow taper.
     {
       kind: "dim",
-      a: edge(r.rInner, a1),
-      b: edge(r.rOuter, a1),
+      a: edge(r.rInner, a0),
+      b: edge(r.rOuter, a0),
       offsetModel: 0,
-      offsetScreen: GAP,
+      // Opposite the bounding-height dimension, so near-vertical values cannot overlap.
+      offsetScreen: -GAP,
       label: mm(r.slant),
       edit: "cone.slant",
     },
     { kind: "arcDim", c: [0, 0], r: r.rOuter, a0, a1, offsetScreen: GAP, label: mm(r.arcOuter) },
-    {
-      kind: "arcDim",
-      c: [0, 0],
-      // Angle between the apex and the inner edge; with a tiny inner radius it moves onto the plate.
-      r: r.rInner > r.rOuter * 0.25 ? r.rInner * 0.5 : r.rOuter * 0.32,
-      a0,
-      a1,
-      offsetScreen: 0,
-      label: `${num((r.angle * 180) / Math.PI)}°`,
-      edit: "cone.sector",
-    },
   ];
   if (r.rInner > 1e-9)
     dev.push({
@@ -613,7 +602,7 @@ function coneViews(out: Extract<CalcOutput, { shape: "cone" }>, surface: Surface
       r: r.rInner,
       a0,
       a1,
-      // On the plate side, so it stays clear of the angle dimension near the apex.
+      // Keep the arc-length annotation on the plate side of the inner cut edge.
       offsetScreen: GAP,
       label: mm(r.arcInner),
     });

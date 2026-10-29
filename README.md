@@ -4,7 +4,7 @@ Plate rolling calculator for 4-roll plate bending machines: blank length, diamet
 3D rolling preview, 2D drawing, PDF report and DXF cut contour. Runs entirely in the browser, works
 offline once loaded, stores nothing outside the device.
 
-**Version:** 1.1.5
+**Version:** 1.1.6
 
 **App:** https://atuza.github.io/Symulator-walcowania/
 
@@ -45,6 +45,9 @@ close only when their ends meet and the total turn is ±360°.
 - Indicative warnings: R/t, outer fibre strain, springback, machine limits.
 - Dimensioned SVG drawing and landscape PDF reports in A4 or A3, with vector views at preferred
   technical scales, a title block, results and warnings.
+- Cone development views frame the cut sheet without remote apex construction lines or an apex-angle
+  annotation. Nearly cylindrical cones remain visible, with slant and sheet-height dimensions on
+  opposite sides of the blank.
 - Click an underlined dimension on any shape's drawing to edit it. Each profile bend has its own
   radius R1, R2, etc.; straight lengths and overall sizes can be changed independently. Closed
   contours stay closed, and the editor previews any automatically adjusted dimensions. No separate

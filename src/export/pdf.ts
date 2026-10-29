@@ -330,15 +330,24 @@ function section(
 function heroBlock(doc: JsPdf, heroes: Row[], x: number, y: number, w: number): number {
   if (!heroes.length) return y;
   const cw = w / heroes.length;
+  const values = heroes.map((h) => `${h.value}${h.unit ? ` ${h.unit}` : ""}`);
+  const baseFont = heroes.length > 1 ? 13 : 17;
+  doc.setFont("Poppins", "bold");
+  doc.setFontSize(baseFont);
+  const valueFont = Math.min(
+    baseFont,
+    ...values.map((value) => (baseFont * (cw - 3)) / Math.max(1, doc.getTextWidth(value))),
+  );
   heroes.forEach((h, i) => {
     const cx = x + cw * i;
+    doc.setFont("Poppins", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(...MUTED);
     doc.text(h.label, cx, y + 3);
     doc.setFont("Poppins", "bold");
-    doc.setFontSize(heroes.length > 1 ? 13 : 17);
+    doc.setFontSize(valueFont);
     doc.setTextColor(...INK);
-    doc.text(`${h.value}${h.unit ? ` ${h.unit}` : ""}`, cx, y + 10.5);
+    doc.text(values[i]!, cx, y + 10.5);
     doc.setFont("Poppins", "normal");
   });
   doc.setDrawColor(...ACCENT);

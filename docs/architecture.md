@@ -59,6 +59,9 @@ See [the geometric contract](adr/0005-eccentric-normal-offset.md) and [formulas]
 Drawing notes wrap inside each view's cell. PDF uses its actual font metrics; SVG uses a conservative
 monospace estimate. The PDF QR caption occupies its own area above the code, reserved separately from
 the drawing and results column.
+Concentric-cone development views omit remote apex construction lines and the opening-angle
+annotation. Their bounds follow the cut sheet, so a shallow taper does not force the view to include
+an apex far away from the blank. Slant and bounding-height dimensions occupy opposite sides.
 PDF tables measure wrapped labels and values before choosing row spacing. Sections and warnings
 continue on another numbered page when they cannot fit above the footer; the drawing and QR stay
 on the first page.
