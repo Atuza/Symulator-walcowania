@@ -10,6 +10,7 @@ import {
 import { solveCylinder } from "../src/domain/cylinder";
 import { chartToText, parseChartText, parseMachineFile } from "../src/state/machineFile";
 import { machineSchema } from "../src/state/settings";
+import { documentedCharts, documentedMinDiameter } from "../src/state/fixedMachine";
 
 // Generic example grid, not any particular machine.
 const rolling = (re: number, scale = 1): CapacityChart => ({
@@ -178,7 +179,12 @@ describe("machine file", () => {
       maxWidth: null,
       minDiameter: null,
     };
-    expect(machineSchema.parse(old)).toMatchObject({ rollLength: 3100, charts: [] });
+    // Without charts of their own, the documented charts and minimum diameter apply.
+    expect(machineSchema.parse(old)).toMatchObject({
+      rollLength: 3100,
+      minDiameter: documentedMinDiameter,
+      charts: documentedCharts,
+    });
   });
 
   it("parses a machine file and rejects other JSON", () => {

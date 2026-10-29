@@ -24,6 +24,8 @@ export interface MaterialProps {
   density: number;
   minRt: number | null;
   strainLimit: number | null;
+  /** Largest thickness the material standard states a yield strength for; null when unbounded. */
+  standardMaxT?: number | null;
 }
 
 export interface MachineLimits {
@@ -153,6 +155,13 @@ function commonWarnings(
   w: Warning[],
 ) {
   const m = input.material;
+  // Beyond the standard's last thickness band its yield strength is only an assumption.
+  if (!input.reFromCertificate && m.standardMaxT != null && thickness > m.standardMaxT)
+    w.push({
+      code: "thicknessBeyondStandard",
+      severity: "warn",
+      values: { thick: thickness, tmax: m.standardMaxT, re: m.re },
+    });
   if (m.minRt !== null && rt < m.minRt)
     w.push({ code: "rtBelowMin", severity: "warn", values: { rt, min: m.minRt } });
   if (m.strainLimit !== null && strain > m.strainLimit)

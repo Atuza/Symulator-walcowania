@@ -13,6 +13,7 @@ export interface Warning {
 
 export type WarningCode =
   | "rtBelowMin"
+  | "thicknessBeyondStandard"
   | "strainHigh"
   | "springbackLarge"
   | "elasticOnly"

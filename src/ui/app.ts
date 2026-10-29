@@ -1708,7 +1708,7 @@ function warningText(w: Warning): string {
     values[k] =
       k === "strain" || k === "limit" || k === "ratio" || k === "share"
         ? percent(n)
-        : k === "tmax" || k === "nominal" || k === "dt"
+        : k === "tmax" || k === "nominal" || k === "dt" || k === "thick"
           ? num(n, 1)
           : k === "re"
             ? num(n, 0)

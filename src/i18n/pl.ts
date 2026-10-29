@@ -223,6 +223,8 @@ export const pl: Dict = {
   "error.tooFlat": "Rozwinięcie przekracza pełny okrąg. Stożek jest zbyt płaski.",
   "error.material": "Podaj właściwości materiału.",
 
+  "warn.thicknessBeyondStandard":
+    "Grubość {thick} mm jest poza zakresem normy tego gatunku (Re podane do {tmax} mm). Przyjęto Re {re} MPa z ostatniego pasma; wpisz Re z atestu.",
   "warn.rtBelowMin": "R/t = {rt} poniżej orientacyjnego minimum {min} dla tego gatunku.",
   "warn.strainHigh":
     "Odkształcenie włókna zewn. {strain} przekracza {limit}. Sprawdź wymagania obróbki cieplnej w obowiązującej normie.",
@@ -323,7 +325,7 @@ export const pl: Dict = {
   "edit.saved": "Zapisano",
   "edit.chart.title": "Karty wydajności",
   "edit.chart.intro":
-    "Maksymalna grubość z dokumentacji maszyny: wiersze to szerokość blachy, kolumny to Ø wewnętrzna. Osobne karty dla zwijania i podginania oraz dla każdej granicy plastyczności.",
+    "Maksymalna grubość z dokumentacji maszyny: wiersze to szerokość blachy, kolumny to Ø wewnętrzna. Osobne karty dla zwijania i podginania oraz dla każdej granicy plastyczności. Bez własnych kart obowiązują karty z dokumentacji maszyny.",
   "edit.chart.add": "Dodaj kartę",
   "edit.chart.edit": "Edytuj",
   "edit.chart.delete": "Usuń kartę",

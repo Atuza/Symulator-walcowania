@@ -4,10 +4,11 @@ import { materials } from "../src/domain/materials/data";
 import { finalRadius } from "../src/domain/springback";
 import { buildViews } from "../src/drawing/build";
 import type { View } from "../src/drawing/model";
-import { contourLength, rectangleContour, sectorContour } from "../src/export/dxf";
+import { contourLength, dxfDocument, rectangleContour, sectorContour } from "../src/export/dxf";
 import { num } from "../src/i18n";
 import { defaultProcess } from "../src/state/config";
 import { derive } from "../src/state/derive";
+import { withFixedMachine } from "../src/state/fixedMachine";
 import { defaultInputs, type Inputs } from "../src/state/inputs";
 import { heroes, resultGroups } from "../src/ui/rows";
 import { sceneModel } from "../src/viz/sceneModel";
@@ -175,5 +176,142 @@ describe("machine checks use the diameter the machine has to roll", () => {
     if (out.shape !== "cylinder") throw new Error("shape");
     expect(out.set!.dInner).toBeLessThan(950);
     expect(out.warnings.map((w) => w.code)).toContain("machineDiameter");
+  });
+});
+
+describe("profile shape: one part, every output", () => {
+  const d = run({
+    shape: "rect",
+    thickness: "10",
+    sizeA: "1000",
+    sizeB: "600",
+    sizeR: "60",
+    width: "2000",
+  });
+  const out = d.output;
+  if (!out || out.shape !== "profile") throw new Error("no result");
+  const r = out.result;
+
+  it("headline equals the developed blank length", () => {
+    expect(heroes(d)[0]!.value).toBe(num(r.blankLength));
+    expect(r.blankLength).toBeCloseTo(r.dev.length, 9);
+  });
+
+  it("drawing shows the blank length, width and the section sizes", () => {
+    const [section, dev] = buildViews(out, d.width, "inner");
+    expect(labels(dev!)).toContain(num(r.blankLength));
+    expect(labels(dev!)).toContain(num(2000));
+    expect(labels(section!)).toEqual(expect.arrayContaining([num(1000), num(600)]));
+  });
+
+  it("DXF carries the blank rectangle and one bend line per bend edge", () => {
+    expect(contourLength(rectangleContour(r.blankLength, 2000))).toBeCloseTo(
+      2 * (r.blankLength + 2000),
+      9,
+    );
+    const lines = r.dev.bendLines.map((x) => ({ x1: x, y1: 0, x2: x, y2: 2000 }));
+    const doc = dxfDocument(rectangleContour(r.blankLength, 2000), lines);
+    expect(doc.match(/\r\nLINE\r\n/g)).toHaveLength(r.dev.bendLines.length);
+    expect(r.dev.bendLines.every((x) => x > 0 && x < r.blankLength)).toBe(true);
+  });
+
+  it("3D model develops the same blank", () => {
+    const m = sceneModel(out, 10, d.width, emptyMachine);
+    if (m.shape !== "profile") throw new Error("shape");
+    expect(m.dev.length).toBe(r.blankLength);
+  });
+
+  it("mass agrees with the blank size", () => {
+    expect(out.massKg).toBeCloseTo(r.blankLength * 2000 * 10 * 1e-9 * 7850, 9);
+  });
+});
+
+describe("eccentric cone: one part, every output", () => {
+  const d = run({
+    shape: "cone",
+    thickness: "8",
+    dLarge: "2400",
+    dSmall: "2200",
+    height: "1250",
+    offset: "100",
+  });
+  const out = d.output;
+  if (!out || out.shape !== "eccentric") throw new Error("no result");
+  const r = out.result;
+
+  it("headline generators come from the result", () => {
+    const h = heroes(d);
+    expect(h[0]!.value).toBe(num(r.slantMin));
+    expect(h[1]!.value).toBe(num(r.slantMax));
+  });
+
+  it("drawing shows the typed diameters and length", () => {
+    const all = buildViews(out, d.width, "inner").flatMap(labels).join(" ");
+    for (const v of [2400, 2200, 1250]) expect(all).toContain(num(v));
+  });
+
+  it("DXF outline is drawn from the development whose large edge has the neutral circumference", () => {
+    const contour = r.outline.map(([x, y]) => ({ x, y, bulge: 0 }));
+    expect(contour.length).toBeGreaterThan(100);
+    const large = r.net.large;
+    const length = large
+      .slice(1)
+      .reduce((s, p, i) => s + Math.hypot(p[0] - large[i]![0], p[1] - large[i]![1]), 0);
+    expect(length).toBeCloseTo(Math.PI * r.large.dNeutral, 1);
+  });
+
+  it("3D model is built from the same result", () => {
+    const m = sceneModel(out, 8, d.width, emptyMachine);
+    if (m.shape !== "eccentric") throw new Error("shape");
+    expect(m.result).toBe(r);
+  });
+
+  it("mass agrees with the development area", () => {
+    expect(out.massKg).toBeCloseTo(r.area * 8 * 1e-9 * 7850, 9);
+  });
+});
+
+describe("documented machine data applies by default", () => {
+  const fixed = (patch: Partial<Inputs>) =>
+    derive({ ...defaultInputs, ...patch }, withFixedMachine(), defaultProcess, materials);
+
+  it("warns when the thickness exceeds the rolling chart", () => {
+    // S355 at 25 mm: Re 345, chart allows about 14 mm at Ø 600 and 3000 mm width.
+    const d = fixed({ thickness: "25", value: "600", width: "3000" });
+    expect(d.output?.warnings.map((w) => w.code)).toContain("capacityRolling");
+  });
+
+  it("stays quiet inside the chart", () => {
+    const d = fixed({ thickness: "10", value: "2380", width: "2480" });
+    const codes = d.output?.warnings.map((w) => w.code) ?? [];
+    expect(codes).not.toContain("capacityRolling");
+    expect(codes).not.toContain("capacityPrebending");
+  });
+
+  it("warns below the smallest documented diameter", () => {
+    const d = fixed({ thickness: "6", value: "360", width: "1500" });
+    expect(d.output?.warnings.map((w) => w.code)).toContain("machineDiameter");
+  });
+});
+
+describe("thickness beyond the material standard", () => {
+  const codes = (patch: Partial<Inputs>) =>
+    run({ value: "1000", width: "1000", ...patch }).output?.warnings.map((w) => w.code) ?? [];
+
+  it("warns when the standard states no yield strength for the thickness", () => {
+    expect(codes({ materialId: "aw5182", thickness: "10" })).toContain("thicknessBeyondStandard");
+    expect(codes({ materialId: "s700mc", thickness: "12" })).toContain("thicknessBeyondStandard");
+  });
+
+  it("is quiet inside the standard or with a certificate value", () => {
+    expect(codes({ materialId: "aw5182", thickness: "3" })).not.toContain(
+      "thicknessBeyondStandard",
+    );
+    expect(codes({ materialId: "s355j2", thickness: "20" })).not.toContain(
+      "thicknessBeyondStandard",
+    );
+    expect(codes({ materialId: "aw5182", thickness: "10", reActual: "130" })).not.toContain(
+      "thicknessBeyondStandard",
+    );
   });
 });

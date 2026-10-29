@@ -111,6 +111,10 @@ Minimum yield (ReH or Rp0.2) by thickness band, tensile range, modulus and densi
 
 ## Capacity charts
 
+The machine's documented charts (rolling and pre-bending, Re 260 and 360 MPa, widths 1200–3000 mm,
+inner diameters 380–1700 mm) are built in; charts saved in settings or a machine file replace them.
+The minimum inner diameter defaults to 380 mm, the smallest diameter the charts cover.
+
 Maker's charts give the maximum thickness `t(B, D)` for plate width `B` (rows) and inner diameter
 `D` (columns) at one yield strength, separately for rolling and for pre-bending the ends.
 
@@ -124,6 +128,11 @@ Maker's charts give the maximum thickness `t(B, D)` for plate width `B` (rows) a
   the slant length as width (machine maximum thickness when there is no chart);
   `u = 0.5` for `s ≤ ½ L_w`, `0.4` for `s ≤ ¾ L_w`, `0.3` above.
 - Note when `D_set < 10 t`.
+
+## Material thickness range
+
+Each grade's yield strength comes from its standard by thickness band. Beyond the last band the
+standard states nothing; the last band's value is used and a warning asks for the certificate value.
 
 ## Reference surface
 

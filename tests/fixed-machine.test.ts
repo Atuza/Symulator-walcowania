@@ -5,7 +5,11 @@ import { materials } from "../src/domain/materials/data";
 import { buildViews } from "../src/drawing/build";
 import { defaultProcess, parseBackup } from "../src/state/config";
 import { derive } from "../src/state/derive";
-import { fixedMachineGeometry, withFixedMachine } from "../src/state/fixedMachine";
+import {
+  documentedCharts,
+  fixedMachineGeometry,
+  withFixedMachine,
+} from "../src/state/fixedMachine";
 import { defaultInputs, shapeDefaults, type Inputs } from "../src/state/inputs";
 import { machineFileText, parseMachineFile } from "../src/state/machineFile";
 import { machineSchema, settingsSchema } from "../src/state/settings";
@@ -67,7 +71,7 @@ describe("installed machine geometry", () => {
     const old = Object.fromEntries(
       Object.entries(emptyMachine).filter(([key]) => !["rollLength", "charts"].includes(key)),
     );
-    expect(machineSchema.parse(old)).toMatchObject({ ...expected, charts: [] });
+    expect(machineSchema.parse(old)).toMatchObject({ ...expected, charts: documentedCharts });
   });
   it("cannot replace fixed dimensions through a machine file or exported snapshot", () => {
     const foreign = {

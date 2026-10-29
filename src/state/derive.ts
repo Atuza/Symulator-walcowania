@@ -229,6 +229,7 @@ function materialProps(
       density: material.density,
       minRt: material.minRt,
       strainLimit: material.strainLimit,
+      standardMaxT: material.yield[material.yield.length - 1]?.maxT ?? null,
     };
   }
   const customRe = re ?? parseNumber(inputs.customRe);

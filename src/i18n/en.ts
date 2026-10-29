@@ -222,6 +222,8 @@ export const en = {
   "error.tooFlat": "Development exceeds a full circle. The cone is too flat.",
   "error.material": "Enter the material properties.",
 
+  "warn.thicknessBeyondStandard":
+    "Thickness {thick} mm is beyond this grade's standard (yield strength stated up to {tmax} mm). Re {re} MPa taken from the last band; enter Re from the certificate.",
   "warn.rtBelowMin": "R/t = {rt} is below the indicative minimum {min} for this grade.",
   "warn.strainHigh":
     "Outer fibre strain {strain} exceeds {limit}. Check the heat treatment requirements of the applicable code.",
@@ -319,7 +321,7 @@ export const en = {
   "edit.tab.backup": "Backup",
   "edit.chart.title": "Capacity charts",
   "edit.chart.intro":
-    "Maximum thickness from the machine documentation: rows are plate width, columns inner diameter. Separate charts for rolling and pre-bending and for each yield strength.",
+    "Maximum thickness from the machine documentation: rows are plate width, columns inner diameter. Separate charts for rolling and pre-bending and for each yield strength. Without charts of your own, the machine documentation charts apply.",
   "edit.chart.add": "Add chart",
   "edit.chart.edit": "Edit",
   "edit.chart.delete": "Delete chart",
