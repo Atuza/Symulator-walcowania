@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { withFixedMachine } from "../state/fixedMachine";
 import { CUSTOM_MATERIAL_ID } from "../domain/materials/data";
 import { materialGroups, yieldAt, type Material } from "../domain/materials/schema";
@@ -50,7 +51,7 @@ import { settingsSchema, type Settings } from "../state/settings";
 import { load, save } from "../state/storage";
 import { sceneModel } from "../viz/sceneModel";
 import { View2D } from "../viz/view2d";
-import type { RollingScene } from "../viz/scene3d";
+import type { MachinePart, RollingScene } from "../viz/scene3d";
 import { openDialog } from "./dialog";
 import { dimensionName, openDimensionEditor } from "./dimensionEditor";
 import type { DimensionId } from "../drawing/model";
@@ -95,6 +96,8 @@ export class App {
   private sceneStatus = h("div", { class: "stage-status" });
   private progress = 1;
   private playing = 0;
+  /** Playback speed factor and machine parts hidden in the 3D view; kept on this device. */
+  private view = load(VIEW_KEY, viewSchema) ?? { speed: 1, hidden: [] };
   private playBtn!: HTMLButtonElement;
   private slider!: HTMLInputElement;
   private pending = 0;
@@ -1127,13 +1130,69 @@ export class App {
         type: "button",
         class: "btn btn-small btn-ghost",
         id: "reset-view",
+        title: t("action.resetView"),
+        "aria-label": t("action.resetView"),
         onClick: () => this.scene?.resetView(),
       },
-      t("action.resetView"),
+      "⟲",
+    );
+    const speed: HTMLButtonElement = h(
+      "button",
+      {
+        type: "button",
+        class: "btn btn-small btn-ghost stage-speed",
+        title: t("view.speed"),
+        "aria-label": t("view.speed"),
+        onClick: () => {
+          const i = SPEEDS.indexOf(this.view.speed);
+          this.view = { ...this.view, speed: SPEEDS[(i + 1) % SPEEDS.length]! };
+          save(VIEW_KEY, this.view);
+          speed.textContent = speedLabel(this.view.speed);
+        },
+      },
+      speedLabel(this.view.speed),
+    );
+    const panel = h("div", { class: "stage-parts", hidden: true, role: "group" });
+    const renderPanel = () =>
+      panel.replaceChildren(
+        h("p", { class: "stage-parts-title" }, t("view.parts")),
+        ...PARTS.map((part) =>
+          h(
+            "label",
+            { class: "check" },
+            h("input", {
+              type: "checkbox",
+              checked: !this.view.hidden.includes(part),
+              onChange: (e: Event) => {
+                const on = (e.target as HTMLInputElement).checked;
+                const hidden = this.view.hidden.filter((x) => x !== part);
+                this.view = { ...this.view, hidden: on ? hidden : [...hidden, part] };
+                save(VIEW_KEY, this.view);
+                this.scene?.setHidden(this.view.hidden);
+              },
+            }),
+            h("span", {}, t(`part.${part}` as Key)),
+          ),
+        ),
+      );
+    renderPanel();
+    const parts: HTMLButtonElement = h(
+      "button",
+      {
+        type: "button",
+        class: "btn btn-small btn-ghost",
+        "aria-expanded": "false",
+        onClick: () => {
+          panel.hidden = !panel.hidden;
+          parts.setAttribute("aria-expanded", String(!panel.hidden));
+        },
+      },
+      t("view.partsButton"),
     );
     this.stage3d.append(
       this.sceneStatus,
-      h("div", { class: "stage-controls" }, this.playBtn, this.slider, reset),
+      panel,
+      h("div", { class: "stage-controls" }, this.playBtn, this.slider, speed, parts, reset),
     );
     this.stage2d.append(
       h(
@@ -1154,7 +1213,8 @@ export class App {
     this.playBtn.textContent = this.playing ? t("action.pause") : t("action.play");
     this.slider.setAttribute("aria-label", t("view.progress"));
     const reset = this.stage3d.querySelector("#reset-view");
-    if (reset) reset.textContent = t("action.resetView");
+    reset?.setAttribute("title", t("action.resetView"));
+    reset?.setAttribute("aria-label", t("action.resetView"));
     this.stage2d.querySelector(".drawing-expand")?.setAttribute("aria-label", t("geometry.expand"));
     if (!this.scene && this.sceneStatus.dataset.state !== "error")
       this.sceneStatus.textContent = t("view.loading");
@@ -1172,11 +1232,13 @@ export class App {
     if (this.playing) return this.stopPlay();
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return this.setProgress(1);
-    // Constant speed: a full roll takes 6 s, resuming continues from the slider position.
-    const from = this.progress >= 0.999 ? 0 : this.progress;
-    const start = performance.now();
+    // A full roll takes 6 s at 1×. Progress advances by the frame time, so changing the speed while
+    // rolling takes effect at once without a jump; resuming continues from the slider position.
+    let p = this.progress >= 0.999 ? 0 : this.progress;
+    let last = performance.now();
     const step = (now: number) => {
-      const p = Math.min(1, from + (now - start) / 6000);
+      p = Math.min(1, p + ((now - last) / 6000) * this.view.speed);
+      last = now;
       this.setProgress(p);
       if (p < 1) this.playing = requestAnimationFrame(step);
       else this.stopPlay();
@@ -1203,6 +1265,7 @@ export class App {
       this.sceneStatus.textContent = "";
       this.sceneStatus.dataset.state = "ready";
       this.applyScenePalette();
+      this.scene.setHidden(this.view.hidden);
       this.scene.setProgress(this.progress);
       this.renderViews();
     } catch {
@@ -1611,6 +1674,18 @@ export class App {
 }
 
 // ---- helpers ---------------------------------------------------------------
+
+const VIEW_KEY = "rolling.view.v1";
+const SPEEDS = [1, 2, 4, 0.5];
+const PARTS: MachinePart[] = ["rolls", "housings", "tower", "ejector", "supports", "table"];
+const viewSchema = z.object({
+  speed: z.number().refine((v) => SPEEDS.includes(v)),
+  hidden: z.array(z.enum(["housings", "tower", "ejector", "supports", "table", "rolls"])).max(6),
+});
+
+function speedLabel(v: number): string {
+  return `${num(v, v < 1 ? 1 : 0)}×`;
+}
 
 function toast(text: string) {
   const el = h("div", { class: "toast", role: "status" }, text);

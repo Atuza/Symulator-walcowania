@@ -2405,3 +2405,60 @@ textarea:focus {
 .field-action > .field {
   align-self: stretch;
 }
+
+/* ---- 3D view options -------------------------------------------------------- */
+
+.stage-speed {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stage-parts {
+  position: absolute;
+  right: 12px;
+  bottom: 72px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: calc(var(--radius) + 2px);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.stage-parts[hidden] {
+  display: none;
+}
+
+.stage-parts-title {
+  margin: 0 0 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stage-parts {
+  gap: 0;
+  padding: 8px 12px;
+  max-height: calc(100% - 90px);
+  overflow-y: auto;
+}
+
+.stage-parts .check {
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0;
+  font-size: 13px;
+}
+
+.stage-parts .check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.stage-controls .btn-small {
+  padding-inline: 8px;
+}

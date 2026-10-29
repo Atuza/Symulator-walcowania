@@ -5,18 +5,16 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
-  CylinderGeometry,
   DirectionalLight,
   DoubleSide,
-  ExtrudeGeometry,
   Group,
   HemisphereLight,
+  LatheGeometry,
   Mesh,
   MeshStandardMaterial,
   PerspectiveCamera,
   PMREMGenerator,
   Scene,
-  Shape,
   Sphere,
   Vector2,
   Vector3,
@@ -48,6 +46,49 @@ function loadMachineModel(): Promise<Group | null> {
   return machineModel;
 }
 
+/** Machine parts the viewer can hide when they block the view. */
+export type MachinePart = "housings" | "tower" | "ejector" | "supports" | "table" | "rolls";
+
+/** Which part a node of the machine model belongs to, from its name. */
+function partOf(name: string): MachinePart {
+  if (/^Tower/.test(name)) return "tower";
+  if (/^Ejector/.test(name)) return "ejector";
+  if (/^Support/.test(name)) return "supports";
+  if (/^Table/.test(name)) return "table";
+  return "housings";
+}
+
+/**
+ * Work roll along z: barrel with a slight crown (it offsets the deflection under load), chamfered
+ * shoulders, and journals that run into the housings.
+ */
+function rollGeometry(r: number, barrel: number, journal: number): LatheGeometry {
+  const h = barrel / 2;
+  const pts: Vector2[] = [];
+  const add = (rad: number, y: number) => pts.push(new Vector2(rad, y));
+  add(0, -h - journal);
+  add(r * 0.48, -h - journal);
+  add(r * 0.48, -h - journal * 0.35);
+  add(r * 0.6, -h - journal * 0.35);
+  add(r * 0.6, -h);
+  add(r * 0.97, -h);
+  add(r, -h + r * 0.06);
+  for (let i = 1; i < 12; i++) {
+    const u = -1 + (2 * i) / 12;
+    add(r * (1 + 0.004 * (1 - u * u)), u * (h - r * 0.06));
+  }
+  add(r, h - r * 0.06);
+  add(r * 0.97, h);
+  add(r * 0.6, h);
+  add(r * 0.6, h + journal * 0.35);
+  add(r * 0.48, h + journal * 0.35);
+  add(r * 0.48, h + journal);
+  add(0, h + journal);
+  const geo = new LatheGeometry(pts, 72);
+  geo.rotateX(Math.PI / 2);
+  return geo;
+}
+
 export interface ScenePalette {
   plate: string;
   roll: string;
@@ -75,6 +116,7 @@ export class RollingScene {
   private yokeMat = new MeshStandardMaterial({ color: 0x8c1d17, metalness: 0.15, roughness: 0.6 });
   private machineGroup = new Group();
   private machineTemplate: Group | null = null;
+  private hidden = new Set<MachinePart>();
   private model: SceneModel | null = null;
   private progress = 1;
   private frame = 0;
@@ -141,8 +183,20 @@ export class RollingScene {
     this.rebuildPlate();
     this.placeSideRoll();
     this.spinRolls();
-    this.fit(true);
     this.requestRender();
+  }
+
+  /** Hides machine parts that block the view; the plate always stays visible. */
+  setHidden(parts: Iterable<MachinePart>) {
+    this.hidden = new Set(parts);
+    this.applyVisibility();
+    this.requestRender();
+  }
+
+  private applyVisibility() {
+    for (const roll of this.rolls) roll.visible = !this.hidden.has("rolls");
+    for (const child of this.machineGroup.children)
+      child.visible = !this.hidden.has(partOf(child.name));
   }
 
   resetView() {
@@ -184,12 +238,19 @@ export class RollingScene {
    */
   private fit(keepDirection = false) {
     if (!this.model) return;
-    // Frame the part and the rolls; the frame and feed table may run out of view.
+    // Frame the whole run, flat blank to finished part, with the rolls, so the camera can stay put
+    // while rolling. The frame and feed table may run out of view.
     const box = new Box3();
-    for (const o of [this.plate, ...this.rolls]) if (o) box.expandByObject(o);
+    for (const o of this.rolls) box.expandByObject(o);
+    for (const p of [0, 1]) {
+      const geo = plateGeometry(this.model, p);
+      geo.computeBoundingBox();
+      if (geo.boundingBox) box.union(geo.boundingBox);
+      geo.dispose();
+    }
     const sphere = box.getBoundingSphere(new Sphere());
     if (!Number.isFinite(sphere.radius) || sphere.radius <= 0) return;
-    const dist = (sphere.radius / Math.sin((this.camera.fov * Math.PI) / 360)) * 1.08;
+    const dist = (sphere.radius / Math.sin((this.camera.fov * Math.PI) / 360)) * 1.15;
     // Default: mostly along the roll axis, so the bending profile reads clearly.
     const dir = keepDirection
       ? this.camera.position.clone().sub(this.controls.target).normalize()
@@ -225,12 +286,10 @@ export class RollingScene {
     const rt = mv.rolls.top / 2,
       rb = mv.rolls.bottom / 2,
       rs = mv.rolls.side / 2;
-    // Barrels run through both housings, so the journals show where the rolls are carried.
-    const len = (mv.rollLength + 2 * (housingDepth(mv) + 20)) * MM;
+    // Journals run into both housings, so it shows where the rolls are carried.
+    const journal = (housingDepth(mv) + 20) * MM;
     const add = (r: number, x: number, y: number, mat: MeshStandardMaterial) => {
-      const geo = new CylinderGeometry(r * MM, r * MM, len, 48, 1);
-      geo.rotateX(Math.PI / 2);
-      const mesh = new Mesh(geo, mat);
+      const mesh = new Mesh(rollGeometry(r * MM, mv.rollLength * MM, journal), mat);
       mesh.position.set(x * MM, y * MM, 0);
       this.root.add(mesh);
       this.rolls.push(mesh);
@@ -247,6 +306,7 @@ export class RollingScene {
       this.machineGroup = this.machineTemplate.clone();
       this.machineGroup.userData.shared = true;
       this.root.add(this.machineGroup);
+      this.applyVisibility();
       return;
     }
     const blank = m.shape === "cylinder" ? m.length : m.dev.length;
@@ -258,6 +318,7 @@ export class RollingScene {
       MM,
     );
     this.root.add(this.machineGroup);
+    this.applyVisibility();
   }
 
   /**
@@ -302,17 +363,19 @@ export class RollingScene {
     this.plate = null;
     const m = this.model;
     if (!m) return;
-    const geo =
-      m.shape === "cylinder"
-        ? cylinderPlate(m, this.progress)
-        : m.shape === "cone"
-          ? conePlate(m, this.progress)
-          : m.shape === "eccentric"
-            ? eccentricPlate(m, this.progress)
-            : profilePlate(m, this.progress);
-    this.plate = new Mesh(geo, this.plateMat);
+    this.plate = new Mesh(plateGeometry(m, this.progress), this.plateMat);
     this.root.add(this.plate);
   }
+}
+
+function plateGeometry(m: SceneModel, progress: number): BufferGeometry {
+  return m.shape === "cylinder"
+    ? cylinderPlate(m, progress)
+    : m.shape === "cone"
+      ? conePlate(m, progress)
+      : m.shape === "eccentric"
+        ? eccentricPlate(m, progress)
+        : profilePlate(m, progress);
 }
 
 function scaleOf(m: SceneModel): number {
@@ -390,15 +453,67 @@ function profilePlate(
   const tail = m.dev.length * (1 - Math.min(1, Math.max(0, progress)));
   // The walk starts at the free end heading +x; turning it half round puts the tail on +x.
   const place = ([x, y]: [number, number]) => new Vector2((tail - x) * MM, -y * MM);
-  const a = traceProfile(walk, 0).map(place);
-  const b = traceProfile(walk, 1).map(place).reverse();
-  const geo = new ExtrudeGeometry(new Shape([...a, ...b]), {
-    depth: m.width * MM,
-    bevelEnabled: false,
-    curveSegments: 1,
-    steps: 1,
-  });
-  geo.translate(0, 0, (-m.width * MM) / 2);
+  return plateStrip(
+    traceProfile(walk, 0).map(place),
+    traceProfile(walk, 1).map(place),
+    m.width * MM,
+  );
+}
+
+/**
+ * Plate of width `width` (along z) between two matching fibre polylines. Built directly as quads, so
+ * no polygon triangulation runs per animation frame. Each face group has its own vertices, which keeps
+ * the faces' edges sharp while the bent surfaces shade smoothly.
+ */
+function plateStrip(a: Vector2[], b: Vector2[], width: number): BufferGeometry {
+  const n = Math.min(a.length, b.length);
+  const z0 = -width / 2,
+    z1 = width / 2;
+  const pos: number[] = [];
+  const index: number[] = [];
+  // A band of quads between two point rows; `flip` reverses the winding.
+  const band = (
+    rowA: [number, number, number][],
+    rowB: [number, number, number][],
+    flip: boolean,
+  ) => {
+    const base = pos.length / 3;
+    for (const p of rowA) pos.push(...p);
+    for (const p of rowB) pos.push(...p);
+    const m = rowA.length;
+    for (let i = 0; i + 1 < m; i++) {
+      const p0 = base + i,
+        p1 = base + i + 1,
+        q0 = base + m + i,
+        q1 = base + m + i + 1;
+      if (flip) index.push(p0, q0, p1, p1, q0, q1);
+      else index.push(p0, p1, q0, p1, q1, q0);
+    }
+  };
+  const row = (pts: Vector2[], z: number) =>
+    pts.slice(0, n).map((p): [number, number, number] => [p.x, p.y, z]);
+  band(row(a, z0), row(a, z1), false);
+  band(row(b, z0), row(b, z1), true);
+  band(row(a, z1), row(b, z1), false);
+  band(row(a, z0), row(b, z0), true);
+  // The two ends of the strip.
+  const end = (i: number, flip: boolean) =>
+    band(
+      [
+        [a[i]!.x, a[i]!.y, z0],
+        [a[i]!.x, a[i]!.y, z1],
+      ],
+      [
+        [b[i]!.x, b[i]!.y, z0],
+        [b[i]!.x, b[i]!.y, z1],
+      ],
+      flip,
+    );
+  end(0, true);
+  end(n - 1, false);
+  const geo = new BufferGeometry();
+  geo.setAttribute("position", new BufferAttribute(new Float32Array(pos), 3));
+  geo.setIndex(index);
   geo.computeVertexNormals();
   return geo;
 }
@@ -422,30 +537,14 @@ function cylinderPlate(
       n: new Vector2(Math.sin(b), Math.cos(b)),
     });
   }
-  const outer = neutral.map(({ p, n }) =>
-    p
-      .clone()
-      .addScaledVector(n, -t / 2)
-      .multiplyScalar(MM),
-  );
-  const inner = neutral
-    .map(({ p, n }) =>
+  const fibre = (side: number) =>
+    neutral.map(({ p, n }) =>
       p
         .clone()
-        .addScaledVector(n, t / 2)
+        .addScaledVector(n, (side * t) / 2)
         .multiplyScalar(MM),
-    )
-    .reverse();
-  const shape = new Shape([...outer, ...inner]);
-  const geo = new ExtrudeGeometry(shape, {
-    depth: m.width * MM,
-    bevelEnabled: false,
-    curveSegments: 1,
-    steps: 1,
-  });
-  geo.translate(0, 0, (-m.width * MM) / 2);
-  geo.computeVertexNormals();
-  return geo;
+    );
+  return plateStrip(fibre(-1), fibre(1), m.width * MM);
 }
 
 /**
