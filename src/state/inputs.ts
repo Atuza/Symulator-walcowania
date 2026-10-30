@@ -21,6 +21,8 @@ export const inputsSchema = z
     k: z.string(),
     reActual: z.string(),
     calibration: z.string(),
+    /** Old saved jobs retain their original cut model; new jobs enable the trial profile. */
+    cylinderCalibration: z.boolean().default(false),
     customRe: z.string(),
     customE: z.string(),
     customDensity: z.string(),
@@ -81,6 +83,7 @@ export const defaultInputs: Inputs = {
   k: "",
   reActual: "",
   calibration: "",
+  cylinderCalibration: true,
   customRe: "",
   customE: "",
   customDensity: "",

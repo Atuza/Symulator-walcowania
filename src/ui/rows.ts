@@ -1,4 +1,5 @@
 import type { SetPoint, ThicknessLimits } from "../domain/calculate";
+import { P460_CYLINDER_CALIBRATION } from "../domain/cutCalibration";
 import type { DimensionId } from "../drawing/model";
 import { SHAPE_FIELDS } from "../domain/shapes";
 import { parseFreeRows } from "../state/freeShape";
@@ -114,6 +115,33 @@ function springRows(set: SetPoint | null, label: Key): Row[] {
   ];
 }
 
+function cutCalibrationRows(d: Derived): Row[] {
+  if (!d.cutCalibration) return [];
+  const profile = P460_CYLINDER_CALIBRATION;
+  return [
+    {
+      label: t("result.cutCalibration"),
+      value: t(`result.cutCalibration.${d.cutCalibration}`),
+      list: true,
+    },
+    ...(d.cutCalibration === "applied"
+      ? [
+          {
+            label: t("result.cutCorrection"),
+            value: num(-profile.correction, 3),
+            unit: t("unit.mm"),
+            estimate: true,
+          },
+        ]
+      : []),
+    {
+      label: t("result.cutCalibration.scope"),
+      value: t("result.cutCalibration.scopeValue"),
+      list: true,
+    },
+  ];
+}
+
 /** Secondary results, grouped. */
 /** Maximum thickness from the machine's capacity charts, so the margin is visible before a warning. */
 function limitRows(l: ThicknessLimits): Row[] {
@@ -179,6 +207,7 @@ export function resultGroups(d: Derived): { title: string; rows: Row[] }[] {
           { label: t("result.strain"), value: percent(r.outerStrain) },
           { label: t("result.re"), value: num(d.props.re, 0), unit: t("unit.mpa") },
           calibrationRow(d),
+          ...cutCalibrationRows(d),
           ...springRows(out.set, "result.setDiameter"),
         ],
       },

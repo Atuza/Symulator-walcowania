@@ -106,7 +106,10 @@ The real roll dimensions and length are preserved. Side-roll placement and motio
 reference rather than a prediction of tilted-roll or CNC settings.
 
 Calculation links (`state/share.ts`, ADR 0004) put the inputs that differ from frozen link defaults into
-the URL fragment (`#c=1;key=value;…`). The fragment never reaches the server; the PDF prints it as a
+the URL fragment (`#c=2;key=value;…`). Version 1 and legacy links remain readable with their original
+defaults. Version 2 enables the P460NL2 cylinder trial profile by default; older stored inputs and
+links keep it disabled until explicitly selected. See [the cut-calibration contract](adr/0010-p460-cylinder-cut-calibration.md).
+The fragment never reaches the server; the PDF prints it as a
 QR code, `ui/scanner.ts` reads it with the camera, and the app also loads and clears it on start.
 
 Formulas in edit mode are written in a small TeX-like notation and rendered as native MathML by

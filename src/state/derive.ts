@@ -6,6 +6,11 @@ import {
   type MaterialProps,
 } from "../domain/calculate";
 import { CUSTOM_MATERIAL_ID } from "../domain/materials/data";
+import {
+  cylinderCutCalibration,
+  P460_CYLINDER_CALIBRATION,
+  type CutCalibrationStatus,
+} from "../domain/cutCalibration";
 import { yieldAt, type Material } from "../domain/materials/schema";
 import type { Key } from "../i18n";
 import type { ProcessConfig } from "./config";
@@ -22,6 +27,7 @@ export interface Derived {
   flatEnd: number;
   /** Springback factor in use and where it came from. */
   calibration: { value: number; source: "input" | "trials" | "default"; trials: number };
+  cutCalibration: CutCalibrationStatus | null;
   output: CalcOutput | null;
   error: { key: Key; field: TextField } | null;
 }
@@ -77,6 +83,7 @@ export function derive(
     width: width !== null && width > 0 ? width : null,
     flatEnd: 0,
     calibration,
+    cutCalibration: null,
   };
 
   if (thickness === null || thickness <= 0) {
@@ -100,6 +107,15 @@ export function derive(
   const flatEnd = inputs.flatEnds ? (num("flatLength") ?? process.flatEndFactor * thickness) : 0;
   const k = num("k");
   const kOverride = k !== null && k > 0 && k <= 1 ? k : null;
+  if (inputs.shape === "cylinder" && material?.id === P460_CYLINDER_CALIBRATION.materialId)
+    base.cutCalibration = cylinderCutCalibration(
+      inputs.cylinderCalibration,
+      thickness,
+      flatEnd,
+      kOverride,
+    );
+  const cutCorrection =
+    base.cutCalibration === "applied" ? P460_CYLINDER_CALIBRATION.correction : 0;
   const common = {
     material: props,
     reFromCertificate: reActual !== null && reActual > 0,
@@ -124,6 +140,7 @@ export function derive(
               surface: inputs.surface,
               flatEnds: flatEnd,
               kOverride,
+              cutCorrection,
             },
           }
         : {
@@ -136,6 +153,7 @@ export function derive(
               blankLength: num("length") ?? NaN,
               flatEnds: flatEnd,
               kOverride,
+              cutCorrection,
             },
           };
   } else if (isConeShape(inputs.shape)) {
@@ -210,6 +228,15 @@ export function derive(
       output: null,
       error: { key: `error.${out.error}` as Key, field },
     };
+  }
+  if (base.cutCalibration === "applied" && out.shape === "cylinder") {
+    const circumference = Math.PI * out.result.dOuter;
+    const profile = P460_CYLINDER_CALIBRATION;
+    if (
+      circumference < profile.outerCircumferenceMin - 1e-6 ||
+      circumference > profile.outerCircumferenceMax + 1e-6
+    )
+      out.warnings.push({ code: "cutCalibrationExtrapolated", severity: "warn" });
   }
   return { ...base, flatEnd, props, output: out, error: null };
 }

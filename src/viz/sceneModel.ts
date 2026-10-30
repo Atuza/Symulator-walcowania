@@ -26,6 +26,8 @@ export type SceneModel =
       width: number;
       /** Blank length including flat ends [mm]. */
       length: number;
+      /** Geometric length at full closure; the cut correction does not change the target radius. */
+      formedLength?: number;
       flatEnd: number;
       machine: MachineView;
     }
@@ -130,6 +132,7 @@ export function sceneModel(
     thickness,
     width: w,
     length: r.blankLength,
+    formedLength: r.ringLength + 2 * r.flatEnd,
     flatEnd: r.flatEnd,
     machine: machineView(machine, r.dInner, thickness, w),
   };

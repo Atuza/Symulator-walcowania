@@ -1157,6 +1157,7 @@ textarea:focus {
 
   .panel {
     overflow: visible;
+    min-height: auto;
   }
 
   .inputs {
@@ -1172,6 +1173,7 @@ textarea:focus {
   .stage {
     order: 3;
     grid-template-rows: 380px 340px;
+    min-height: 720px;
     border-top: 1px solid var(--line);
   }
 

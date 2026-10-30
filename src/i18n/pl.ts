@@ -176,6 +176,7 @@ export const pl: Dict = {
   "field.k": "Oś obojętna k",
   "field.reActual": "Re rzeczywiste (atest)",
   "field.calibration": "Współczynnik sprężynowania",
+  "field.cylinderCalibration": "Kalibracja długości P460NL2 (5 prób walców)",
   "field.customRe": "Granica plastyczności Re",
   "field.customE": "Moduł Younga E",
   "field.customDensity": "Gęstość",
@@ -203,6 +204,17 @@ export const pl: Dict = {
   "result.dOuter": "Ø zewnętrzna",
   "result.dNeutral": "Ø obojętna",
   "result.ringLength": "Obwód (oś obojętna)",
+  "result.cutCalibration": "Kalibracja długości P460NL2",
+  "result.cutCalibration.applied": "Włączona · empiryczna, 5 prób walców",
+  "result.cutCalibration.disabled": "Wyłączona · model geometryczny",
+  "result.cutCalibration.thickness": "Nieaktywna · grubość poza 9,2–10,0 mm",
+  "result.cutCalibration.flatEnds": "Nieaktywna · próby wykonano bez płaskich końców",
+  "result.cutCalibration.manualK": "Nieaktywna · wpisano ręczne k (bez sumowania poprawek)",
+  "result.cutCorrection": "Poprawka długości cięcia",
+  "result.cutCalibration.scope": "Zakres prób kalibracyjnych",
+  "result.cutCalibration.scopeValue":
+    "t 9,2–10,0 mm; C zewn. 6916–7548 mm; nastawa P 55 bar. Ta sama maszyna i sposób wykonania. Średnia z 5 prób nie jest tolerancją.",
+  "drawing.cutCalibration": "Kalibracja P460NL2: długość cięcia skrócona o {correction} mm.",
   "result.flatEnds": "Płaskie końce",
   "result.k": "Oś obojętna k",
   "result.rt": "R/t",
@@ -264,6 +276,8 @@ export const pl: Dict = {
   "warn.diameterSmallForThickness":
     "Ø wewn. to tylko {dt} × t. Producenci walcarek nie zalecają zwijania poniżej 8–10 × t.",
   "warn.reFromCertificate": "Sprężynowanie liczone z Re = {re} MPa z atestu.",
+  "warn.cutCalibrationExtrapolated":
+    "Kalibracja długości P460NL2 jest ekstrapolowana: obwód zewnętrzny poza zakresem prób 6916–7548 mm. Potwierdź na próbie lub wyłącz kalibrację długości.",
 
   "action.pdf": "Raport PDF",
   "action.dxf": "DXF",

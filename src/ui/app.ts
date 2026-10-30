@@ -504,6 +504,19 @@ export class App {
         "div",
         { class: "group-body" },
         flatToggle,
+        i.shape === "cylinder" && i.materialId === "p460nl2"
+          ? h(
+              "label",
+              { class: "check" },
+              h("input", {
+                type: "checkbox",
+                checked: i.cylinderCalibration,
+                onChange: (e: Event) =>
+                  this.set("cylinderCalibration", (e.target as HTMLInputElement).checked, true),
+              }),
+              h("span", {}, t("field.cylinderCalibration")),
+            )
+          : null,
         i.flatEnds
           ? this.numberField(
               "flatLength",

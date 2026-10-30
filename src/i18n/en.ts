@@ -176,6 +176,7 @@ export const en = {
   "field.k": "Neutral axis k",
   "field.reActual": "Actual Re (certificate)",
   "field.calibration": "Springback factor",
+  "field.cylinderCalibration": "P460NL2 cut-length calibration (5 cylinder trials)",
   "field.customRe": "Yield strength Re",
   "field.customE": "Young's modulus E",
   "field.customDensity": "Density",
@@ -202,6 +203,17 @@ export const en = {
   "result.dOuter": "Outer Ø",
   "result.dNeutral": "Neutral Ø",
   "result.ringLength": "Ring length (neutral)",
+  "result.cutCalibration": "P460NL2 cut-length calibration",
+  "result.cutCalibration.applied": "Enabled · empirical, 5 cylinder trials",
+  "result.cutCalibration.disabled": "Disabled · geometric model",
+  "result.cutCalibration.thickness": "Inactive · thickness outside 9.2–10.0 mm",
+  "result.cutCalibration.flatEnds": "Inactive · trials had no flat-end allowance",
+  "result.cutCalibration.manualK": "Inactive · manual k entered (corrections are not stacked)",
+  "result.cutCorrection": "Cut-length adjustment",
+  "result.cutCalibration.scope": "Calibration trial range",
+  "result.cutCalibration.scopeValue":
+    "t 9.2–10.0 mm; outer C 6916–7548 mm; P setpoint 55 bar. Same machine and process. The mean of 5 trials is not a tolerance.",
+  "drawing.cutCalibration": "P460NL2 calibration: cut length shortened by {correction} mm.",
   "result.flatEnds": "Flat ends",
   "result.k": "Neutral axis k",
   "result.rt": "R/t",
@@ -262,6 +274,8 @@ export const en = {
   "warn.diameterSmallForThickness":
     "Inner diameter is only {dt} × t. Roll makers advise against rolling below 8–10 × t.",
   "warn.reFromCertificate": "Springback uses Re = {re} MPa from the certificate.",
+  "warn.cutCalibrationExtrapolated":
+    "P460NL2 cut-length calibration is extrapolated: outer circumference is outside the trial range of 6916–7548 mm. Verify on a trial or disable cut-length calibration.",
 
   "action.pdf": "PDF report",
   "action.dxf": "DXF",

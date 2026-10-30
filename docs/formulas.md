@@ -30,6 +30,22 @@ to replace with the machine's real value.
 **Blank → Ø.** `Dn = (blank − 2f) / π`, then `Di = Dn − 2·k·t`. Since k depends on Di, a fixed-point
 iteration is used (converges in a few steps).
 
+### P460NL2 cylinder trial profile
+
+For the installed machine, five confirmed cylinder trials give an empirical cut shortening
+`b = 3.989383113250804 mm`. With the profile enabled:
+
+```
+blank = ring - b + 2*f
+Dn = (blank - 2*f + b) / pi
+```
+
+This does not change k or the springback factor. The profile is limited to P460NL2 cylinders,
+t = 9.2–10.0 mm, without flat-end allowance or manual k. Other shapes, including both cones, keep
+the existing formulas. The trial outer circumferences were 6916–7548 mm; results beyond that range
+are explicitly marked as extrapolated. Old saved jobs and version-1 links keep the geometric model
+until the operator enables the profile. See [the decision and limits](adr/0010-p460-cylinder-cut-calibration.md).
+
 ## Cone
 
 Inputs are diameters in the end planes and the axial height, all on the same surface.

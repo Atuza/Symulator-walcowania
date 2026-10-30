@@ -741,7 +741,9 @@ function cylinderPlate(
   m: Extract<SceneModel, { shape: "cylinder" }>,
   progress: number,
 ): BufferGeometry {
-  const { radius: R, thickness: t, length: L } = m;
+  const { radius: R, thickness: t } = m;
+  // Map the corrected cut blank to the target closed section. This preview is not a strain model.
+  const L = m.length + ((m.formedLength ?? m.length) - m.length) * progress;
   const rolled = progress * L;
   const flat = L - rolled;
   const steps = Math.max(8, Math.ceil((rolled / (2 * Math.PI * R)) * 180));

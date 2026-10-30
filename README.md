@@ -4,7 +4,7 @@ Plate rolling calculator for 4-roll plate bending machines: blank length, diamet
 3D rolling preview, 2D drawing, PDF report and DXF cut contour. Runs entirely in the browser, works
 offline once loaded, stores nothing outside the device.
 
-**Version:** 1.1.9
+**Version:** 1.1.10
 
 **App:** https://atuza.github.io/Symulator-walcowania/
 
@@ -43,6 +43,10 @@ and free shapes are no longer offered for new parts; existing saved calculations
   The development dimensions follow both numerical edges (L1/L2), measuring their net arc lengths
   rather than endpoint chords; flat allowances remain separate process inputs.
 - Neutral axis from R/t (DIN 6935), optional flat-end allowance, mass.
+- P460NL2 cylinder cut-length calibration from five real trials: −3.989 mm, with a visible switch,
+  active-status explanation and extrapolation warning. Applies at t = 9.2–10.0 mm without flat-end
+  allowance or manual k; both cone types are excluded. Existing saved jobs and old links retain
+  their previous model. See [scope and formulas](docs/adr/0010-p460-cylinder-cut-calibration.md).
 - Springback estimate with the machine set diameter; certificate Re and a calibration factor improve it.
 - Material database: structural, high-strength, pressure vessel, stainless and aluminium grades (EN standards).
 - Indicative warnings: R/t, outer fibre strain, springback, machine limits.

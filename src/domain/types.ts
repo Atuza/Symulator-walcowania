@@ -28,4 +28,5 @@ export type WarningCode =
   | "capacityOutside"
   | "coneCapacity"
   | "diameterSmallForThickness"
-  | "reFromCertificate";
+  | "reFromCertificate"
+  | "cutCalibrationExtrapolated";

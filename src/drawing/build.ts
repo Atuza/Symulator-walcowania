@@ -592,7 +592,10 @@ function cylinderViews(
       },
     );
   }
-  const notes: string[] = [];
+  const notes: string[] =
+    r.cutCorrection > 0
+      ? [t("drawing.cutCalibration", { correction: num(r.cutCorrection, 3) })]
+      : [];
 
   return [
     {

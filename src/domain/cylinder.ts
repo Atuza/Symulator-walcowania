@@ -11,6 +11,8 @@ export interface CylinderFromDiameter {
   surface: Surface;
   flatEnds: number;
   kOverride: number | null;
+  /** Positive empirical shortening of the cut blank [mm]; not a neutral-axis change. */
+  cutCorrection?: number;
 }
 
 export interface CylinderFromLength {
@@ -20,6 +22,7 @@ export interface CylinderFromLength {
   blankLength: number;
   flatEnds: number;
   kOverride: number | null;
+  cutCorrection?: number;
 }
 
 export type CylinderInput = CylinderFromDiameter | CylinderFromLength;
@@ -33,7 +36,9 @@ export interface CylinderResult {
   ringLength: number;
   /** Unbent length left at each end, trimmed after rolling [mm]. */
   flatEnd: number;
-  /** Length to cut = ring length + both flat ends [mm]. */
+  /** Positive empirical shortening from the geometric ring length [mm]. */
+  cutCorrection: number;
+  /** Length to cut = ring length - cut correction + both flat ends [mm]. */
   blankLength: number;
   /** Inner radius / thickness. */
   rt: number;
@@ -47,20 +52,22 @@ export type CylinderError = "thickness" | "value" | "tooSmall" | "length";
 
 export function solveCylinder(input: CylinderInput): CylinderResult | CylinderError {
   const t = input.thickness;
-  if (!(t > 0)) return "thickness";
+  if (!(t > 0) || !Number.isFinite(t)) return "thickness";
   const flat = Math.max(0, input.flatEnds);
+  const correction = input.cutCorrection ?? 0;
+  if (!Number.isFinite(correction) || correction < 0 || !Number.isFinite(flat)) return "length";
 
   let dInner: number;
   let k: number;
   if (input.mode === "fromDiameter") {
-    if (!(input.value > 0)) return "value";
+    if (!(input.value > 0) || !Number.isFinite(input.value)) return "value";
     const d = input.isRadius ? input.value * 2 : input.value;
     dInner = d - 2 * surfaceDepth[input.surface] * t;
     if (!(dInner > 0)) return "tooSmall";
     k = input.kOverride ?? neutralFactor(dInner / 2, t);
   } else {
-    const ring = input.blankLength - 2 * flat;
-    if (!(ring > 0)) return "length";
+    if (!Number.isFinite(input.blankLength) || !(input.blankLength > 2 * flat)) return "length";
+    const ring = input.blankLength - 2 * flat + correction;
     const dNeutral = ring / Math.PI;
     // k depends on the inner radius, which depends on k; the fixed point converges in a few steps.
     k = input.kOverride ?? 0.5;
@@ -78,6 +85,8 @@ export function solveCylinder(input: CylinderInput): CylinderResult | CylinderEr
   const dev = develop(profile);
   if (typeof dev === "string") return dev === "thickness" ? "thickness" : "tooSmall";
   const ring = dev.segments.find((s) => s.k !== null)!;
+  const blankLength = dev.length - correction;
+  if (!(ring.length > correction)) return "length";
   return {
     k,
     dInner,
@@ -85,7 +94,8 @@ export function solveCylinder(input: CylinderInput): CylinderResult | CylinderEr
     dNeutral: dInner + 2 * k * t,
     ringLength: ring.length,
     flatEnd: flat,
-    blankLength: dev.length,
+    cutCorrection: correction,
+    blankLength,
     profile,
     rt: dInner / 2 / t,
     outerStrain: t / (dInner + t),
