@@ -7,6 +7,8 @@ const chromium = process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHRO
 export default defineConfig({
   testDir: "e2e",
   fullyParallel: true,
+  // The full Three.js machine uses a software GPU on hosted runners. Avoid competing render loops.
+  workers: process.env.CI ? 1 : undefined,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",

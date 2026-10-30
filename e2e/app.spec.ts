@@ -80,7 +80,7 @@ test("nothing overflows the page horizontally", async ({ page }) => {
 
 test("P460NL2 cylinder calibration stays synchronized after Enter edits and reload", async ({
   page,
-}, testInfo) => {
+}) => {
   await page.locator("#f-material").selectOption("p460nl2");
   const calibration = () => page.getByLabel("Automatyczna kalibracja P460NL2", { exact: true });
   await expect(calibration()).toBeChecked();
@@ -134,16 +134,22 @@ test("P460NL2 cylinder calibration stays synchronized after Enter edits and relo
   await page.reload();
   await expect(calibration()).toBeChecked();
   await expect(hero(page)).toContainText("7504,30");
-  await page
-    .locator(".panel.results")
-    .screenshot({ path: testInfo.outputPath("calibrated-results.png") });
-
   const dxfEvent = page.waitForEvent("download");
   await page.locator(".result-actions button", { hasText: "DXF" }).click();
   const dxf = await dxfEvent;
   const data = await readFile((await dxf.path())!, "utf8");
   expect(data).toContain("7504.295604");
   expect(data).not.toContain("7508.406442");
+});
+
+test("exports the calibrated P460NL2 cylinder as A4 and A3 PDF", async ({ page }, testInfo) => {
+  await page.goto("./?test=calibrated-pdf#c=3;mi=p460nl2;v=2380", {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(hero(page)).toContainText("7504,30");
+  await page
+    .locator(".panel.results")
+    .screenshot({ path: testInfo.outputPath("calibrated-results.png") });
   await page.locator(".result-actions button", { hasText: "Raport PDF" }).click();
   const pdfEvent = page.waitForEvent("download");
   await page.locator("dialog[open] button", { hasText: /Generuj|Generate/ }).click();
@@ -155,32 +161,29 @@ test("P460NL2 cylinder calibration stays synchronized after Enter edits and relo
   await (await a3Event).saveAs(testInfo.outputPath("calibrated-a3.pdf"));
 });
 
-test("P460NL2 cone geometries and old calculation links retain their original model", async ({
-  page,
-}) => {
+test("P460NL2 cone geometries ignore the cylinder calibration", async ({ page }) => {
   test.setTimeout(60_000);
   for (const shape of ["k", "ec"]) {
-    const base = `./#c=3;mi=p460nl2;s=${shape};D=2400;d=2200;h=1000;e=${shape === "ec" ? 100 : 0}`;
-    await page.goto(base);
-    await page.reload();
+    const fragment = `#c=3;mi=p460nl2;s=${shape};D=2400;d=2200;h=1000;e=${shape === "ec" ? 100 : 0}`;
+    await page.goto(`./?test=cone-${shape}-on${fragment}`, { waitUntil: "domcontentloaded" });
     await expect(hero(page)).toBeVisible();
     const enabled = await page.locator(".hero").allTextContents();
     await expect(page.getByLabel("Automatyczna kalibracja P460NL2", { exact: true })).toHaveCount(
       0,
     );
-    await page.goto(`${base};lc=0`);
-    await page.reload();
+    await page.goto(`./?test=cone-${shape}-off${fragment};lc=0`, { waitUntil: "domcontentloaded" });
     await expect(page.locator(".hero")).toHaveText(enabled);
   }
-  await page.goto("./#c=1;mi=p460nl2;v=2380");
-  await page.reload();
+});
+
+test("old P460NL2 links preserve their cuts and upgrade explicitly", async ({ page }) => {
+  await page.goto("./?test=old-v1#c=1;mi=p460nl2;v=2380", { waitUntil: "domcontentloaded" });
   await expect(hero(page)).toContainText("7508,41");
   await expect(
     page.getByLabel("Automatyczna kalibracja P460NL2", { exact: true }),
   ).not.toBeChecked();
 
-  await page.goto("./#c=2;mi=p460nl2;v=2380");
-  await page.reload();
+  await page.goto("./?test=old-v2#c=2;mi=p460nl2;v=2380", { waitUntil: "domcontentloaded" });
   await expect(hero(page)).toContainText("7504,42");
   await page
     .getByRole("button", { name: "Zastosuj profil dla wszystkich grubości", exact: true })
