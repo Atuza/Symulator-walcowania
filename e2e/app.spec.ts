@@ -82,8 +82,7 @@ test("P460NL2 cylinder calibration stays synchronized after Enter edits and relo
   page,
 }, testInfo) => {
   await page.locator("#f-material").selectOption("p460nl2");
-  const calibration = () =>
-    page.getByLabel("Kalibracja długości P460NL2 (5 prób walców)", { exact: true });
+  const calibration = () => page.getByLabel("Automatyczna kalibracja P460NL2", { exact: true });
   await expect(calibration()).toBeChecked();
   await expect(page.locator(".warning", { hasText: "ekstrapolowana" })).toBeVisible();
   const edit = async (id: string, value: string) => {
@@ -93,43 +92,48 @@ test("P460NL2 cylinder calibration stays synchronized after Enter edits and relo
     await expect(page.locator(".dimension-dialog[open]")).toHaveCount(0);
   };
   await edit("diameter.inner", "2380");
-  await expect(hero(page)).toContainText("7504,42");
+  await expect(hero(page)).toContainText("7504,30");
   await expect(page.locator(".warning", { hasText: "ekstrapolowana" })).toHaveCount(0);
-  await expect(page.locator(".result-group dd", { hasText: "-3,989" })).toBeVisible();
+  await expect(page.locator(".result-group dd", { hasText: "-4,111" })).toBeVisible();
 
   await edit("diameter.outer", "2400");
   await edit("cylinder.circumference", String(Math.PI * 2400));
-  await expect(hero(page)).toContainText("7504,42");
+  await expect(hero(page)).toContainText("7504,30");
   await edit("cylinder.blankLength", "7500");
-  const expectedInner = ((7500 + 3.989383113250804) / Math.PI - 10).toLocaleString("pl-PL", {
+  const expectedInner = ((7500 + 4.110837869148101) / Math.PI - 10).toLocaleString("pl-PL", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
   await expect(hero(page)).toContainText(expectedInner);
   await edit("radius.inner", "1190");
-  await expect(hero(page)).toContainText("7504,42");
+  await expect(hero(page)).toContainText("7504,30");
 
   await page.locator('svg.drawing [data-dimension="cylinder.blankLength"]').first().click();
   await page.locator("#drawing-dimension-value").fill("-10");
   await page.locator("#drawing-dimension-value").press("Enter");
   await expect(page.locator("#drawing-dimension-value")).toHaveAttribute("aria-invalid", "true");
-  await expect(hero(page)).toContainText("7504,42");
+  await expect(hero(page)).toContainText("7504,30");
   await page.keyboard.press("Escape");
 
   await calibration().uncheck();
   await expect(hero(page)).toContainText("7508,41");
   await calibration().check();
-  await expect(hero(page)).toContainText("7504,42");
+  await expect(hero(page)).toContainText("7504,30");
   await expect
-    .poll(
-      async () =>
-        JSON.parse((await page.evaluate(() => localStorage.getItem("rolling.inputs.v1"))) ?? "{}")
-          .cylinderCalibration,
+    .poll(async () =>
+      JSON.parse((await page.evaluate(() => localStorage.getItem("rolling.inputs.v1"))) ?? "{}"),
     )
-    .toBe(true);
+    .toMatchObject({
+      cylinderCalibration: true,
+      cylinderCalibrationModel: "thickness",
+      mode: "fromDiameter",
+      dimension: "radius",
+      value: "1190",
+      surface: "inner",
+    });
   await page.reload();
   await expect(calibration()).toBeChecked();
-  await expect(hero(page)).toContainText("7504,42");
+  await expect(hero(page)).toContainText("7504,30");
   await page
     .locator(".panel.results")
     .screenshot({ path: testInfo.outputPath("calibrated-results.png") });
@@ -138,7 +142,7 @@ test("P460NL2 cylinder calibration stays synchronized after Enter edits and relo
   await page.locator(".result-actions button", { hasText: "DXF" }).click();
   const dxf = await dxfEvent;
   const data = await readFile((await dxf.path())!, "utf8");
-  expect(data).toContain("7504.417059");
+  expect(data).toContain("7504.295604");
   expect(data).not.toContain("7508.406442");
   await page.locator(".result-actions button", { hasText: "Raport PDF" }).click();
   const pdfEvent = page.waitForEvent("download");
@@ -156,14 +160,14 @@ test("P460NL2 cone geometries and old calculation links retain their original mo
 }) => {
   test.setTimeout(60_000);
   for (const shape of ["k", "ec"]) {
-    const base = `./#c=2;mi=p460nl2;s=${shape};D=2400;d=2200;h=1000;e=${shape === "ec" ? 100 : 0}`;
+    const base = `./#c=3;mi=p460nl2;s=${shape};D=2400;d=2200;h=1000;e=${shape === "ec" ? 100 : 0}`;
     await page.goto(base);
     await page.reload();
     await expect(hero(page)).toBeVisible();
     const enabled = await page.locator(".hero").allTextContents();
-    await expect(
-      page.getByLabel("Kalibracja długości P460NL2 (5 prób walców)", { exact: true }),
-    ).toHaveCount(0);
+    await expect(page.getByLabel("Automatyczna kalibracja P460NL2", { exact: true })).toHaveCount(
+      0,
+    );
     await page.goto(`${base};lc=0`);
     await page.reload();
     await expect(page.locator(".hero")).toHaveText(enabled);
@@ -172,6 +176,31 @@ test("P460NL2 cone geometries and old calculation links retain their original mo
   await page.reload();
   await expect(hero(page)).toContainText("7508,41");
   await expect(
-    page.getByLabel("Kalibracja długości P460NL2 (5 prób walców)", { exact: true }),
+    page.getByLabel("Automatyczna kalibracja P460NL2", { exact: true }),
   ).not.toBeChecked();
+
+  await page.goto("./#c=2;mi=p460nl2;v=2380");
+  await page.reload();
+  await expect(hero(page)).toContainText("7504,42");
+  await page
+    .getByRole("button", { name: "Zastosuj profil dla wszystkich grubości", exact: true })
+    .click();
+  await expect(hero(page)).toContainText("7504,30");
+  await page.locator("#f-thickness").fill("20");
+  await expect(page.locator(".result-group dd", { hasText: "-8,222" })).toBeVisible();
+  await expect(page.locator(".warning", { hasText: "ekstrapolowana" })).toBeVisible();
+});
+
+test("P460NL2 automatically scales its profile for every thickness", async ({ page }) => {
+  await page.locator("#f-material").selectOption("p460nl2");
+  for (const thickness of [5, 12, 20, 40]) {
+    await page.locator("#f-thickness").fill(String(thickness));
+    const adjustment = 0.41108378691481007 * thickness;
+    const length = Math.PI * (1000 + thickness) - adjustment;
+    const mm = (n: number, digits: number) =>
+      n.toLocaleString("pl-PL", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    await expect(hero(page)).toContainText(mm(length, 2));
+    await expect(page.locator(".result-group dd", { hasText: mm(-adjustment, 3) })).toBeVisible();
+    await expect(page.locator(".warning", { hasText: "ekstrapolowana" })).toBeVisible();
+  }
 });

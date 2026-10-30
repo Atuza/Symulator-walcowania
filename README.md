@@ -4,7 +4,7 @@ Plate rolling calculator for 4-roll plate bending machines: blank length, diamet
 3D rolling preview, 2D drawing, PDF report and DXF cut contour. Runs entirely in the browser, works
 offline once loaded, stores nothing outside the device.
 
-**Version:** 1.1.10
+**Version:** 1.1.11
 
 **App:** https://atuza.github.io/Symulator-walcowania/
 
@@ -43,10 +43,12 @@ and free shapes are no longer offered for new parts; existing saved calculations
   The development dimensions follow both numerical edges (L1/L2), measuring their net arc lengths
   rather than endpoint chords; flat allowances remain separate process inputs.
 - Neutral axis from R/t (DIN 6935), optional flat-end allowance, mass.
-- P460NL2 cylinder cut-length calibration from five real trials: −3.989 mm, with a visible switch,
-  active-status explanation and extrapolation warning. Applies at t = 9.2–10.0 mm without flat-end
-  allowance or manual k; both cone types are excluded. Existing saved jobs and old links retain
-  their previous model. See [scope and formulas](docs/adr/0010-p460-cylinder-cut-calibration.md).
+- Automatic P460NL2 cylinder process profile for every positive thickness: the cut adjustment is
+  −0.411084 × thickness in mm. Selecting the grade enables it; enter thickness and edit Ø, R, C or
+  cut length on the drawing. It remains separate from manual k and springback and excludes cones
+  and flat-end allowances. Outside the measured t = 9.2–10.0 mm / outer C = 6916–7548 mm range it
+  labels the prediction as extrapolated. Old saved cuts/QR links preserve their original model;
+  one button upgrades an old calibrated job. See [the process profile](docs/adr/0011-p460-thickness-profile.md).
 - Springback estimate with the machine set diameter; certificate Re and a calibration factor improve it.
 - Material database: structural, high-strength, pressure vessel, stainless and aluminium grades (EN standards).
 - Indicative warnings: R/t, outer fibre strain, springback, machine limits.
@@ -118,7 +120,7 @@ docs/         formulas, architecture, decisions
 ```
 
 See [formulas](docs/formulas.md), [architecture](docs/architecture.md) and the
-[1.1.3 release record](docs/releases/1.1.3.md).
+[1.1.11 release record](docs/releases/1.1.11.md).
 
 ## Accuracy
 

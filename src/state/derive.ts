@@ -8,6 +8,7 @@ import {
 import { CUSTOM_MATERIAL_ID } from "../domain/materials/data";
 import {
   cylinderCutCalibration,
+  cylinderCutCorrection,
   P460_CYLINDER_CALIBRATION,
   type CutCalibrationStatus,
 } from "../domain/cutCalibration";
@@ -113,9 +114,12 @@ export function derive(
       thickness,
       flatEnd,
       kOverride,
+      inputs.cylinderCalibrationModel,
     );
   const cutCorrection =
-    base.cutCalibration === "applied" ? P460_CYLINDER_CALIBRATION.correction : 0;
+    base.cutCalibration === "applied"
+      ? cylinderCutCorrection(thickness, inputs.cylinderCalibrationModel)
+      : 0;
   const common = {
     material: props,
     reFromCertificate: reActual !== null && reActual > 0,
@@ -233,6 +237,8 @@ export function derive(
     const circumference = Math.PI * out.result.dOuter;
     const profile = P460_CYLINDER_CALIBRATION;
     if (
+      thickness < profile.thicknessMin ||
+      thickness > profile.thicknessMax ||
       circumference < profile.outerCircumferenceMin - 1e-6 ||
       circumference > profile.outerCircumferenceMax + 1e-6
     )

@@ -118,17 +118,23 @@ function springRows(set: SetPoint | null, label: Key): Row[] {
 function cutCalibrationRows(d: Derived): Row[] {
   if (!d.cutCalibration) return [];
   const profile = P460_CYLINDER_CALIBRATION;
+  const correction = d.output?.shape === "cylinder" ? d.output.result.cutCorrection : 0;
   return [
     {
       label: t("result.cutCalibration"),
-      value: t(`result.cutCalibration.${d.cutCalibration}`),
+      value: t(
+        d.cutCalibration === "applied" && d.inputs.cylinderCalibrationModel === "constant"
+          ? "result.cutCalibration.previous"
+          : `result.cutCalibration.${d.cutCalibration}`,
+        { factor: num(profile.correctionPerThickness, 6) },
+      ),
       list: true,
     },
     ...(d.cutCalibration === "applied"
       ? [
           {
             label: t("result.cutCorrection"),
-            value: num(-profile.correction, 3),
+            value: num(-correction, 3),
             unit: t("unit.mm"),
             estimate: true,
           },

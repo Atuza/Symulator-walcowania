@@ -133,10 +133,29 @@ export class App {
 
   private set<K extends keyof Inputs>(key: K, value: Inputs[K], structural: boolean) {
     this.inputs = { ...this.inputs, [key]: value };
+    if (
+      (key === "materialId" && value === "p460nl2") ||
+      (key === "shape" && value === "cylinder" && this.inputs.materialId === "p460nl2")
+    )
+      this.inputs = {
+        ...this.inputs,
+        cylinderCalibration: true,
+        cylinderCalibrationModel: "thickness",
+      };
     if (key === "shape") this.fitShapeSizes();
     this.schedulePersist();
     if (structural) this.renderAll();
     else this.scheduleCompute();
+  }
+
+  private setCylinderCalibration(enabled: boolean) {
+    this.inputs = {
+      ...this.inputs,
+      cylinderCalibration: enabled,
+      cylinderCalibrationModel: "thickness",
+    };
+    this.schedulePersist();
+    this.renderAll();
   }
 
   /**
@@ -512,9 +531,19 @@ export class App {
                 type: "checkbox",
                 checked: i.cylinderCalibration,
                 onChange: (e: Event) =>
-                  this.set("cylinderCalibration", (e.target as HTMLInputElement).checked, true),
+                  this.setCylinderCalibration((e.target as HTMLInputElement).checked),
               }),
               h("span", {}, t("field.cylinderCalibration")),
+            )
+          : null,
+        i.shape === "cylinder" &&
+          i.materialId === "p460nl2" &&
+          i.cylinderCalibration &&
+          i.cylinderCalibrationModel === "constant"
+          ? h(
+              "button",
+              { type: "button", class: "chip", onClick: () => this.setCylinderCalibration(true) },
+              t("action.calibrationUpgrade"),
             )
           : null,
         i.flatEnds

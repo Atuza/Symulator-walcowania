@@ -75,8 +75,9 @@ export function solveCylinder(input: CylinderInput): CylinderResult | CylinderEr
     for (let i = 0; i < 50 && input.kOverride == null; i++) {
       const next = neutralFactor(dInner / 2, t);
       dInner = dNeutral - 2 * next * t;
-      if (Math.abs(next - k) < 1e-12) break;
+      const converged = Math.abs(next - k) < 1e-12;
       k = next;
+      if (converged) break;
     }
     if (!(dInner > 0)) return "tooSmall";
   }

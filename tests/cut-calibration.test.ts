@@ -35,6 +35,12 @@ describe("P460NL2 cylinder cut-length calibration", () => {
     const thicknessTotal = 10 + 9.2 + 10 + 9.2 + 10;
     const mean = (circumferenceExcessTotal - Math.PI * thicknessTotal) / 5;
     expect(profile.correction).toBeCloseTo(mean, 12);
+    // A zero-intercept least-squares fit of excess length against thickness, independently aggregated.
+    const thicknessSquaredTotal = 100 + 84.64 + 100 + 84.64 + 100;
+    const weightedExcessTotal = 340 + 294.4 + 350 + 312.8 + 370;
+    const slope = weightedExcessTotal / thicknessSquaredTotal - Math.PI;
+    expect(profile.correctionPerThickness).toBeCloseTo(slope, 12);
+    expect(profile.effectiveK).toBeCloseTo(0.5 - slope / (2 * Math.PI), 12);
     expect(profile.trials).toBe(5);
     expect(profile.pressureSetpointBar).toBe(55);
   });
@@ -42,9 +48,9 @@ describe("P460NL2 cylinder cut-length calibration", () => {
   it("shortens the report's example once while preserving k, target geometry and springback", () => {
     const base = cylinder({ cylinderCalibration: false });
     const calibrated = cylinder();
-    expect(calibrated.result.blankLength).toBeCloseTo(7504.417059, 6);
+    expect(calibrated.result.blankLength).toBeCloseTo(7504.295604, 6);
     expect(base.result.blankLength - calibrated.result.blankLength).toBeCloseTo(
-      profile.correction,
+      profile.correctionPerThickness * 10,
       10,
     );
     expect(calibrated.result.k).toBe(0.5);
@@ -55,12 +61,14 @@ describe("P460NL2 cylinder cut-length calibration", () => {
     expect(calibrated.limits).toEqual(base.limits);
   });
 
-  it.each([9.2, 9.6, 10])(
+  it.each([0.5, 1, 5, 9.19, 9.2, 9.6, 10, 10.01, 12, 20, 40, 100, 500])(
     "round-trips cut length and every Ø/R/C reference at t=%s",
     (thickness) => {
       for (const surface of ["inner", "mid", "outer"] as const) {
         const d = run({ thickness: String(thickness), surface });
+        expect(d.cutCalibration).toBe("applied");
         const r = cylinder({ thickness: String(thickness), surface }).result;
+        expect(r.cutCorrection).toBeCloseTo(profile.correctionPerThickness * thickness, 10);
         const back = cylinder({
           thickness: String(thickness),
           mode: "fromLength",
@@ -90,8 +98,6 @@ describe("P460NL2 cylinder cut-length calibration", () => {
 
   it.each([
     [{ cylinderCalibration: false }, "disabled"],
-    [{ thickness: "9.19" }, "thickness"],
-    [{ thickness: "10.01" }, "thickness"],
     [{ flatEnds: true }, "flatEnds"],
     [{ k: "0.434574" }, "manualK"],
     [{ k: "0.5" }, "manualK"],
@@ -113,6 +119,10 @@ describe("P460NL2 cylinder cut-length calibration", () => {
       expect(out.warnings.some((w) => w.code === "cutCalibrationExtrapolated")).toBe(outside);
     }
     expect(cylinder().warnings.some((w) => w.code === "cutCalibrationExtrapolated")).toBe(false);
+    for (const thickness of ["5", "12", "20", "40"])
+      expect(
+        cylinder({ thickness }).warnings.some((w) => w.code === "cutCalibrationExtrapolated"),
+      ).toBe(true);
   });
 
   it.each([
@@ -163,12 +173,12 @@ describe("P460NL2 cylinder cut-length calibration", () => {
       ),
     ).toBe(true);
     expect(dev.notes).toEqual([
-      t("drawing.cutCalibration", { correction: num(profile.correction, 3) }),
+      t("drawing.cutCalibration", { correction: num(r.cutCorrection, 3) }),
     ]);
     expect(heroes(d)[0]!.raw).toBe(r.blankLength);
     expect(resultGroups(d).flatMap((g) => g.rows)).toContainEqual({
       label: t("result.cutCorrection"),
-      value: num(-profile.correction, 3),
+      value: num(-r.cutCorrection, 3),
       unit: "mm",
       estimate: true,
     });
@@ -219,7 +229,29 @@ describe("cut calibration persistence and old calculations", () => {
     expect(link.cylinderCalibration).toBe(false);
     const old = { ...defaultInputs } as Partial<Inputs>;
     delete old.cylinderCalibration;
+    delete old.cylinderCalibrationModel;
     expect(inputsSchema.parse(old).cylinderCalibration).toBe(false);
+    expect(inputsSchema.parse(old).cylinderCalibrationModel).toBe("constant");
     expect(run(link).cutCalibration).toBe("disabled");
+  });
+
+  it("preserves v2 links and saved constant corrections until an explicit profile upgrade", () => {
+    const previous = decodeInputs("#c=2;mi=p460nl2;v=2380")!;
+    expect(previous.cylinderCalibration).toBe(true);
+    expect(previous.cylinderCalibrationModel).toBe("constant");
+    expect(cylinder(previous).result.blankLength).toBeCloseTo(7504.417059, 6);
+    expect(decodeInputs(encodeInputs(previous))).toEqual(previous);
+    const stored = { ...previous } as Partial<Inputs>;
+    delete stored.cylinderCalibrationModel;
+    expect(inputsSchema.parse(stored).cylinderCalibrationModel).toBe("constant");
+    expect(run({ ...previous, thickness: "20" }).cutCalibration).toBe("thickness");
+    const updated = {
+      ...previous,
+      thickness: "20",
+      cylinderCalibrationModel: "thickness" as const,
+    };
+    expect(run(updated).cutCalibration).toBe("applied");
+    expect(cylinder(updated).result.cutCorrection).toBeCloseTo(8.221675738, 9);
+    expect(decodeInputs(encodeInputs(updated))).toEqual(updated);
   });
 });

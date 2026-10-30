@@ -97,9 +97,9 @@ describe("calculation link", () => {
   });
 
   it("keeps links short by writing only changed fields", () => {
-    expect(encodeInputs(defaultInputs)).toBe("#c=2");
+    expect(encodeInputs(defaultInputs)).toBe("#c=3");
     const url = shareUrl("https://example.test/app/#old", { ...defaultInputs, value: "1200" });
-    expect(url).toBe("https://example.test/app/#c=2;v=1200");
+    expect(url).toBe("https://example.test/app/#c=3;v=1200");
   });
 
   it("still reads links printed by version 0.9", () => {

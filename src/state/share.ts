@@ -3,7 +3,7 @@ import { inputsSchema, type Inputs } from "./inputs";
 /*
  * Calculation link: the inputs travel in the URL fragment, which never reaches the server.
  *
- * Format 2:  #c=2;t=12,5;D=1500;s=k
+ * Format 3:  #c=3;t=12,5;D=1500;s=k
  * Only fields that differ from LINK_DEFAULTS are written, with short keys, so printed QR codes stay
  * coarse enough to scan. The defaults are frozen here on purpose: changing the app's defaults must
  * not change what an already printed link means.
@@ -12,7 +12,7 @@ import { inputsSchema, type Inputs } from "./inputs";
  */
 
 const PREFIX = "#c=";
-const VERSION = "2";
+const VERSION = "3";
 
 const LINK_DEFAULTS: Inputs = {
   shape: "cylinder",
@@ -33,6 +33,7 @@ const LINK_DEFAULTS: Inputs = {
   reActual: "",
   calibration: "",
   cylinderCalibration: false,
+  cylinderCalibrationModel: "constant",
   customRe: "",
   customE: "",
   customDensity: "",
@@ -48,6 +49,8 @@ const LINK_DEFAULTS: Inputs = {
 
 // Version 1 remains frozen. Version 2 enables the new cylinder profile without enlarging every QR.
 const LINK_V2_DEFAULTS: Inputs = { ...LINK_DEFAULTS, cylinderCalibration: true };
+// Version 3 selects the thickness-scaled grade profile. Versions 1 and 2 keep their cut models.
+const LINK_V3_DEFAULTS: Inputs = { ...LINK_V2_DEFAULTS, cylinderCalibrationModel: "thickness" };
 
 const KEYS: Record<keyof Inputs, string> = {
   shape: "s",
@@ -68,6 +71,7 @@ const KEYS: Record<keyof Inputs, string> = {
   reActual: "re",
   calibration: "c",
   cylinderCalibration: "lc",
+  cylinderCalibrationModel: "lm",
   customRe: "cr",
   customE: "ce",
   customDensity: "cd",
@@ -99,6 +103,7 @@ const CODES: Partial<Record<keyof Inputs, Record<string, string>>> = {
   mode: { fromDiameter: "d", fromLength: "l" },
   dimension: { diameter: "d", radius: "r" },
   surface: { inner: "i", mid: "m", outer: "o" },
+  cylinderCalibrationModel: { constant: "b", thickness: "t" },
 };
 
 const FIELD_BY_KEY = new Map(
@@ -114,7 +119,7 @@ export function encodeInputs(inputs: Inputs): string {
   const parts = [VERSION];
   for (const field of Object.keys(KEYS) as (keyof Inputs)[]) {
     const value = inputs[field];
-    if (value === LINK_V2_DEFAULTS[field]) continue;
+    if (value === LINK_V3_DEFAULTS[field]) continue;
     const text =
       typeof value === "boolean" ? (value ? "1" : "0") : (CODES[field]?.[value] ?? value);
     parts.push(`${KEYS[field]}=${escape(text)}`);
@@ -132,11 +137,15 @@ export function decodeInputs(link: string): Inputs | null {
   if (at < 0 || link.length > 4000) return null;
   const payload = link.slice(at + PREFIX.length);
   try {
-    const compact = /^(1|2)(;|$)/.test(payload);
+    const compact = /^(1|2|3)(;|$)/.test(payload);
     const raw = compact ? decodeCompact(payload) : decodeLegacy(payload);
     if (!raw) return null;
     const defaults =
-      payload === VERSION || payload.startsWith(`${VERSION};`) ? LINK_V2_DEFAULTS : LINK_DEFAULTS;
+      payload === VERSION || payload.startsWith(`${VERSION};`)
+        ? LINK_V3_DEFAULTS
+        : payload === "2" || payload.startsWith("2;")
+          ? LINK_V2_DEFAULTS
+          : LINK_DEFAULTS;
     const parsed = inputsSchema.safeParse({ ...defaults, ...raw });
     return parsed.success ? parsed.data : null;
   } catch {

@@ -2,6 +2,9 @@
 
 Date: 2026-10-30.
 
+The constant model below describes v1.1.10 and remains available for saved cuts. New calculations
+use [the thickness-scaled profile from v1.1.11](0011-p460-thickness-profile.md).
+
 ## Evidence and decision
 
 The user confirmed five actual cylindrical P460NL2 specimens made on the installed DAVI machine

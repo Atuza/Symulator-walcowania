@@ -218,6 +218,7 @@ describe("eccentric shape selection and saved inputs", () => {
       ...old,
       shape: "eccentric",
       cylinderCalibration: false,
+      cylinderCalibrationModel: "constant",
     });
     expect(decodeInputs("#c=1;s=k;e=0")?.shape).toBe("cone");
     expect(decodeInputs("#c=1;s=k")?.shape).toBe("cone");

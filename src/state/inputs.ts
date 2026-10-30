@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PROFILE_SHAPES, type ProfileShape } from "../domain/shapes";
+import { CUT_CALIBRATION_MODELS } from "../domain/cutCalibration";
 
 // Numeric fields are kept as typed text so that "12,5" and partial input survive re-renders.
 export const inputsSchema = z
@@ -23,6 +24,7 @@ export const inputsSchema = z
     calibration: z.string(),
     /** Old saved jobs retain their original cut model; new jobs enable the trial profile. */
     cylinderCalibration: z.boolean().default(false),
+    cylinderCalibrationModel: z.enum(CUT_CALIBRATION_MODELS).default("constant"),
     customRe: z.string(),
     customE: z.string(),
     customDensity: z.string(),
@@ -84,6 +86,7 @@ export const defaultInputs: Inputs = {
   reActual: "",
   calibration: "",
   cylinderCalibration: true,
+  cylinderCalibrationModel: "thickness",
   customRe: "",
   customE: "",
   customDensity: "",

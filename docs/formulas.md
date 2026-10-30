@@ -32,19 +32,28 @@ iteration is used (converges in a few steps).
 
 ### P460NL2 cylinder trial profile
 
-For the installed machine, five confirmed cylinder trials give an empirical cut shortening
-`b = 3.989383113250804 mm`. With the profile enabled:
+For the installed machine, five confirmed cylinder trials give an empirical thickness-scaled
+cut-length adjustment. Let `e = C_outer - L_cut - pi*t` for each trial:
 
 ```
-blank = ring - b + 2*f
-Dn = (blank - 2*f + b) / pi
+gamma = sum(t_i * e_i) / sum(t_i^2) = 0.41108378691481007
+correction = gamma*t
+blank = ring - correction + 2*f
+Dn = (blank - 2*f + correction) / pi
 ```
 
-This does not change k or the springback factor. The profile is limited to P460NL2 cylinders,
-t = 9.2–10.0 mm, without flat-end allowance or manual k. Other shapes, including both cones, keep
-the existing formulas. The trial outer circumferences were 6916–7548 mm; results beyond that range
-are explicitly marked as extrapolated. Old saved jobs and version-1 links keep the geometric model
-until the operator enables the profile. See [the decision and limits](adr/0010-p460-cylinder-cut-calibration.md).
+For baseline k = 0.5 this is equivalent in the cut formula to `k_eff = 0.4345739832875726`.
+This is a substitute process fit, not a measured neutral-axis position or a physical elongation law.
+The geometric k, ring and springback model remain separate. The profile works for all positive
+thicknesses on P460NL2 cylinders without flat-end allowance or manual k. Neither cone type receives
+it. Outside the measured t = 9.2–10.0 mm and outer C = 6916–7548 mm ranges, a warning identifies
+the prediction as extrapolated. At R/t < 5 the original geometric k still varies with R/t; the
+same thickness-scaled cut adjustment is an extrapolation, not a claim of constant physical k.
+
+Saved v1.1.10 cuts and version-2 links keep their original constant `b = 3.989383113250804 mm`
+and thickness gate until upgraded. Version-1 and legacy links keep the geometric model. New links
+use version 3 and preserve the chosen model. See [the current decision](adr/0011-p460-thickness-profile.md)
+and [the original constant fit](adr/0010-p460-cylinder-cut-calibration.md).
 
 ## Cone
 
